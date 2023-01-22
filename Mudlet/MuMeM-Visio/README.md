@@ -16,6 +16,11 @@ Use the packaged manager of Mudlet and restart
 
 If you need to remove manually, remove the "directory" MuMeM-Visio in your scripts directory and restart.
 
+## Using the package / addon
+The package adds a "visere" command. Just type "visere" to open the graphical window. If you close the window (via the x), you can open it again by typing "visere".
+
+**WARNING**: You should deactivate the image display when not using the addon, as it will also work when hidden (need to fix this).
+
 ## Currently "mapped" ares in the POC
 Only a few rooms around the marketsplace of Black Hill Village are mapped (the street, the market, the inn, smitty, ...).
 
