@@ -4,7 +4,7 @@
 ## Description
 MuMeM visio is a POC (Proof of Concept) on how to display images for rooms. In its current for it is very basic and just aims to give an impression of what a solution could look like.
 
-![MuMeM-Visio Screenshot](./master/doc/MuMeM-Visio.png?raw=true)
+![MuMeM-Visio Screenshot](./master/mume/Mudlet/MuMeM-Visio/doc/MuMeM-Visio.png?raw=true)
 
 ## Installation
 Download the package from this website and install it in Mudlet via the package manager. This will install a "directory" called "MuMeM-Visio" in the scripts section of Mudlet.
