@@ -19,7 +19,7 @@ Use the packaged manager of Mudlet to remove the package and restart.
 ### Short
 You can download the image pack from this website (image-pack.zip). Unzip it and move the **image files** into the directory/folder which is shown in the "Cache Directory" at MuMeM-Visio. Do **not** include any directories. Note that you might need to create these directories!
 
-###Detailed
+### Detailed
 
  1. Download the image pack from this web site (image-pack.zip)
  2. Unzip the file
