@@ -28,7 +28,7 @@ You can download the image pack from this website (image-pack.zip). Unzip it and
  4. Create the directory if required (or the missing subpathes)
     * Linux example: `mkdir -p /home/MuMeM/.config/mudlet/profiles/MMaper/MuMeM.Visio/Cache`
  5. Copy the files from RoomImages into the CacheDir
-    * Linux example: `cp RoomImages/* /home/MuMeM/.config/mudlet/profiles/MMaper/MuMeM.Visio/Cache`
+    * Linux example: `cp RoomImages/* /home/MuMeM/.config/mudlet/profiles/MMaper/MuMeM.Visio/Cache/`
 
 ## Using the package / addon
 The package adds a "visere" command. Just type "visere" to open the graphical window. If you close the window (via the x), you can open it again by typing "visere".
@@ -43,7 +43,8 @@ Only a few rooms around the marketsplace of Black Hill Village are mapped (the s
 In addition to this the area at the junction far south of Black Hill Village is also mapped with AI generated images. Thanx to Freyja for providing the images!
 
 **WARNING**: Loading of the images takes around one second! So use the "active"/"de-activate" possiblity of MuMeM-Visio! Aka, only activate if you are in a "mapped" area.
-**WARNING2**: Be careful in swim situation due to the long loading!!!
+
+**WARNING2**: Be careful in swim situation due to the long image load times!!!
 
 ## Adding your own images
 You can simply add your own images by placing the picture into the Cache directory as displayed by MuMeM-Visio. The following conditions apply:
