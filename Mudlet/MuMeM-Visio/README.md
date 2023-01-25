@@ -9,26 +9,29 @@ MuMeM visio is a POC (Proof of Concept) on how to display images of rooms in MUM
 ## Installation
 Download the latest package from this website and install it in Mudlet via the package manager. This will install a "directory" called "MuMeM-Visio" in the scripts section of Mudlet.
 
-Do not forget to download and install the **image pack**. See below for details on how to do this.
+To install the image pack, see below.
 
 ## Uninstallation
 Use the packaged manager of Mudlet to remove the package and restart.
 
 ## Image-Pack installation
 
-### Short
-You can download the image pack from this website (image-pack.zip). Unzip it and move the **image files** into the directory/folder which is shown in the "Cache Directory" at MuMeM-Visio. Do **not** include any directories. Note that you might need to create these directories!
+### "automatic" download
+Open "MuMeM-Visio" by typing "visere". Click on the "download images" button in the middle of the interface. Watch the log pane for progress and possible errors.
 
-### Detailed
+### Manual installation
+You can download the image pack from this website (image-pack.zip). Unzip it and move the **RoomImages** into the directory/folder which is shown in the "Data Directory" at MuMeM-Visio.
+
+### Manual installation (detailed steps)
 
  1. Download the image pack from this web site (image-pack.zip)
  2. Unzip the file
- 3. Lookup the CacheDir in MuMeM-Visio's graphical interface
+ 3. Lookup the Data Directory in MuMeM-Visio's graphical interface
     * You need to start Mudlet for this!
  4. Create the directory if required (or the missing subpathes)
-    * Linux example: `mkdir -p /home/MuMeM/.config/mudlet/profiles/MMaper/MuMeM.Visio/Cache`
- 5. Copy the files from RoomImages into the CacheDir
-    * Linux example: `cp RoomImages/* /home/MuMeM/.config/mudlet/profiles/MMaper/MuMeM.Visio/Cache/`
+    * Linux example: `mkdir -p /home/MuMeM/.config/mudlet/profiles/MMaper/MuMeM-Visio`
+ 5. Copy the RoomImage directory into the Data Directory
+    * Linux example: `cp RoomImages /home/MuMeM/.config/mudlet/profiles/MMaper/MuMeM-Visio/`
 
 ## Using the package / addon
 The package adds a "visere" command. Just type "visere" to open the graphical window. If you close the window (via the x), you can open it again by typing "visere".
@@ -47,11 +50,12 @@ In addition to this the area at the junction far south of Black Hill Village is 
 **WARNING2**: Be careful in swim situation due to the long image load times!!!
 
 ## Adding your own images
-You can simply add your own images by placing the picture into the Cache directory as displayed by MuMeM-Visio. The following conditions apply:
+You can simply add your own images by placing the picture into the RoomImages directory in the DataDirectory. The Data Directory is displayed in the user interface. The following conditions apply:
 
   * The filename must be the Hash of the room
     * The room hash is displayed in the MuMeM-Visio windown while standing in the room
     * Press "print hash" to have the hash printed into log window for easy copy & paste
+  * There file must not have an extension (like .jpg or .png). Only the roomhash by itself.
   * The image size is restricted to 400x400. Larger immages will **not** be scaled down.
   * Use "redraw" to see the effects (or do "look" in the room)
 
