@@ -59,6 +59,8 @@ You can simply add your own images by placing the picture into the RoomImages di
   * The image size is restricted to 400x400. Larger immages will **not** be scaled down.
   * Use "redraw" to see the effects (or do "look" in the room)
 
+**Update**: Since version v0.1.1 you can now use the "import image" button in the user interface, which will directly import the image file you select via the file dialogue and rename it to the hash. You still need to resize the image first though by yourself!
+
 ## Caveats / Future
 As said above, this is a POC of how something like this could look like. There are many ideas how this can be improved
 

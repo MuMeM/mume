@@ -1,0 +1,400 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE MudletPackage>
+<MudletPackage version="1.001">
+	<ScriptPackage>
+		<Script isActive="yes" isFolder="no">
+			<name>MuMeM.Visio.Library</name>
+			<packageName></packageName>
+			<script>-- ########################################################################################################
+-- # INITIALIZATION AND HELPERS
+-- ########################################################################################################
+
+function MuMeM.Visio.initialize()
+  MuMeM.Visio.dataDir = getMudletHomeDir().."/MuMeM-Visio"
+  MuMeM.Visio.isRooming = false
+  MuMeM.Visio.MainConsoleBackground = "OFF"   -- OFF | CENTER | BORDER | TILED
+  MuMeM.Visio.isDownloading = false
+  MuMeM.Visio.isUnzipping = false
+  
+  MuMeM.Visio.createDataDir()
+  MuMeM.Visio.setupGUI(false)
+  
+  MuMeM.Visio.log("MuMeM.Visio initialized")
+end
+
+function MuMeM.Visio.fileExists(fileName)
+  local f=io.open(fileName)
+  
+  if f then
+    io.close(f)
+    return true
+  else
+    return false
+  end
+end
+
+function MuMeM.Visio.copyFile(srcFile, dstFile)
+  local srcFileIO = io.open(srcFile)
+  if not srcFileIO then
+    return false
+  end
+  local dstFileIO = io.open(dstFile, "w")
+  if not srcFileIO then
+    srcFileIO:close()
+    return false
+  end
+  
+  while true do
+    local block = srcFileIO:read(2^13)
+    if not block then break end
+    dstFileIO:write(block)
+  end
+  
+  srcFileIO:close()
+  dstFileIO:close()
+  
+  return true
+end
+
+function MuMeM.Visio.getDataDir(appendPath)
+  if appendPath then
+    if string.sub(appendPath,1,1) == "/" then
+      return MuMeM.Visio.dataDir..appendPath
+    else
+      return MuMeM.Visio.dataDir.."/"..appendPath
+    end
+  else
+    return MuMeM.Visio.dataDir
+  end
+end
+
+function MuMeM.Visio.createDataDir()
+  lfs.mkdir(MuMeM.Visio.getDataDir())
+end
+
+-- ########################################################################################################
+-- # Import
+-- ########################################################################################################
+
+function MuMeM.Visio.importImage()
+  local path = invokeFileDialog(true, "Chose impage to import")
+  if path then
+    local roomHash = MuMeM.Visio.calcRoomHash()
+    if roomHash and roomHash ~= "unknown" then
+      if MuMeM.Visio.copyFile(path, MuMeM.Visio.getDataDir("/RoomImages/"..roomHash)) then
+        MuMeM.Visio.redrawRoomImage(roomHash)
+        MuMeM.Visio.log("[IMPORT] Image imported successfully")
+      else
+        MuMeM.Visio.log("[IMPORT] Import failed, error during copy")
+      end
+    else
+      MuMeM.Visio.log("[IMPORT] Import failed, cannot calculate room hash")
+    end
+  end
+end
+
+-- ########################################################################################################
+-- # UNZIP
+-- ########################################################################################################
+
+function MuMeM.Visio.unzipImagePackDone(event, ...)
+  MuMeM.Visio.log("[UNZIP] Image pack sucessfully unzipped.")  
+  
+  MuMeM.Visio.isUnzipping = false
+end
+  
+function MuMeM.Visio.unzipImagePackError(event, zipFile, destination)
+  MuMeM.Visio.log("[UNZIP] Error while unzipping file!") 
+  MuMeM.Visio.log("[UNZIP] zip-file: "..zipFile) 
+  MuMeM.Visio.log("[UNZIP] destination: "..destination) 
+
+  MuMeM.Visio.isUnzipping = false
+end
+
+function MuMeM.Visio.unzipImagePack(event, zipFile, destination)
+  if not MuMeM.Visio.fileExists(MuMeM.Visio.getDataDir("/image-pack.zip")) then
+    MuMeM.Visio.log("[UNZIP] Image pack does not exist.")
+    return
+  end
+  
+  if MuMeM.Visio.isUnzipping then
+    MuMeM.Visio.log("[UNZIP] An unzip operation is already in progress")
+    return
+  end
+  
+  MuMeM.Visio.isUnzipping = true
+  registerAnonymousEventHandler("sysUnzipDone", "MuMeM.Visio.unzipImagePackDone")
+  registerAnonymousEventHandler("sysUnzipError", "MuMeM.Visio.unzipImagePackError")
+  unzipAsync(MuMeM.Visio.getDataDir("/image-pack.zip"), MuMeM.Visio.getDataDir("/"))
+
+  MuMeM.Visio.log("[UNZIP] Unzip of image pack started in the background.")
+end
+
+-- ########################################################################################################
+-- # DOWNLOAD
+-- ########################################################################################################
+
+function MuMeM.Visio.downloadImagePackDone(event, fileName)
+  if fileName ~= MuMeM.Visio.getDataDir("/image-pack.zip") then        -- not my download
+    MuMeM.Visio.log("[DOWNLOAD] sysDownloadDone event received, but not my download, keep waiting...")
+    return
+  end
+
+  MuMeM.Visio.log("[DOWNLOAD] Image pack successfully downloaded")  
+  
+  MuMeM.Visio.isDownloading = false
+  
+  MuMeM.Visio.unzipImagePack()
+end
+
+function MuMeM.Visio.downloadImagePackError(event, message)
+  if not string.find(message, MuMeM.Visio.IMAGE_PACK_URL,nil,true) then  -- not my download
+    MuMeM.Visio.log("[DOWNLOAD] sysDownloadError received, but not my download, keep waiting...")  
+    return
+  end
+  
+  MuMeM.Visio.log("[DOWNLOAD] Error while downlaoding file!") 
+  MuMeM.Visio.log("[DOWNLOAD] "..message)   
+
+  MuMeM.Visio.isDownloading = false
+end
+
+function MuMeM.Visio.downloadImagePack()
+  if MuMeM.Visio.isDownloading or MuMeM.Visio.isUnzipping then
+    MuMeM.Visio.log("[DOWNLOAD] File download already in progress, aborting")
+    return
+  end
+
+  MuMeM.Visio.isDownloading = true
+  registerAnonymousEventHandler("sysDownloadDone", "MuMeM.Visio.downloadImagePackDone")
+  registerAnonymousEventHandler("sysDownloadError", "MuMeM.Visio.downloadImagePackError")
+  downloadFile(MuMeM.Visio.getDataDir("/image-pack.zip"), MuMeM.Visio.IMAGE_PACK_URL)
+
+  MuMeM.Visio.log("[DOWNLOAD] File download started in the background, please wait")    
+end
+
+-- ########################################################################################################
+-- # MAIN CONSOLE BACKGROUND
+-- ########################################################################################################
+
+function MuMeM.Visio.setMainConsoleBackground()
+  if MuMeM.Visio.MainConsoleBackground == "OFF" then
+    MuMeM.Visio.MainConsoleBackground = "BORDER"
+  elseif MuMeM.Visio.MainConsoleBackground == "BORDER" then
+    MuMeM.Visio.MainConsoleBackground = "CENTER"
+  elseif MuMeM.Visio.MainConsoleBackground == "CENTER" then
+    MuMeM.Visio.MainConsoleBackground = "TILED"
+  else
+    MuMeM.Visio.MainConsoleBackground = "OFF"
+  end
+  MuMeM.Visio.redrawMainConsoleBackground()
+end
+
+function MuMeM.Visio.redrawMainConsoleBackground(roomHash)
+  if MuMeM.Visio.MainConsoleBackground == "OFF" then
+    resetBackgroundImage("main")
+  else
+    local roomHash = roomHash or MuMeM.Visio.calcRoomHash()
+    local fileName = MuMeM.Visio.getDataDir("/RoomImages/"..roomHash)
+
+    if MuMeM.Visio.fileExists(fileName) then
+      if MuMeM.Visio.MainConsoleBackground == "TILED" then
+        local styleSheet = [[
+          background-image: url(]]..fileName..[[);
+        ]]
+        setBackgroundImage("main", styleSheet, "style")
+  -- setBackgroundImage("my_miniconsole", [[background-image: url(:/Mudlet_splashscreen_development.png); background-repeat: no-repeat; background-position: right;]], "style")
+      else
+        setBackgroundImage("main", fileName, string.lower(MuMeM.Visio.MainConsoleBackground))
+      end
+    else
+      resetBackgroundImage("main")
+    end
+  end
+end
+
+-- ########################################################################################################
+-- # CALLBACKS
+-- ########################################################################################################
+
+function MuMeM.Visio.printRoomHash()
+  local roomHash = roomHash or MuMeM.Visio.calcRoomHash()
+  MuMeM.Visio.log("Room hash: "..roomHash)
+end
+
+function MuMeM.Visio.enableRooming()
+  MuMeM.Visio.isRooming = true
+  MuMeM.Visio.Visual.statusToggle:echo("de-activate")
+  MuMeM.Visio.Visual.statusIndicatorRed:hide()
+  MuMeM.Visio.Visual.statusIndicatorGreen:show()
+  MuMeM.Visio.redrawRoomText()
+  MuMeM.Visio.redrawRoomImage()
+end
+
+function MuMeM.Visio.disableRooming()
+  MuMeM.Visio.isRooming = false
+  MuMeM.Visio.Visual.statusToggle:echo("activate")
+  MuMeM.Visio.Visual.statusIndicatorRed:show()
+  MuMeM.Visio.Visual.statusIndicatorGreen:hide()
+  MuMeM.Visio.Visual.roomImage:setBackgroundImage(MuMeM.Visio.getDataDir("/RoomImages/deactivated"))
+  MuMeM.Visio.Visual.roomText:clear()
+  MuMeM.Visio.Visual.roomText:echo("Deactivated")
+  MuMeM.Visio.Visual.roomHashEntry:echo("deactivated")
+end
+
+function MuMeM.Visio.toggleRooming()
+  if MuMeM.Visio.isRooming then
+    MuMeM.Visio.disableRooming()
+  else
+    MuMeM.Visio.enableRooming()
+  end
+end
+
+function MuMeM.Visio.calcRoomHash(roomHash)
+  if not gmcp.Room.Info.area or not gmcp.Room.Info.name or not gmcp.Room.Info.desc then
+    return "unknown"
+  end
+  
+  return md5.Calc(gmcp.Room.Info.area..gmcp.Room.Info.name..gmcp.Room.Info.desc)
+end
+
+function MuMeM.Visio.redrawRoomText(roomHash)
+  local roomHash = roomHash or MuMeM.Visio.calcRoomHash()
+  local roomName = gmcp.Room.Info.name or "Unknown room (pitch black?)"
+  local roomDesc
+  local roomExitAbbr = { n="north", e="east", s="south", w="west", u="up", d="down" }
+
+  MuMeM.Visio.Visual.roomText:clear()
+  
+  if gmcp.Room.Info.desc then 
+    --roomDesc = gmcp.Room.Info.desc:gsub("\n","&lt;br&gt;")
+    roomDesc = gmcp.Room.Info.desc
+  else
+    roomDesc = "Unknown or pitch black"
+  end
+
+  MuMeM.Visio.Visual.roomText:decho("&lt;b&gt;&lt;0,128,0&gt;"..roomName.."&lt;/b&gt;&lt;200,200,200&gt;\n"..roomDesc)
+  
+  -- TODO: refactor his exit block !!!!       TODO           TODO
+  MuMeM.Visio.Visual.roomText:decho"\n&lt;b&gt;Exits:&lt;/b&gt;\n"
+  if gmcp.Room.Info.exits then
+    for exitDir,exitData in pairs(gmcp.Room.Info.exits) do
+      local roomExit = roomExitAbbr[exitDir]
+      local exitName = exitData.name
+      local exitIsClosed = nil
+      local exitIsRoad = nil
+      local exitIsTrail = nil
+      local exitIsWater = nil
+      if exitData.flags then
+        for _,exitFlag in pairs(exitData.flags) do
+          if exitFlag == "closed" then
+            exitIsClosed = true
+          elseif exitFlag == "road" then
+            exitIsRoad = true
+          elseif exitFlag == "trail" then
+            exitIsTrail = true
+          elseif exitFlag == "water" then
+            exitIsWater = true
+          else
+            MuMeM.Visio.log(f"Unknown room exit flag: {exitFlag}")
+          end
+        end
+      end
+      local exitInfo = nil
+      if exitName then
+        if exitIsClosed then
+          exitInfo = exitName.." [closed]"
+        else
+          exitInfo = exitName.." (open)"
+        end
+      elseif exitIsRoad then
+        exitInfo = "=road="
+      elseif exitIsTrail then
+        exitInfo = "-trail-"
+      elseif exitIsWater then
+        exitInfo = "~water~"
+      end
+      if exitInfo then
+        roomExit = roomExit.." : "..exitInfo
+      end
+      MuMeM.Visio.Visual.roomText:echo("- ")
+      MuMeM.Visio.Visual.roomText:echoLink(roomExit, function() send(exitDir) end, "", true)
+      MuMeM.Visio.Visual.roomText:echo("\n")
+    end
+  else
+    MuMeM.Visio.Visual.roomText:echo("- None\n")
+  end
+
+  MuMeM.Visio.Visual.roomHashEntry:echo(roomHash)
+end
+
+function MuMeM.Visio.redrawRoomImage(roomHash)
+  local roomHash = roomHash or MuMeM.Visio.calcRoomHash()
+  local fileName = MuMeM.Visio.getDataDir("/RoomImages/"..roomHash)
+
+  if not MuMeM.Visio.fileExists(fileName) then
+    MuMeM.Visio.log("Image for room does not exist in Image Directory")
+    fileName = MuMeM.Visio.getDataDir("/RoomImages/notfound")
+  end
+    
+  MuMeM.Visio.Visual.roomImage:setBackgroundImage(fileName)
+end
+
+function MuMeM.Visio.redraw()
+  if not MuMeM.Visio.isRooming then 
+    MuMeM.Visio.log("Room updates deactivated")
+  elseif gmcp and gmcp.Room and gmcp.Room.Info then
+    local overallDuration = getEpoch()
+    MuMeM.Visio.log("Redrawing...")
+    
+    local roomHashDuration = getEpoch()
+    local roomHash = md5.Calc(gmcp.Room.Info.area..gmcp.Room.Info.name..gmcp.Room.Info.desc)
+    roomHashDuration = getEpoch() - roomHashDuration
+   
+    local redrawDuration = getEpoch()
+    MuMeM.Visio.redrawRoomText(roomHash)
+    MuMeM.Visio.redrawRoomImage(roomHash)
+    redrawDuration = getEpoch() - redrawDuration
+    
+    local mainConsoleDuration = getEpoch()
+    MuMeM.Visio.redrawMainConsoleBackground(roomHash)
+    mainConsoleDuration = getEpoch() - mainConsoleDuration
+    
+    overallDuration = math.ceil((getEpoch()-overallDuration)*10000)/10000
+    roomHashDuration = math.ceil(roomHashDuration*10000)/10000
+    redrawDuration = math.ceil(redrawDuration*10000)/10000
+    mainConsoleDuration = math.ceil(mainConsoleDuration*10000)/10000
+
+    MuMeM.Visio.log(f"Redraw done, took {overallDuration} seconds (hash: {roomHashDuration} sec, gui: {redrawDuration} sec, mainConsole: {mainConsoleDuration})")
+  else
+    MuMeM.Visio.log("Redraw called, but no gmcp info available")
+  end
+end
+
+-- ########################################################################################################
+-- # SIMPLE LOGGING
+-- ########################################################################################################
+
+function MuMeM.Visio.log(msg)
+  if MuMeM.Visio.Visual.loggingConsole then
+    MuMeM.Visio.Visual.loggingConsole:echo("["..getTime(true,"hh:mm:ss").."] "..msg.."\n")
+  end
+end
+
+
+-- ########################################################################################################
+-- # ACTION "visere"
+-- ########################################################################################################
+
+function MuMeM.Visio.activate()
+  if not MuMeM.Visio.Visual.mainWindow then
+    MuMeM.Visio.initialize()
+    MuMeM.Visio.disableRooming()
+  end
+  
+  showWindow("MuMeM.Visio.Visual.mainWindow")
+end</script>
+			<eventHandlerList />
+		</Script>
+	</ScriptPackage>
+</MudletPackage>
