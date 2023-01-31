@@ -1,4 +1,4 @@
-#MuMeM Visio
+MuMeM Visio
 ============================
 
 ## Description
