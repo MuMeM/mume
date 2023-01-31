@@ -1,0 +1,358 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE MudletPackage>
+<MudletPackage version="1.001">
+	<ScriptPackage>
+		<ScriptGroup isActive="yes" isFolder="yes">
+			<name>MuMeM.GMCP</name>
+			<packageName></packageName>
+			<script>echo("MuMeM.GMCP: loading\n")
+
+MuMeM = MuMeM or {}
+MuMeM.GMCP = MuMeM.GMCP or {}
+MuMeM.GMCP.EventHandler = MuMeM.GMCP.EventHandler or {}
+
+MuMeM.GMCP.logLevel = "DEBUG"
+
+-- --- Module setup ----------------------------------------------
+
+MuMeM.GMCP.module_name = "MuMeM.GMCP"
+MuMeM.GMCP.module_dependencies = {}        -- we MUST NOT have dependencies and LOAD AS FAST AS POSSIBLE
+MuMeM.modules = MuMeM.modules or {}
+MuMeM.modules[MuMeM.GMCP.module_name] = MuMeM.modules[MuMeM.GMCP.module_name] or {module=MuMeM.GMCP}</script>
+			<eventHandlerList />
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.GMCP.Library</name>
+				<packageName></packageName>
+				<script>function MuMeM.GMCP.initialize()
+  MuMeM.GMCP.collectedKeys = MuMeM.GMCP.collectedKeys or {}
+
+  MuMeM.GMCP.data = MuMeM.GMCP.data or {}
+
+  MuMeM.GMCP.data.Char = MuMeM.GMCP.data.Char or {}
+  MuMeM.GMCP.data.Char.Name = MuMeM.GMCP.data.Char.Name or {}
+  MuMeM.GMCP.data.Char.StatusVars = MuMeM.GMCP.data.Char.StatusVars or {}
+  MuMeM.GMCP.data.Char.Vitals = MuMeM.GMCP.data.Char.Vitals or {}
+
+  MuMeM.GMCP.data.Room = MuMeM.GMCP.data.Room or {}
+end
+
+function MuMeM.GMCP.initSession()
+  MuMeM.GMCP.debug("MuMeM.GMCP.initSession(): initialize new session")
+  
+  MuMeM.GMCP.data = {}
+
+  MuMeM.GMCP.data.Char = {}
+  MuMeM.GMCP.data.Char.Name = {}
+  MuMeM.GMCP.data.Char.StatusVars = {}
+  MuMeM.GMCP.data.Char.Vitals = {}
+
+  MuMeM.GMCP.data.Room = {}
+end
+
+function MuMeM.GMCP.debug(msg)
+  if MuMeM.Log then
+    MuMeM.Log.debug(msg, "MuMeM.GMCP")
+  else
+    print("["..getTime(true,"hh:mm:ss").." D] [MuMeM.GMCP] "..msg)
+  end
+end
+
+function MuMeM.GMCP.info(msg)
+  if MuMeM.Log then
+    MuMeM.Log.info(msg, "MuMeM.GMCP")
+  else
+    print("["..getTime(true,"hh:mm:ss").." I] [MuMeM.GMCP] "..msg)
+  end
+end
+
+function MuMeM.GMCP.collectDataRecurse(masterTable, diffTable, level)
+  if level &gt; 10 then
+    return
+  elseif not diffTable then     -- TODO: happens at startup, but what to do otherwise?
+    return                      --    masterTable = {} ?  remove entry from master??
+  end
+
+  for k,v in pairs(diffTable) do
+
+    if type(v) == "table" then
+      if not masterTable[k] then
+        masterTable[k] = {}
+      end
+      MuMeM.GMCP.collectDataRecurse(masterTable[k], diffTable[k], level+1)
+    else
+      masterTable[k] = v
+    end
+  end
+end
+
+
+</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.GMCP.Char</name>
+				<packageName></packageName>
+				<script>-- ### COLLECTING ################################################################################
+
+function MuMeM.GMCP.collectCharNameData()
+  MuMeM.GMCP.collectDataRecurse(MuMeM.GMCP.data.Char.Name, gmcp.Char.Name, 1)
+end
+
+function MuMeM.GMCP.collectCharStatusVarsData()
+  MuMeM.GMCP.collectDataRecurse(MuMeM.GMCP.data.Char.StatusVars, gmcp.Char.StatusVars, 1)
+end
+
+function MuMeM.GMCP.collectCharVitalsData()
+  for k,v in pairs(gmcp.Char.Vitals) do
+    MuMeM.GMCP.data.Char.Vitals[k] = v
+    if MuMeM.Player and MuMeM.Player["gmcp_set_"..k] then
+      MuMeM.Player["gmcp_set_"..k](v)
+    end
+  end
+  
+  if MuMeM.Player then
+    MuMeM.Player.notifyVitals()
+  end
+end
+
+-- ### HOOKS #####################################################################################
+
+function MuMeM.GMCP.handleEventCharName()
+  MuMeM.GMCP.debug("MuMeM.GMCP.handleEventCharName()")
+
+  MuMeM.GMCP.collectCharNameData()
+    
+  raiseEvent("MuMeM.GMCP.Char.Name")
+  raiseEvent("MuMeM.GMCP.Char")
+end
+
+function MuMeM.GMCP.handleEventCharStatusVars()
+  MuMeM.GMCP.debug("MuMeM.GMCP.handleEventCharStatusVars()")
+
+  MuMeM.GMCP.collectCharStatusVarsData()
+    
+  raiseEvent("MuMeM.GMCP.Char.StatusVars")
+  raiseEvent("MuMeM.GMCP.Char")
+end
+
+
+function MuMeM.GMCP.handleEventCharVitals()
+  MuMeM.GMCP.debug("MuMeM.GMCP.handleEventCharVitals()")
+
+  MuMeM.GMCP.collectCharVitalsData()
+    
+  raiseEvent("MuMeM.GMCP.Char.Vitals")
+  raiseEvent("MuMeM.GMCP.Char")
+end
+
+function MuMeM.GMCP.handleEventChar()
+  MuMeM.GMCP.debug("MuMeM.GMCP.handleEventChar()")
+
+  MuMeM.GMCP.collectKeys(gmcp,"gmcp",1)
+    
+  --raiseEvent("MuMeM.GMCP.Char")
+end
+</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.GMCP.Room</name>
+				<packageName></packageName>
+				<script>function MuMeM.GMCP.handleEventRoom()
+  MuMeM.GMCP.debug("MuMeM.GMCP.handleEventRoom()")
+
+  MuMeM.GMCP.collectKeys(gmcp,"gmcp",1)
+end
+
+function MuMeM.GMCP.handleEventRoomInfo()
+  MuMeM.GMCP.debug("MuMeM.GMCP.handleEventRoomInfo()")
+
+--  MuMeM.GMCP.collectRoomData()      -- TODO
+end
+
+function MuMeM.GMCP.handleEventRoomUpdateExits()
+  MuMeM.GMCP.debug("MuMeM.GMCP.handleEventRoomUpdateExits()")
+
+--  MuMeM.GMCP.collectRoomData()      -- TODO
+end
+
+function MuMeM.GMCP.handleEventRoomChars()
+  MuMeM.GMCP.debug("MuMeM.GMCP.handleEventRoomChars()")
+
+--  MuMeM.GMCP.collectRoomData()      -- TODO
+  display(gmcp.Room.Chars)
+  
+  -- we MUST reset the table, otherwise it gets mixed up with new updates
+  -- even if we RISK to LOSE DATA with this!
+  --gmcp.Room.Chars = {}
+  
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.GMCP.Collector</name>
+				<packageName></packageName>
+				<script>--[[
+  This "library" is collecting all the different keys to find out what MUME is sending.
+  It is only used for exploring and can be discarded later once we know all the "secrets"
+--]]
+
+function MuMeM.GMCP.dumpKeys()
+  --[[
+      Dumps the collected keys. 
+      This is used for exploring what data we get from MUME
+  --]]
+  
+  local tkeys = {}
+  
+  for k in pairs(MuMeM.GMCP.collectedKeys) do table.insert(tkeys, k) end
+  table.sort(tkeys)
+
+  MuMeM.GMCP.info("----------------------------")
+  for _,k in ipairs(tkeys) do
+    local i,j = string.find(k,"gmcp.External.Discord")
+    if i == nil then
+      MuMeM.GMCP.info(k)
+    end
+  end
+end
+
+function MuMeM.GMCP.collectKeys(gmcpTable,prefix,level)
+  --[[
+      Collects all the different keys sent from MUME
+      This function recursively calls itself
+  --]]
+  
+  --MuMeM.GMCP.debug("MuMeM.GMCP.collectKeys()")
+  
+  if level &gt; 10 then
+    return
+  end
+
+  for k,v in pairs(gmcpTable) do
+    local key = prefix.."."..k
+    local val = type(v)
+    MuMeM.GMCP.collectedKeys[key] = val
+    if val == 'table' then
+      MuMeM.GMCP.collectKeys(v,key,level+1)
+    end
+  end
+end</script>
+				<eventHandlerList />
+			</Script>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.GMCP.EventHandler</name>
+				<packageName></packageName>
+				<script></script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.GMCP.EventHandler.catchCharName</name>
+					<packageName></packageName>
+					<script>function MuMeM.GMCP.EventHandler.catchCharName()
+  MuMeM.GMCP.debug("MuMeM.GMCP.EventHandler.catchCharName()")
+  MuMeM.GMCP.handleEventCharName()
+end</script>
+					<eventHandlerList>
+						<string>gmcp.Char.Name</string>
+					</eventHandlerList>
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.GMCP.EventHandler.catchCharStatusVars</name>
+					<packageName></packageName>
+					<script>function MuMeM.GMCP.EventHandler.catchCharStatusVars()
+  MuMeM.GMCP.debug("MuMeM.GMCP.EventHandler.catchCharStatusVars()")
+  MuMeM.GMCP.handleEventCharStatusVars()
+end</script>
+					<eventHandlerList>
+						<string>gmcp.Char.StatusVars</string>
+					</eventHandlerList>
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.GMCP.EventHandler.catchCharVitals</name>
+					<packageName></packageName>
+					<script>function MuMeM.GMCP.EventHandler.catchCharVitals()
+  MuMeM.GMCP.debug("MuMeM.GMCP.EventHandler.catchCharVitals()")
+  MuMeM.GMCP.handleEventCharVitals()
+end</script>
+					<eventHandlerList>
+						<string>gmcp.Char.Vitals</string>
+					</eventHandlerList>
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.GMCP.EventHandler.catchChar</name>
+					<packageName></packageName>
+					<script>function MuMeM.GMCP.EventHandler.catchChar()
+  MuMeM.GMCP.debug("MuMeM.GMCP.EventHandler.catchChar()")
+  MuMeM.GMCP.handleEventChar()
+end</script>
+					<eventHandlerList>
+						<string>gmcp.Char</string>
+						<string>gmcp.Char.Vitals</string>
+					</eventHandlerList>
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.GMCP.EventHandler.catchRoomInfo</name>
+					<packageName></packageName>
+					<script>function MuMeM.GMCP.EventHandler.catchRoomInfo()
+  MuMeM.GMCP.debug("MuMeM.GMCP.EventHandler.catchRoomInfo()")
+  MuMeM.GMCP.handleEventRoomInfo()
+end</script>
+					<eventHandlerList>
+						<string>gmcp.Room.Info</string>
+					</eventHandlerList>
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.GMCP.EventHandler.catchRoomUpdateExits</name>
+					<packageName></packageName>
+					<script>function MuMeM.GMCP.EventHandler.catchRoomUpdateExits()
+  MuMeM.GMCP.debug("MuMeM.GMCP.EventHandler.catchRoomUpdateExits()")
+  MuMeM.GMCP.handleEventRoomUpateExits()
+end</script>
+					<eventHandlerList>
+						<string>gmcp.Room.UpdateExits</string>
+					</eventHandlerList>
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.GMCP.EventHandler.catchRoomChars</name>
+					<packageName></packageName>
+					<script>function MuMeM.GMCP.EventHandler.catchRoomChars(...)
+  MuMeM.GMCP.debug("MuMeM.GMCP.EventHandler.catchRoomChars()")
+  MuMeM.GMCP.handleEventRoomChars()
+  print("START")
+  display(arg)
+  print("N",arg.n)
+  print("DONE")
+end</script>
+					<eventHandlerList>
+						<string>gmcp.Room.Chars</string>
+					</eventHandlerList>
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.GMCP.EventHandler.catchRoom</name>
+					<packageName></packageName>
+					<script>function MuMeM.GMCP.EventHandler.catchRoom()
+  MuMeM.GMCP.debug("MuMeM.GMCP.EventHandler.catchRoom()")
+  MuMeM.GMCP.handleEventRoom()
+end</script>
+					<eventHandlerList>
+						<string>gmcp.Room</string>
+					</eventHandlerList>
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.GMCP.EventHandler.ProtocolEnabled</name>
+					<packageName></packageName>
+					<script>function MuMeM.GMCP.EventHandler.ProtocolEnabled(event, protocol)
+  MuMeM.GMCP.debug("MuMeM.GMCP.EventHandler.ProtocolEnabled()")
+  
+  if protocol == "GMCP" then
+    MuMeM.GMCP.initSession()
+  end
+end</script>
+					<eventHandlerList>
+						<string>sysProtocolEnabled</string>
+					</eventHandlerList>
+				</Script>
+			</ScriptGroup>
+		</ScriptGroup>
+	</ScriptPackage>
+</MudletPackage>

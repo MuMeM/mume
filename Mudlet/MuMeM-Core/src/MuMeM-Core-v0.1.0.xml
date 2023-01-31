@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE MudletPackage>
+<MudletPackage version="1.001">
+	<ScriptPackage>
+		<ScriptGroup isActive="yes" isFolder="yes">
+			<name>MuMeM.Core</name>
+			<packageName></packageName>
+			<script>echo("MuMeM.Core: loading\n")
+
+MuMeM = MuMeM or {}
+MuMeM.Core = MuMeM.Core or {}
+MuMeM.Core.Module = MuMeM.Core.Module or {}
+MuMeM.Core.IO = MuMeM.Core.IO or {}
+
+MuMeM.modules = MuMeM.modules or {}
+
+
+-- --- Module setup ----------------------------------------------
+
+MuMeM.Core.module_name = "MuMeM.Core"
+MuMeM.Core.module_dependencies = {}
+MuMeM.modules = MuMeM.modules or {}
+MuMeM.modules[MuMeM.Core.module_name] = MuMeM.modules[MuMeM.Core.module_name] or {module=MuMeM.Core}
+
+tempTimer( 0.01, function () raiseEvent( "MuMem_RegisterModule" ) end )</script>
+			<eventHandlerList />
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Core.Library</name>
+				<packageName></packageName>
+				<script>function MuMeM.Core.initialize()
+  return
+end
+
+function MuMeM.Core.registerModule()
+  print("NOT IMPLEMENTED")
+  -- This method must ONLY be called after the module is FULLY LOADED!!! (use the LOAD EVENT)
+  --MuMeM.Core.Module.load()
+end</script>
+				<eventHandlerList />
+			</Script>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMem.Core.Module</name>
+				<packageName></packageName>
+				<script></script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Core.Module.Library</name>
+					<packageName></packageName>
+					<script>function MuMeM.Core.Module.loadOne(mName)
+  local moduleObj = MuMeM.modules[mName].module
+  local shouldInitialize = true
+  
+  if moduleObj.module_dependencies then
+    for _,mDep in pairs(moduleObj.module_dependencies) do
+      if not MuMeM.modules[mDep] then
+        shouldInitialize = false
+        -- print(f"MuMeM module {mName} missing dependency {mDep}") 
+        break
+      elseif not MuMeM.modules[mDep].isInitialized then
+        MuMeM.Core.Module.loadOne(mDep, MuMeM.modules[mDep])
+        shouldInitialize = MuMeM.modules[mDep].isInitialized
+        break
+      end
+    end
+  end
+
+  if shouldInitialize then
+    moduleObj.initialize()
+    --print(f"MuMeM module {mName} initialized")
+    MuMeM.modules[mName].isInitialized = true
+  end
+end
+
+function MuMeM.Core.Module.loadAll()
+  for mName,_ in pairs(MuMeM.modules) do
+    if not MuMeM.modules[mName].isInitialized then
+      MuMeM.Core.Module.loadOne(mName)
+    end
+  end
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Core.Module.LoadEvent</name>
+					<packageName></packageName>
+					<script>function MuMeM.Core.Module.LoadEvent()
+  MuMeM.Core.Module.loadAll()
+end</script>
+					<eventHandlerList>
+						<string>MuMem_RegisterModule</string>
+					</eventHandlerList>
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Core.IO</name>
+				<packageName></packageName>
+				<script></script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Core.IO.Library</name>
+					<packageName></packageName>
+					<script>function MuMeM.Core.IO.fileExists(fileName)
+  local f=io.open(fileName)
+  
+  if f then
+    io.close(f)
+    return true
+  else
+    return false
+  end
+end</script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+		</ScriptGroup>
+	</ScriptPackage>
+</MudletPackage>

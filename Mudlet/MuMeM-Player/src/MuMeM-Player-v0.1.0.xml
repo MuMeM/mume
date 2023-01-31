@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE MudletPackage>
+<MudletPackage version="1.001">
+	<ScriptPackage>
+		<ScriptGroup isActive="yes" isFolder="yes">
+			<name>MuMeM.Player</name>
+			<packageName></packageName>
+			<script>--[[
+    All information about the player, like Vitals, Name, Status, ...
+    
+    DEPENDENCIES:
+      - MuMeM.Log
+--]]
+
+echo("MuMeM.Player: loading\n")
+
+MuMeM = MuMeM or {}
+MuMeM.Player = MuMeM.Player or {}
+
+-- --- Module setup ----------------------------------------------
+
+MuMeM.Player.module_name = "MuMeM.Player"
+MuMeM.Player.module_dependencies = {"MuMeM.Log"}
+MuMeM.modules = MuMeM.modules or {}
+MuMeM.modules[MuMeM.Player.module_name] = MuMeM.modules[MuMeM.Player.module_name] or {module=MuMeM.Player}</script>
+			<eventHandlerList />
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Player.Library</name>
+				<packageName></packageName>
+				<script>--[[
+hp           current health points (*)
+maxhp        maximum health points
+mana         current mana points (*)
+maxmana      maximum mana points
+mp           current movement points (*)
+maxmp        maximum movement points
+xp           current experience points
+tp           current travel points
+carrying     string describing how heavy load you are carrying 
+              (heavy -&gt; really heavy -&gt; painful)
+ride         true if currently riding; otherwise false
+ridden       true if currently ridden by someone; otherwise false
+climb        null, "c", or "C"
+swim         null, "s", or "S"
+light        "*", "!", ")", or "o"
+fog          null, "-" or "="
+weather      "~", "'", "\"", or "*"
+alertness    "normal", "careful", etc.
+mood         "wimpy", "prudent", etc.
+spell-effort	"quick", "fast", etc.
+--]]
+
+-- ### INITIALIZATION #############################################################
+
+function MuMeM.Player.initialize()
+  MuMeM.Player._hp = nil
+  MuMeM.Player._maxhp = nil
+  MuMeM.Player._sp = nil
+  MuMeM.Player._maxsp = nil
+  MuMeM.Player._mp = nil
+  MuMeM.Player._maxmp = nil
+  MuMeM.Player._xp = nil
+  MuMeM.Player._tp = nil
+  MuMeM.Player._carrying = nil
+  MuMeM.Player._ride = nil
+end
+
+local function player_setvalue(key, value, eventName)
+  if value ~= MuMeM.Player[key] then
+    MuMeM.Player[key] = value
+    raiseEvent("MuMeM.Player."..eventName)
+  end
+end
+
+-- ### HP #########################################################################
+
+function MuMeM.Player.hp()
+  return MuMeM.Player._hp
+end
+
+function MuMeM.Player.setHp(hp)
+  player_setvalue("_hp", hp, "Hp")
+end
+
+function MuMeM.Player.gmcp_set_hp(hp)
+  MuMeM.Player.setHp(hp)
+end
+
+function MuMeM.Player.maxHp()
+  return MuMeM.Player._maxhp
+end
+
+function MuMeM.Player.setMaxHp(maxhp)
+  player_setvalue("_maxhp", maxhp, "MaxHp")
+end
+
+function MuMeM.Player.gmcp_set_maxhp(maxhp)
+  MuMeM.Player.setMaxHp(maxhp)
+end
+
+-- ### SP (MANA) ###################################################################
+
+function MuMeM.Player.sp()
+  return MuMeM.Player._sp
+end
+
+function MuMeM.Player.setSp(sp)
+  player_setvalue("_sp", sp, "Sp")
+end
+
+function MuMeM.Player.gmcp_set_mana(sp)
+  MuMeM.Player.setSp(sp)
+end
+
+function MuMeM.Player.maxSp()
+  return MuMeM.Player._maxsp
+end
+
+function MuMeM.Player.setMaxSp(maxsp)
+  player_setvalue("_maxsp", maxsp, "MaxSp")
+end
+
+function MuMeM.Player.gmcp_set_maxmana(maxsp)
+  MuMeM.Player.setMaxSp(maxsp)
+end
+
+-- ### MP ##########################################################################
+
+function MuMeM.Player.mp()
+  return MuMeM.Player._mp
+end
+
+function MuMeM.Player.setMp(mp)
+  player_setvalue("_mp", mp, "Mp")
+end
+
+function MuMeM.Player.gmcp_set_mp(mp)
+  MuMeM.Player.setMp(mp)
+end
+
+function MuMeM.Player.maxMp()
+  return MuMeM.Player._maxmp
+end
+
+function MuMeM.Player.setMaxMp(maxmp)
+  player_setvalue("_maxmp", maxmp, "MaxMp")
+end
+
+function MuMeM.Player.gmcp_set_maxmp(maxmp)
+  MuMeM.Player.setMaxMp(maxmp)
+end
+
+-- ### XP ##########################################################################
+
+function MuMeM.Player.xp()
+  return MuMeM.Player._xp
+end
+
+function MuMeM.Player.setXp(xp)
+  player_setvalue("_xp", xp, "Xp")
+end
+
+function MuMeM.Player.gmcp_set_xp(xp)
+  MuMeM.Player.setXp(xp)
+end
+
+-- ### TP ##########################################################################
+
+function MuMeM.Player.tp()
+  return MuMeM.Player._tp
+end
+
+function MuMeM.Player.setTp(tp)
+  player_setvalue("_tp", tp, "Tp")
+end
+
+function MuMeM.Player.gmcp_set_tp(tp)
+  MuMeM.Player.setTp(tp)
+end
+
+-- ### CARRYING ####################################################################
+
+function MuMeM.Player.carrying()
+  return MuMeM.Player._carrying
+end
+
+function MuMeM.Player.setCarrying(carrying)
+  player_setvalue("_carrying", carrying, "Carrying")
+end
+
+function MuMeM.Player.gmcp_set_carrying(carrying)
+  MuMeM.Player.setCarrying(carrying)
+end
+
+-- ### RIDE ########################################################################
+
+function MuMeM.Player.ride()
+  return MuMeM.Player._ride
+end
+
+function MuMeM.Player.setRide(ride)
+  player_setvalue("_ride", ride, "Ride")
+end
+
+function MuMeM.Player.gmcp_set_ride(ride)
+  MuMeM.Player.setRide(ride)
+end
+
+-- ### RAISE TRIGGER ##################################################################
+
+--[[
+    I am not sure yet how to do this:
+      - notify on every SINGLE event (hp, sp, ...)
+      - notify after the BATCH update (all vitals)
+      
+    TODO / IDEA : Pass the changed values in the arguments!!!
+                 -&gt; raiseEvent("MuMeM.Player.Vitals", {Hp,MaxHp,Carrying))
+--]]
+
+function MuMeM.Player.notifyVitals()
+  raiseEvent("MuMeM.Player.Vitals")
+ 
+end</script>
+				<eventHandlerList />
+			</Script>
+		</ScriptGroup>
+	</ScriptPackage>
+</MudletPackage>
