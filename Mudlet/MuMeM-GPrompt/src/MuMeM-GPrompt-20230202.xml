@@ -374,16 +374,59 @@ function MuMeM.GPrompt.setupPrompt(force)
   
   MuMeM.GPrompt.visuals.statusRiding = Geyser.Label:new({
     name = "MuMeM.GPrompt.visuals.statusRiding",
-    x=60, y=0,
-    width = 20, height=20,
+    x = 20, y = 0,
+    width = 20, height = 20,
+    color = "black",
   }, MuMeM.GPrompt.visuals.statusContainer) 
 
-  MuMeM.GPrompt.visuals.statusCarry = Geyser.Label:new({
-    name = "MuMeM.GPrompt.visuals.statusCarry",
-    x="100%-65", y=0,
-    width = 60, height=20,
+  MuMeM.GPrompt.visuals.statusLight = Geyser.Label:new({
+    name = "MuMeM.GPrompt.visuals.statusLight",
+    x = 50, y = 0,
+    width = 15, height = 20,
     color = "black", fgColor = "white", fontSize = 12,
   }, MuMeM.GPrompt.visuals.statusContainer) 
+  
+  MuMeM.GPrompt.visuals.statusWeather = Geyser.Label:new({
+    name = "MuMeM.GPrompt.visuals.statusWeather",
+    x = 65, y = 0,
+    width = 15, height = 20,
+    color = "black", fgColor = "white", fontSize = 12,
+  }, MuMeM.GPrompt.visuals.statusContainer) 
+  
+  MuMeM.GPrompt.visuals.statusFog = Geyser.Label:new({
+    name = "MuMeM.GPrompt.visuals.statusFog",
+    x = 80, y = 0,
+    width = 15, height = 20,
+    color = "black", fgColor = "white", fontSize = 12,
+  }, MuMeM.GPrompt.visuals.statusContainer) 
+  
+  MuMeM.GPrompt.visuals.statusClimb = Geyser.Label:new({
+    name = "MuMeM.GPrompt.visuals.statusClimb",
+    x = 100, y = 0,
+    width = 15, height = 20,
+    color = "black", fgColor = "white", fontSize = 12,
+  }, MuMeM.GPrompt.visuals.statusContainer) 
+
+  MuMeM.GPrompt.visuals.statusSwim = Geyser.Label:new({
+    name = "MuMeM.GPrompt.visuals.statusSwim",
+    x = 115, y = 0,
+    width = 15, height = 20,
+    color = "black", fgColor = "white", fontSize = 12,
+  }, MuMeM.GPrompt.visuals.statusContainer) 
+
+  MuMeM.GPrompt.visuals.statusMood = Geyser.Label:new({
+    name = "MuMeM.GPrompt.visuals.statusMood",
+    x = "100%-100", y = 0,
+    width = 20, height = 20,
+    color = "black", fgColor = "white", fontSize = 12,
+  }, MuMeM.GPrompt.visuals.statusContainer) 
+  
+  MuMeM.GPrompt.visuals.statusCarrying = Geyser.Label:new({
+    name = "MuMeM.GPrompt.visuals.statusCarrying",
+    x = "100%-65", y = 0,
+    width = 60, height = 20,
+    color = "black", fgColor = "white", fontSize = 12,
+  }, MuMeM.GPrompt.visuals.statusContainer)   
 end
 
 function MuMeM.GPrompt.updatePrompt()
@@ -401,7 +444,13 @@ function MuMeM.GPrompt.updatePrompt()
   MuMeM.GPrompt.visuals.moveBar:setValue(MuMeM.Player.mp(), MuMeM.Player.maxMp())
   
   MuMeM.GPrompt.Status.updateRiding(MuMeM.Player.ride())
-  MuMeM.GPrompt.Status.updateCarry(MuMeM.Player.carrying())
+  MuMeM.GPrompt.Status.updateLight(MuMeM.Player.light())
+  MuMeM.GPrompt.Status.updateWeather(MuMeM.Player.weather())
+  MuMeM.GPrompt.Status.updateFog(MuMeM.Player.fog())
+  MuMeM.GPrompt.Status.updateMood(MuMeM.Player.mood())
+  MuMeM.GPrompt.Status.updateClimb(MuMeM.Player.climb())
+  MuMeM.GPrompt.Status.updateSwim(MuMeM.Player.swim())
+  MuMeM.GPrompt.Status.updateCarrying(MuMeM.Player.carrying())
 end
 
 function MuMeM.GPrompt.handlePlayerEvent(event)
@@ -411,10 +460,6 @@ function MuMeM.GPrompt.handlePlayerEvent(event)
     MuMeM.GPrompt.visuals.manaBar:setValue(MuMeM.Player.sp(), MuMeM.Player.maxSp())
   elseif event == "MuMeM.Player.Mp" or event == "MuMeM.Player.MaxMp" then
     MuMeM.GPrompt.visuals.moveBar:setValue(MuMeM.Player.mp(), MuMeM.Player.maxMp())
-  elseif event == "MuMeM.Player.Ride" then
-    MuMeM.GPrompt.Status.updateRiding(MuMeM.Player.ride())
-  elseif event == "MuMeM.Player.Carrying" then
-    MuMeM.GPrompt.Status.updateCarry(MuMeM.Player.carrying())
   end
 end</script>
 				<eventHandlerList />
@@ -439,8 +484,6 @@ end</script>
 						<string>MuMeM.Player.MaxSp</string>
 						<string>MuMeM.Player.Mp</string>
 						<string>MuMeM.Player.MaxMp</string>
-						<string>MuMeM.Player.Ride</string>
-						<string>MuMeM.Player.Carrying</string>
 					</eventHandlerList>
 				</Script>
 			</ScriptGroup>
@@ -452,7 +495,13 @@ end</script>
 				<Script isActive="yes" isFolder="no">
 					<name>MuMeM.GPrompt.Status.Riding</name>
 					<packageName></packageName>
-					<script>function MuMeM.GPrompt.Status.setRiding()
+					<script>function MuMeM.GPrompt.Status.Riding(event)
+  MuMeM.Log.debug("MuMeM.GPrompt.Status.Riding()")
+
+  MuMeM.GPrompt.Status.updateRiding(MuMeM.Player.ride())
+end
+
+function MuMeM.GPrompt.Status.setRiding()
   --MuMeM.GPrompt.visuals.statusRiding:setBackgroundImage(MuMeM.GPrompt.getResourceDir().."/affect-riding-18.png","tiled")
   
   local styleSheet = [[
@@ -479,33 +528,158 @@ function MuMeM.GPrompt.Status.removeRiding()
 end
 
 function MuMeM.GPrompt.Status.updateRiding(isRiding)
-  if not MuMeM.GPrompt.Status.isRiding or MuMeM.GPrompt.Status.isRising ~= isRiding then
-    if isRiding then
-      MuMeM.GPrompt.Status.setRiding()
-    else
-      MuMeM.GPrompt.Status.removeRiding()
-    end
-    MuMeM.GPrompt.Status.isRising = isRiding
-  end 
-end
-</script>
-					<eventHandlerList />
+  if isRiding then
+    MuMeM.GPrompt.Status.setRiding()
+  else
+    MuMeM.GPrompt.Status.removeRiding()
+  end
+end</script>
+					<eventHandlerList>
+						<string>MuMeM.Player.Ride</string>
+					</eventHandlerList>
 				</Script>
 				<Script isActive="yes" isFolder="no">
-					<name>MuMeM.GPrompt.Status.Carry</name>
+					<name>MuMeM.GPrompt.Status.Carrying</name>
 					<packageName></packageName>
-					<script>function MuMeM.GPrompt.Status.updateCarry(carrying)
-  if not MuMeM.GPrompt.Status.carry then
-    MuMeM.GPrompt.Status.carry = "unknown"
-  end
+					<script>function MuMeM.GPrompt.Status.Carrying(event)
+  MuMeM.Log.debug("MuMeM.GPrompt.Status.Carrying()")
 
-  if MuMeM.GPrompt.Status.carry ~= carry then
-    MuMeM.GPrompt.visuals.statusCarry:echo(carrying)
-    MuMeM.GPrompt.Status.carry = carrying
-  end 
+  MuMeM.GPrompt.Status.updateCarrying(MuMeM.Player.carrying())
+end
+
+function MuMeM.GPrompt.Status.updateCarrying(carrying)
+  MuMeM.GPrompt.visuals.statusCarrying:echo(carrying)
 end
 </script>
-					<eventHandlerList />
+					<eventHandlerList>
+						<string>MuMeM.Player.Carrying</string>
+					</eventHandlerList>
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.GPrompt.Status.Light</name>
+					<packageName></packageName>
+					<script>function MuMeM.GPrompt.Status.Light(event)
+  MuMeM.Log.debug("MuMeM.GPrompt.Status.Light()")
+
+  MuMeM.GPrompt.Status.updateLight(MuMeM.Player.light())
+end
+
+function MuMeM.GPrompt.Status.updateLight(light)
+  MuMeM.GPrompt.visuals.statusLight:echo(light)
+end
+</script>
+					<eventHandlerList>
+						<string>MuMeM.Player.Light</string>
+					</eventHandlerList>
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.GPrompt.Status.Weather</name>
+					<packageName></packageName>
+					<script>function MuMeM.GPrompt.Status.Weather(event)
+  MuMeM.Log.debug("MuMeM.GPrompt.Status.Weather()")
+
+  MuMeM.GPrompt.Status.updateWeather(MuMeM.Player.weather())
+end
+
+function MuMeM.GPrompt.Status.updateWeather(weather)
+  MuMeM.GPrompt.visuals.statusWeather:echo(weather)
+end
+</script>
+					<eventHandlerList>
+						<string>MuMeM.Player.Weather</string>
+					</eventHandlerList>
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.GPrompt.Status.Fog</name>
+					<packageName></packageName>
+					<script>function MuMeM.GPrompt.Status.Fog(event)
+  MuMeM.Log.debug("MuMeM.GPrompt.Status.Fog()")
+
+  MuMeM.GPrompt.Status.updateFog(MuMeM.Player.fog())
+end
+
+function MuMeM.GPrompt.Status.updateFog(light)
+  MuMeM.GPrompt.visuals.statusFog:echo(fog)
+end
+</script>
+					<eventHandlerList>
+						<string>MuMeM.Player.Fog</string>
+					</eventHandlerList>
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.GPrompt.Status.Mood</name>
+					<packageName></packageName>
+					<script>function MuMeM.GPrompt.Status.Mood(event)
+  MuMeM.Log.debug("MuMeM.GPrompt.Status.Mood()")
+
+  MuMeM.GPrompt.Status.updateMood(MuMeM.Player.mood())
+end
+
+function MuMeM.GPrompt.Status.updateMood(mood)
+  local moodAbbr = "m?"
+  
+  if mood == "wimpy" then
+    moodAbbr = "mW"
+  elseif mood == "prudent" then
+    moodAbbr = "mP"
+  elseif mood == "normal" then
+    moodAbbr = "mN"
+  elseif mood == "brave" then
+    moodAbbr = "mB"
+  elseif mood == "aggressive" then
+    moodAbbr = "mA"
+  elseif mood == "berzerk" then
+    moodAbbr = "mZ"
+  end
+    
+  MuMeM.GPrompt.visuals.statusMood:echo(moodAbbr)
+end
+</script>
+					<eventHandlerList>
+						<string>MuMeM.Player.Mood</string>
+					</eventHandlerList>
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.GPrompt.Status.Climb</name>
+					<packageName></packageName>
+					<script>function MuMeM.GPrompt.Status.Climb(event)
+  MuMeM.Log.debug("MuMeM.GPrompt.Status.Climb()")
+
+  MuMeM.GPrompt.Status.updateClimb(MuMeM.Player.climb())
+end
+
+function MuMeM.GPrompt.Status.updateClimb(climb)
+  if climb == false then
+    MuMeM.GPrompt.visuals.statusClimb:echo(" ")
+  else
+    MuMeM.GPrompt.visuals.statusClimb:echo(climb)
+  end
+end
+</script>
+					<eventHandlerList>
+						<string>MuMeM.Player.Climb</string>
+					</eventHandlerList>
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.GPrompt.Status.Swim</name>
+					<packageName></packageName>
+					<script>function MuMeM.GPrompt.Status.Swim(event)
+  MuMeM.Log.debug("MuMeM.GPrompt.Status.Swim()")
+
+  MuMeM.GPrompt.Status.updateSwim(MuMeM.Player.swim())
+end
+
+function MuMeM.GPrompt.Status.updateSwim(swim)
+  if swim == false then
+    MuMeM.GPrompt.visuals.statusSwim:echo(" ")
+  else
+    MuMeM.GPrompt.visuals.statusSwim:echo("W")
+  end
+end
+</script>
+					<eventHandlerList>
+						<string>MuMeM.Player.Swim</string>
+					</eventHandlerList>
 				</Script>
 			</ScriptGroup>
 		</ScriptGroup>

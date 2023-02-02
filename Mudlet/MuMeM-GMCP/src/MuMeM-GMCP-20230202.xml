@@ -47,6 +47,10 @@ function MuMeM.GMCP.initSession()
   MuMeM.GMCP.data.Char.Vitals = {}
 
   MuMeM.GMCP.data.Room = {}
+  
+  if MuMeM.Player then            -- we might not want to do this, as this can also happen
+    MuMeM.Player.reset()            -- DURING play (e.g. disable / enable GMCP)
+  end
 end
 
 function MuMeM.GMCP.debug(msg)
@@ -105,8 +109,12 @@ end
 function MuMeM.GMCP.collectCharVitalsData()
   for k,v in pairs(gmcp.Char.Vitals) do
     MuMeM.GMCP.data.Char.Vitals[k] = v
-    if MuMeM.Player and MuMeM.Player["gmcp_set_"..k] then
-      MuMeM.Player["gmcp_set_"..k](v)
+    if MuMeM.Player then
+      if MuMeM.Player["gmcp_set_"..k] then
+        MuMeM.Player["gmcp_set_"..k](v)
+      elseif k == "spell-effort" then               -- we ONLY have ONE, so go for this for speed
+         MuMeM.Player["gmcp_set_spell_effort"](v)     -- if we have more do string.gsub("-","_",GLOBAL)
+      end
     end
   end
   
