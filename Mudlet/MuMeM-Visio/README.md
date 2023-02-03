@@ -21,7 +21,7 @@ All this can also be done from within the game. To do so, you need to execute be
     lua installPackage"https://github.com/MuMeM/mume/raw/main/Mudlet/MuMeM-Core/MuMeM-Core-latest.mpackage"
     lua installPackage"https://github.com/MuMeM/mume/raw/main/Mudlet/MuMeM-GMCP/MuMeM-GMCP-latest.mpackage"
     lua installPackage"https://github.com/MuMeM/mume/raw/main/Mudlet/MuMeM-Room/MuMeM-Room-latest.mpackage"
-    lua installPackage"https://github.com/MuMeM/mume/raw/main/Mudlet/MuMeM-GPrompt/MuMeM-Visio-latest.mpackage"
+    lua installPackage"https://github.com/MuMeM/mume/raw/main/Mudlet/MuMeM-Visio/MuMeM-Visio-latest.mpackage"
 
 **NOTE**: In any case, you must **restart Mudlet** after installation!
 
