@@ -12,6 +12,7 @@ Download the latest package and its dependencies from this website and install i
 You need to install these packages
 
   * MuMeM-Core
+  * MuMeM-Log
   * MuMeM-GMCP
   * MuMeM-Room
   * MuMeM-Visio
@@ -19,6 +20,7 @@ You need to install these packages
 All this can also be done from within the game. To do so, you need to execute below lines, one after the other
 
     lua installPackage"https://github.com/MuMeM/mume/raw/main/Mudlet/MuMeM-Core/MuMeM-Core-latest.mpackage"
+    lua installPackage"https://github.com/MuMeM/mume/raw/main/Mudlet/MuMeM-Log/MuMeM-Log-latest.mpackage"
     lua installPackage"https://github.com/MuMeM/mume/raw/main/Mudlet/MuMeM-GMCP/MuMeM-GMCP-latest.mpackage"
     lua installPackage"https://github.com/MuMeM/mume/raw/main/Mudlet/MuMeM-Room/MuMeM-Room-latest.mpackage"
     lua installPackage"https://github.com/MuMeM/mume/raw/main/Mudlet/MuMeM-Visio/MuMeM-Visio-latest.mpackage"
