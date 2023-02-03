@@ -7,12 +7,28 @@ MuMeM visio is a POC (Proof of Concept) on how to display images of rooms in MUM
 ![MuMeM-Visio Screenshot](https://github.com/MuMeM/mume/blob/main/Mudlet/MuMeM-Visio/doc/MuMeM-Visio.png)
 
 ## Installation
-Download the latest package from this website and install it in Mudlet via the package manager. This will install a "directory" called "MuMeM-Visio" in the scripts section of Mudlet.
+Download the latest package and its dependencies from this website and install it in Mudlet via the package manager. This will install a "directory" called "MuMeM-Visio" in the scripts section of Mudlet.
+
+You need to install these packages
+
+  * MuMeM-Core
+  * MuMeM-GMCP
+  * MuMeM-Room
+  * MuMeM-Visio
+
+All this can also be done from within the game. To do so, you need to execute below lines, one after the other
+
+    lua installPackage"https://github.com/MuMeM/mume/raw/main/Mudlet/MuMeM-Core/MuMeM-Core-latest.mpackage"
+    lua installPackage"https://github.com/MuMeM/mume/raw/main/Mudlet/MuMeM-GMCP/MuMeM-GMCP-latest.mpackage"
+    lua installPackage"https://github.com/MuMeM/mume/raw/main/Mudlet/MuMeM-GPrompt/MuMeM-Room-latest.mpackage"
+    lua installPackage"https://github.com/MuMeM/mume/raw/main/Mudlet/MuMeM-GPrompt/MuMeM-Visio-latest.mpackage"
+
+**NOTE**: In any case, you must **restart Mudlet** after installation!
 
 To install the image pack, see below.
 
 ## Uninstallation
-Use the packaged manager of Mudlet to remove the package and restart.
+Use the packaged manager of Mudlet to remove the packages and restart.
 
 ## Image-Pack installation
 

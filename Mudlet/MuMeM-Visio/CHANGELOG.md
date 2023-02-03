@@ -1,3 +1,11 @@
+### 20230303
+
+  * Clickable exists: When clicking on the exit, you move to that direction
+  * Clickable doors: Clicking will open the door, right click brings door-manipulation window
+  * Mobiles added to the interface (download resource-pack.zip!)
+  * Mobiles auto-update on mobiles entering or leaving the room
+  * Rebased on MuMeM support modules (which are now a requirement!)
+
 ### v0.1.1
 
   * Updated image pack, now all rooms include (thanx Freyja!)
