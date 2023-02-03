@@ -1,0 +1,294 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE MudletPackage>
+<MudletPackage version="1.001">
+	<ScriptPackage>
+		<ScriptGroup isActive="yes" isFolder="yes">
+			<name>MuMeM.Room</name>
+			<packageName></packageName>
+			<script>--[[
+    All information about the room ... and its "contents" (currenty RoomChars / mobiles)
+    
+    DEPENDENCIES:
+      - MuMeM.Log
+--]]
+
+echo("MuMeM.Room: loading\n")
+
+MuMeM = MuMeM or {}
+MuMeM.Room = MuMeM.Room or {}
+MuMeM.Room.Mobile = MuMeM.Room.Mobile or {}
+MuMeM.Room.Mobiles = MuMeM.Room.Mobiles or {}
+MuMeM.Room.EventHandler = MuMeM.Room.EventHandler or {}
+
+-- --- Module setup ----------------------------------------------
+
+MuMeM.Room.module_name = "MuMeM.Room"
+MuMeM.Room.module_dependencies = {"MuMeM.Core","MuMeM.Log"}
+MuMeM.modules = MuMeM.modules or {}
+MuMeM.modules[MuMeM.Room.module_name] = MuMeM.modules[MuMeM.Room.module_name] or {module=MuMeM.Room}</script>
+			<eventHandlerList />
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Room.Library</name>
+				<packageName></packageName>
+				<script>--[[
+  Room = {
+    Info = {
+      area = "STRING",
+      desc = "STRING",
+      environment = "city",  -&gt; https://mume.org/help/terrain
+      exits = {
+        e = {},
+        n = {},
+        s = {},
+        w = {}
+      },
+      name = "STRING"
+    }
+  }
+--]]
+
+-- ### INITIALIZATION #############################################################
+
+function MuMeM.Room.initialize()
+  MuMeM.Room.reset()
+end
+
+function MuMeM.Room.reset()
+  MuMeM.Room._area = nil
+  MuMeM.Room._desc = nil
+  MuMeM.Room._environment = nil
+  MuMeM.Room._exits = {}
+  MuMeM.Room._name = {}
+  
+  MuMeM.Room.Mobiles._mobiles = {}
+end
+</script>
+				<eventHandlerList />
+			</Script>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Room.EventHandler</name>
+				<packageName></packageName>
+				<script></script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Room.EventHandler.Connect</name>
+					<packageName></packageName>
+					<script>function MuMeM.Room.EventHandler.Connect(event, ...)
+    -- happens when the profile becomes available and player connects
+  -- CAVEAT: MMapper stays connected!
+  if event == "sysConnectionEvent" then
+    MuMeM.Room.reset()
+  end
+
+  -- happens when GMCP becomes available, which is "normally" at login!
+  -- CAVEAT: This can also happen during gameplay (enable / disable protocol)
+  if event == "sysProtocolEnabled" and arg[1] == "GMCP" then
+    MuMeM.Room.reset()
+  end
+end</script>
+					<eventHandlerList>
+						<string>sysConnectionEvent</string>
+					</eventHandlerList>
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Room.Mobile</name>
+				<packageName></packageName>
+				<script></script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Room.Mobile</name>
+					<packageName></packageName>
+					<script>MuMeM.Room.Mobile = {
+  _id = 0,
+  _name = "mobile",
+  _desc = "mobile description",
+  _flags = {},
+  _labels = {},
+  _position = "undefined",
+--  _fighting = nil|"you",
+}
+
+--setmetatable(MuMeM.Room.Mobile, MuMeM.Room.Mobile)
+--MuMeM.Room.Mobile.__index = MuMeM.Room.Mobile
+
+function MuMeM.Room.Mobile:new(props)
+  me = {}
+  
+  me._id = MuMeM.Core.Util.copyProperty(props.id, MuMeM.Room.Mobile._id)
+  me._name = MuMeM.Core.Util.copyProperty(props.name, MuMeM.Room.Mobile._name)
+  me._desc = MuMeM.Core.Util.copyProperty(props.desc, MuMeM.Room.Mobile._desc)
+  me._flags = MuMeM.Core.Util.copyProperty(props.flags, MuMeM.Room.Mobile._flags)
+  me._labels = MuMeM.Core.Util.copyProperty(props.labels, MuMeM.Room.Mobile._labels)
+  me._position = MuMeM.Core.Util.copyProperty(props.position, MuMeM.Room.Mobile._position)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end
+
+-- --- PROPERTIES --------------------------------------------------------
+
+function MuMeM.Room.Mobile:id()
+  return self._id
+end
+
+function MuMeM.Room.Mobile:setId(id)
+  self._id = id
+end
+
+function MuMeM.Room.Mobile:name()
+  return self._name
+end
+
+function MuMeM.Room.Mobile:setName(name)
+  self._name = name
+end
+
+function MuMeM.Room.Mobile:desc()
+  return self._desc
+end
+
+function MuMeM.Room.Mobile:setDesc(desc)
+  self._desc = desc
+end
+
+function MuMeM.Room.Mobile:flags()
+  return self._flags
+end
+
+function MuMeM.Room.Mobile:setFlags(flags)
+  self._flags = MuMeM.Core.Util.copyData(flags)
+end
+
+function MuMeM.Room.Mobile:labels()
+  return self._labels
+end
+
+function MuMeM.Room.Mobile:setLabels(labels)
+  self._labels = MuMeM.Core.Util.copyData(labels)
+end
+
+function MuMeM.Room.Mobile:position()
+  return self._position
+end
+
+function MuMeM.Room.Mobile:setPosition(position)
+  self._position = position
+end
+
+-- --- METHODS -----------------------------------------------------------
+
+function MuMeM.Room.Mobile:fileName()
+  return string.gsub(self:name()," ","_")
+end
+
+function MuMeM.Room.Mobile:updateProperties(props)
+  for k,v in pairs(props) do
+    if k == 'id' then
+      if id ~= self:id() then
+        MuMeM.Log.critical("MuMeM.Room.Mobile:updateProperties(): Tried to update ID", "MuMeM.Room")
+      end
+    else
+      local func = "set"..string.upper(string.sub(k,1,1))..string.sub(k,2)
+      if self[func] then
+        self[func](self,v)
+      end
+    end
+  end
+end
+
+function MuMeM.Room.Mobile:dump()
+  print("MOB:", self._id, self._name, self._desc, self._position)
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Room.Mobiles</name>
+					<packageName></packageName>
+					<script>function MuMeM.Room.Mobiles.empty()
+  MuMeM.Room.Mobiles._mobiles = {}
+end
+
+function MuMeM.Room.Mobiles.get(id)
+  return MuMeM.Room.Mobiles._mobiles[id]
+end
+
+function MuMeM.Room.Mobiles.add(id, mobile)
+  MuMeM.Room.Mobiles._mobiles[id] = mobile
+end
+
+function MuMeM.Room.Mobiles.remove(id)
+  MuMeM.Room.Mobiles._mobiles[id] = nil
+end
+
+function MuMeM.Room.Mobiles.update(id, mobileProps)
+  mobile = MuMeM.Room.Mobiles.get(id)
+  mobile:updateProperties(mobileProps)
+end
+
+-- ----------------------------------------------------------------------
+
+function MuMeM.Room.Mobiles.getFirst()
+  local key,mobile = next(MuMeM.Room.Mobiles._mobiles)
+  
+  return mobile
+end
+
+function MuMeM.Room.Mobiles.getNext(key)
+  local key,mobile = next(MuMeM.Room.Mobiles._mobiles, key)
+  
+  return key,mobile
+end
+
+function MuMeM.Room.Mobiles.dumpMobiles()
+  print("Mobiles in room:")
+  for k,v in pairs(MuMeM.Room.Mobiles._mobiles) do
+    v:dump()
+  end
+end
+
+-- ----------------------------------------------------------------------
+
+function MuMeM.Room.Mobiles.gmcpSetMobiles(charsTable)
+  MuMeM.Room.Mobiles.empty()
+  
+  for k,v in pairs(charsTable) do
+    MuMeM.Room.Mobiles.add(v.id, MuMeM.Room.Mobile:new(v))
+  end
+  
+  raiseEvent("MuMeM.Room.Mobiles")
+
+--  MuMeM.Room.Mobiles.dumpMobiles()
+end
+
+function MuMeM.Room.Mobiles.gmcpAddMobile(charTable)
+  MuMeM.Room.Mobiles.add(charTable.id, MuMeM.Room.Mobile:new(charTable))
+
+  raiseEvent("MuMeM.Room.Mobiles")
+  
+--  MuMeM.Room.Mobiles.dumpMobiles()
+end
+
+function MuMeM.Room.Mobiles.gmcpRemoveMobile(charId)
+  MuMeM.Room.Mobiles.remove(charId)
+
+  raiseEvent("MuMeM.Room.Mobiles")
+  
+--  MuMeM.Room.Mobiles.dumpMobiles()
+end
+
+function MuMeM.Room.Mobiles.gmcpUpdateMobile(charTable)
+  MuMeM.Room.Mobiles.update(charTable.id, charTable)
+
+  raiseEvent("MuMeM.Room.Mobiles")
+  
+--  MuMeM.Room.Mobiles.dumpMobiles()
+end</script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+		</ScriptGroup>
+	</ScriptPackage>
+</MudletPackage>
