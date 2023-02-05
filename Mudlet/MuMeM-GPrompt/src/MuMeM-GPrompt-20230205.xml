@@ -1,0 +1,687 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE MudletPackage>
+<MudletPackage version="1.001">
+	<ScriptPackage>
+		<ScriptGroup isActive="yes" isFolder="yes">
+			<name>MuMeM.GPrompt</name>
+			<packageName></packageName>
+			<script>--[[
+    Displays a "graphical prompt" at the bottom of the screen.
+    The line contains the usual information you would suspect from a prompt.
+    
+    DEPENDENCIES:
+      - MuMeM.GMCP
+--]]
+
+echo("MuMeM.GPrompt: loading\n")
+
+MuMeM = MuMeM or {}
+MuMeM.GPrompt = MuMeM.GPrompt or {}
+MuMeM.GPrompt.EventHandler = MuMeM.GPrompt.EventHandler or {}
+MuMeM.GPrompt.Widget = MuMeM.GPrompt.Widget or {}
+MuMeM.GPrompt.Status = MuMeM.GPrompt.Status or {}
+MuMeM.GPrompt.visuals = MuMeM.GPrompt.visuals or {}
+
+--MuMeM.GPrompt.setupPrompt(false)
+
+-- --- Module setup ----------------------------------------------
+
+MuMeM.GPrompt.module_name = "MuMeM.GPrompt"
+MuMeM.GPrompt.module_dependencies = {"MuMeM.Core","MuMeM.Log","MuMeM.GMCP","MuMeM.Player"}
+MuMeM.modules = MuMeM.modules or {}
+MuMeM.modules[MuMeM.GPrompt.module_name] = MuMeM.modules[MuMeM.GPrompt.module_name] or {module=MuMeM.GPrompt}</script>
+			<eventHandlerList />
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.GPrompt.Widget</name>
+				<packageName></packageName>
+				<script>if not MuMeM.GPrompt.Widget.Gauge3 then
+  MuMeM.GPrompt.Widget.Gauge3 = {}
+  MuMeM.GPrompt.Widget.Gauge3.__index = MuMeM.GPrompt.Widget.Gauge3
+end
+
+MuMeM.GPrompt.Widget.Gauge3.BOUNDARY_CALCULATION_PERCENTAGE = 1
+MuMeM.GPrompt.Widget.Gauge3.BOUNDARY_CALCULATION_ABSOLUTE = 2
+
+function MuMeM.GPrompt.Widget.Gauge3.fabricate(param, uiParent)
+  local instance = {}
+  
+  setmetatable(instance, MuMeM.GPrompt.Widget.Gauge3)
+  
+  instance.valueMax   = nil
+  instance.valueNow   = nil
+  instance.name       = param.name
+  instance.back       = nil
+  instance.middle     = nil 
+  instance.front      = nil
+  instance.scaleAdded = nil
+  instance.scaleColor = param.scaleColor or "black"
+  instance.boundaries = param.boundaries    -- we might need to use DEEPCOPY here!
+  instance.boundaryCalculation = param.boundaryCalculation or MuMeM.GPrompt.Widget.Gauge3.BOUNDARY_CALCULATION_PERCENTAGE
+ 
+  instance.bar = Geyser.Container:new({
+    name = param.name.."Bar",
+    x=param.x, y=param.y,
+    width=param.width, height=param.height,
+  }, uiParent)
+
+  instance.back = Geyser.Label:new({
+    name = param.name.."BarBack",
+    x="0", y=0,
+    width="100%", height="100%",
+  }, instance.bar)
+  
+  instance.middle = Geyser.Label:new({
+    name = param.name.."BarMiddle",
+    x="0", y=0,
+    width="100%", height="100%",
+  }, instance.bar)
+  
+  instance.front = Geyser.Label:new({
+    name = param.name.."BarFront",
+    x="0", y=0,
+    width="100%", height="100%",
+  }, instance.bar)
+    
+  return instance
+end
+
+function MuMeM.GPrompt.Widget.Gauge3:addScale(max)
+  --[[
+    The generic way of doing this. Disadvantage: creates many labels
+  --]]
+  if self.scaleAdded then
+    return
+  end
+
+  self.boundaryIndicator = {}
+  for i,boundary in pairs(self.boundaries) do
+    if boundary &gt; 0 and boundary &lt; 100 then
+      local width = 0
+      if self.boundaryCalculation == MuMeM.GPrompt.Widget.Gauge3.BOUNDARY_CALCULATION_PERCENTAGE then
+        width = boundary
+      elseif self.boundaryCalculation == MuMeM.GPrompt.Widget.Gauge3.BOUNDARY_CALCULATION_ABSOLUTE then
+        width = boundary * 100 / max
+      end
+    
+      self.boundaryIndicator[i] = Geyser.Label:new({
+        name = self.name.."BoundaryIndicator"..tostring(i),
+        x=0, y="60%",
+        width=tostring(width).."%", height="100%",
+      }, self.bar)
+      self.boundaryIndicator[i]:setStyleSheet(f[[
+        background-color: rgba(0,0,0,0%);
+        border-right: 1px solid {self.scaleColor};
+      ]])
+    end
+  end
+  
+  self.scaleAdded = true
+end
+
+function MuMeM.GPrompt.Widget.Gauge3:addScaleMumeLabel(name, bLow, bHigh)
+  local bWidth = bHigh - bLow
+    
+  label = Geyser.Label:new({
+    name = self.name.."BoundaryIndicator"..name,
+    x=f"{bLow}%", y="60%",
+    width=f"{bWidth}%+1px", height="40%",
+  }, self.bar)
+  label:setStyleSheet(f[[
+    background-color: rgba(0,0,0,0%);
+    border-right: 1px solid {self.scaleColor};
+    border-left: 1px solid {self.scaleColor};
+  ]])
+    
+  return label
+end
+
+function MuMeM.GPrompt.Widget.Gauge3:updateScaleMumeLabel(label, bLow, bHigh)
+  local bWidth = bHigh - bLow
+    
+  label:move(f"{bLow}%","60%")
+  label:resize(f"{bWidth}%+1px","40%")
+end
+
+function MuMeM.GPrompt.Widget.Gauge3:addScaleMume(max)
+  --[[
+    The MUME specific way of doing it. TIGHTLY COUPLED to MUME.
+    Advantage: only needs two labels
+  --]]
+  if self.scaleAdded then
+    return
+  end
+
+  if self.boundaryCalculation == MuMeM.GPrompt.Widget.Gauge3.BOUNDARY_CALCULATION_PERCENTAGE then
+    self.boundaryIndicatorHigh = self:addScaleMumeLabel("High", self.boundaries[3], self.boundaries[2])
+    self.boundaryIndicatorLow = self:addScaleMumeLabel("Low", self.boundaries[5], self.boundaries[4])
+  elseif self.boundaryCalculation == MuMeM.GPrompt.Widget.Gauge3.BOUNDARY_CALCULATION_ABSOLUTE then
+    self.boundaryIndicatorHigh = self:addScaleMumeLabel("High", self.boundaries[3]*100/max, self.boundaries[2]*100/max)
+    self.boundaryIndicatorLow = self:addScaleMumeLabel("Low", self.boundaries[5]*100/max, self.boundaries[4]*100/max)
+  end
+  
+  --MuMeM.Log.debug("MuMeM.GPrompt.Widget.Gauge3:addScaleMume(): scale added")
+
+  self.scaleAdded = true
+end
+
+function MuMeM.GPrompt.Widget.Gauge3:updateScaleMume(max)
+  --MuMeM.Log.debug("MuMeM.GPrompt.Widget.Gauge3:updateScaleMume(): called")
+  
+  if not self.valueMax or max == self.valueMax then
+    return
+  end
+
+  --MuMeM.Log.debug("MuMeM.GPrompt.Widget.Gauge3:updateScaleMume(): updating scale")
+  
+  if self.boundaryCalculation == MuMeM.GPrompt.Widget.Gauge3.BOUNDARY_CALCULATION_PERCENTAGE then
+    self:updateScaleMumeLabel(self.boundaryIndicatorHigh, self.boundaries[3], self.boundaries[2])
+    self:updateScaleMumeLabel(self.boundaryIndicatorLow, self.boundaries[5], self.boundaries[4])
+  elseif self.boundaryCalculation == MuMeM.GPrompt.Widget.Gauge3.BOUNDARY_CALCULATION_ABSOLUTE then
+    self:updateScaleMumeLabel(self.boundaryIndicatorHigh, self.boundaries[3]*100/max, self.boundaries[2]*100/max)
+    self:updateScaleMumeLabel(self.boundaryIndicatorLow, self.boundaries[5]*100/max, self.boundaries[4]*100/max)
+  end
+
+  --MuMeM.Log.debug("MuMeM.GPrompt.Widget.Gauge3:updateScaleMume(): scale updated")
+end
+
+function MuMeM.GPrompt.Widget.Gauge3:setValue(now, max)
+  if now == nil or max == nil then
+    return
+  end
+  
+  self:addScaleMume(max)
+
+  if now == self.valueNow and max == self.valueMax then
+    return
+  end
+
+  self:updateScaleMume(max)
+
+  if now == nil then
+    now = 0
+  else
+    now = math.max(math.min(now,max),0)
+  end
+  if max == nil then                    -- TODO: we should bail out here and give the bar 0%? 100%?
+    max = 1
+  end
+  
+  local middleWidth = now * 100 / max
+  local frontWidth = 100
+  
+  if middleWidth &gt;= 100 then
+    middleWidth = 100
+    frontWidth = 100
+  elseif middleWidth &lt;= 0 then
+    middleWidth = 0
+    frontWidth = 0
+  elseif middleWidth &lt; 100 then
+    if self.boundaryCalculation == MuMeM.GPrompt.Widget.Gauge3.BOUNDARY_CALCULATION_PERCENTAGE then
+      local i,upper = next(self.boundaries)
+      while i and math.floor(max * upper / 100) &gt; now  do
+        i,upper = next(self.boundaries,i)
+      end
+      if i then frontWidth = upper else frontWidth = 0 end
+    elseif self.boundaryCalculation == MuMeM.GPrompt.Widget.Gauge3.BOUNDARY_CALCULATION_ABSOLUTE then
+      local i,upper = next(self.boundaries)
+      while i and upper &gt; now do
+        i,upper = next(self.boundaries,i)
+      end
+      if i then frontWidth = upper * 100 / max else frontWidth = 0 end
+    end
+
+    if not frontWidth or frontWidth &lt; 0 then
+      frontWidth = 0
+    end
+  end
+         
+  self.middle:resize(tostring(middleWidth).."%", "100%")
+  self.front:resize(tostring(frontWidth).."%", "100%")
+
+  self.valueNow = now  
+  self.valueMax = max
+end
+
+-- #######################################################################
+
+if not MuMeM.GPrompt.Widget.HealthBar then
+  MuMeM.GPrompt.Widget.HealthBar = {}
+  MuMeM.GPrompt.Widget.HealthBar.__index = MuMeM.GPrompt.Widget.HealthBar
+  setmetatable(MuMeM.GPrompt.Widget.HealthBar, MuMeM.GPrompt.Widget.Gauge3)
+end
+
+function MuMeM.GPrompt.Widget.HealthBar.fabricate(param, uiParent)
+  param.boundaries = { 100, 70, 45, 25, 10, 0}
+
+  local instance = MuMeM.GPrompt.Widget.Gauge3.fabricate(param, uiParent)
+  setmetatable(instance, MuMeM.GPrompt.Widget.HealthBar)
+
+  instance.back:setColor(255,0,0)
+  instance.middle:setColor(192,0,0)
+  instance.front:setColor(128,0,0)
+  
+  return instance
+end
+
+-- #######################################################################
+
+if not MuMeM.GPrompt.Widget.ManaBar then
+  MuMeM.GPrompt.Widget.ManaBar = {}
+  MuMeM.GPrompt.Widget.ManaBar.__index = MuMeM.GPrompt.Widget.ManaBar
+  setmetatable(MuMeM.GPrompt.Widget.ManaBar, MuMeM.GPrompt.Widget.Gauge3)
+end
+
+function MuMeM.GPrompt.Widget.ManaBar.fabricate(param, uiParent)
+  param.boundaries = { 100, 75, 45, 25, 10, 0}
+  param.scaleColor = "gray"
+
+  local instance = MuMeM.GPrompt.Widget.Gauge3.fabricate(param, uiParent)
+  setmetatable(instance, MuMeM.GPrompt.Widget.ManaBar)
+
+  instance.back:setColor(0,0,128)
+  instance.middle:setColor(0,0,192)
+  instance.front:setColor(0,0,255)
+
+  return instance
+end
+
+-- #######################################################################
+
+if not MuMeM.GPrompt.Widget.MoveBar then
+  MuMeM.GPrompt.Widget.MoveBar = {}
+  MuMeM.GPrompt.Widget.MoveBar.__index = MuMeM.GPrompt.Widget.MoveBar
+  setmetatable(MuMeM.GPrompt.Widget.MoveBar, MuMeM.GPrompt.Widget.Gauge3)
+end
+
+function MuMeM.GPrompt.Widget.MoveBar.fabricate(param, uiParent)
+  param.boundaries = { 999, 50, 30, 15, 5, 0}
+  param.boundaryCalculation = MuMeM.GPrompt.Widget.Gauge3.BOUNDARY_CALCULATION_ABSOLUTE
+
+  local instance = MuMeM.GPrompt.Widget.Gauge3.fabricate(param, uiParent)
+  setmetatable(instance, MuMeM.GPrompt.Widget.MoveBar)
+    
+  instance.back:setColor(0,255,0)
+  instance.middle:setColor(0,192,0)
+  instance.front:setColor(0,128,0)
+
+  return instance
+end
+
+--function MuMeM.GPrompt.Widget.MoveBar:setValue(now, max)
+--  MuMeM.GPrompt.Widget.Gauge3.setValue(self, now, math.max(max,100))
+--end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.GPrompt.Library</name>
+				<packageName></packageName>
+				<script>function MuMeM.GPrompt.initialize()
+  if MuMeM.Core.IO.fileExists(getMudletHomeDir().."/MuMeM.GPrompt/Resources/affect-riding.png") then
+    MuMeM.GPrompt.resourceDir = getMudletHomeDir().."/MuMeM.GPrompt/Resources"
+  else
+    MuMeM.GPrompt.resourceDir = getMudletHomeDir().."/MuMeM-GPrompt/Resources"
+  end
+  
+  MuMeM.GPrompt.setupPrompt(false)
+end
+
+function MuMeM.GPrompt.getResourceDir()
+  return MuMeM.GPrompt.resourceDir
+end
+
+function MuMeM.GPrompt.setupPrompt(force)
+
+  if not force and MuMeM.GPrompt.visuals.baseContainer then
+    return
+  end
+
+  setBorderBottom(20)
+
+  -- BOTTOM container
+  MuMeM.GPrompt.visuals.baseContainer = Geyser.Container:new({
+    name = "MuMeM.GPrompt.visuals.baseContainer",
+    x=0, y=-20,
+    width = "100%", height=20,
+  })
+
+  -- HealthBar
+  MuMeM.GPrompt.visuals.healthBar = MuMeM.GPrompt.Widget.HealthBar.fabricate({
+    name = "MuMeM.GPrompt.visuals.healthBar",
+    x="0%", y=0,
+    width="24%", height="100%",
+  }, MuMeM.GPrompt.visuals.baseContainer)
+
+  -- ManaBar
+  MuMeM.GPrompt.visuals.manaBar = MuMeM.GPrompt.Widget.ManaBar.fabricate({
+    name = "MuMeM.GPrompt.visuals.manaBar",
+    x="25%", y=0,
+    width="24%", height="100%",
+  }, MuMeM.GPrompt.visuals.baseContainer)
+
+  -- MoveBar
+  MuMeM.GPrompt.visuals.moveBar = MuMeM.GPrompt.Widget.MoveBar.fabricate({
+    name = "MuMeM.GPrompt.visuals.moveBar",
+    x="50%", y=0,
+    width="24%", height="100%",
+  }, MuMeM.GPrompt.visuals.baseContainer)
+  
+  -- statusContainer
+  MuMeM.GPrompt.visuals.statusContainer = Geyser.Container:new({
+    name = "MuMeM.GPrompt.visuals.statusContainer",
+    x="75%", y=0,
+    width = "25%", height=20,
+  }, MuMeM.GPrompt.visuals.baseContainer)
+  
+  MuMeM.GPrompt.visuals.statusRiding = Geyser.Label:new({
+    name = "MuMeM.GPrompt.visuals.statusRiding",
+    x = 20, y = 0,
+    width = 20, height = 20,
+    color = "black",
+  }, MuMeM.GPrompt.visuals.statusContainer) 
+
+  MuMeM.GPrompt.visuals.statusLight = Geyser.Label:new({
+    name = "MuMeM.GPrompt.visuals.statusLight",
+    x = 50, y = 0,
+    width = 15, height = 20,
+    color = "black", fgColor = "white", fontSize = 12,
+  }, MuMeM.GPrompt.visuals.statusContainer) 
+  
+  MuMeM.GPrompt.visuals.statusWeather = Geyser.Label:new({
+    name = "MuMeM.GPrompt.visuals.statusWeather",
+    x = 65, y = 0,
+    width = 15, height = 20,
+    color = "black", fgColor = "white", fontSize = 12,
+  }, MuMeM.GPrompt.visuals.statusContainer) 
+  
+  MuMeM.GPrompt.visuals.statusFog = Geyser.Label:new({
+    name = "MuMeM.GPrompt.visuals.statusFog",
+    x = 80, y = 0,
+    width = 15, height = 20,
+    color = "black", fgColor = "white", fontSize = 12,
+  }, MuMeM.GPrompt.visuals.statusContainer) 
+  
+  MuMeM.GPrompt.visuals.statusClimb = Geyser.Label:new({
+    name = "MuMeM.GPrompt.visuals.statusClimb",
+    x = 100, y = 0,
+    width = 15, height = 20,
+    color = "black", fgColor = "white", fontSize = 12,
+  }, MuMeM.GPrompt.visuals.statusContainer) 
+
+  MuMeM.GPrompt.visuals.statusSwim = Geyser.Label:new({
+    name = "MuMeM.GPrompt.visuals.statusSwim",
+    x = 115, y = 0,
+    width = 15, height = 20,
+    color = "black", fgColor = "white", fontSize = 12,
+  }, MuMeM.GPrompt.visuals.statusContainer) 
+
+  MuMeM.GPrompt.visuals.statusMood = Geyser.Label:new({
+    name = "MuMeM.GPrompt.visuals.statusMood",
+    x = "100%-100", y = 0,
+    width = 20, height = 20,
+    color = "black", fgColor = "white", fontSize = 12,
+  }, MuMeM.GPrompt.visuals.statusContainer) 
+  
+  MuMeM.GPrompt.visuals.statusCarrying = Geyser.Label:new({
+    name = "MuMeM.GPrompt.visuals.statusCarrying",
+    x = "100%-65", y = 0,
+    width = 60, height = 20,
+    color = "black", fgColor = "white", fontSize = 12,
+  }, MuMeM.GPrompt.visuals.statusContainer)   
+end
+
+function MuMeM.GPrompt.updatePrompt()
+  if not MuMeM.GPrompt.visuals.healthBar then
+    return
+  end
+  
+  -- stil required?
+  if not MuMeM.Player or not MuMeM.Player.hp() then
+    return
+  end
+  
+  MuMeM.GPrompt.visuals.healthBar:setValue(MuMeM.Player.hp(), MuMeM.Player.maxHp())
+  MuMeM.GPrompt.visuals.manaBar:setValue(MuMeM.Player.sp(), MuMeM.Player.maxSp())
+  MuMeM.GPrompt.visuals.moveBar:setValue(MuMeM.Player.mp(), MuMeM.Player.maxMp())
+  
+  MuMeM.GPrompt.Status.updateRiding(MuMeM.Player.ride())
+  MuMeM.GPrompt.Status.updateLight(MuMeM.Player.light())
+  MuMeM.GPrompt.Status.updateWeather(MuMeM.Player.weather())
+  MuMeM.GPrompt.Status.updateFog(MuMeM.Player.fog())
+  MuMeM.GPrompt.Status.updateMood(MuMeM.Player.mood())
+  MuMeM.GPrompt.Status.updateClimb(MuMeM.Player.climb())
+  MuMeM.GPrompt.Status.updateSwim(MuMeM.Player.swim())
+  MuMeM.GPrompt.Status.updateCarrying(MuMeM.Player.carrying())
+end
+
+function MuMeM.GPrompt.handlePlayerEvent(event)
+  if event == "MuMeM.Player.Hp" or event == "MuMeM.Player.MaxHp" then
+    MuMeM.GPrompt.visuals.healthBar:setValue(MuMeM.Player.hp(), MuMeM.Player.maxHp())
+  elseif event == "MuMeM.Player.Sp" or event == "MuMeM.Player.MaxSp" then
+    MuMeM.GPrompt.visuals.manaBar:setValue(MuMeM.Player.sp(), MuMeM.Player.maxSp())
+  elseif event == "MuMeM.Player.Mp" or event == "MuMeM.Player.MaxMp" then
+    MuMeM.GPrompt.visuals.moveBar:setValue(MuMeM.Player.mp(), MuMeM.Player.maxMp())
+  end
+end</script>
+				<eventHandlerList />
+			</Script>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.GPrompt.EventHandler</name>
+				<packageName></packageName>
+				<script></script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.GPrompt.EventHandler.catchPlayer</name>
+					<packageName></packageName>
+					<script>function MuMeM.GPrompt.EventHandler.catchPlayer(event)
+  MuMeM.Log.debug("MuMeM.GPrompt.EventHandler.catchChar()")
+
+  MuMeM.GPrompt.handlePlayerEvent(event)
+end</script>
+					<eventHandlerList>
+						<string>MuMeM.Player.Hp</string>
+						<string>MuMeM.Player.MaxHp</string>
+						<string>MuMeM.Player.Sp</string>
+						<string>MuMeM.Player.MaxSp</string>
+						<string>MuMeM.Player.Mp</string>
+						<string>MuMeM.Player.MaxMp</string>
+					</eventHandlerList>
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.GPrompt.Status</name>
+				<packageName></packageName>
+				<script></script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.GPrompt.Status.Riding</name>
+					<packageName></packageName>
+					<script>function MuMeM.GPrompt.Status.Riding(event)
+  MuMeM.Log.debug("MuMeM.GPrompt.Status.Riding()")
+
+  MuMeM.GPrompt.Status.updateRiding(MuMeM.Player.ride())
+end
+
+function MuMeM.GPrompt.Status.setRiding()
+  --MuMeM.GPrompt.visuals.statusRiding:setBackgroundImage(MuMeM.GPrompt.getResourceDir().."/affect-riding-18.png","tiled")
+  
+  local styleSheet = [[
+    background-image: url(]]..MuMeM.GPrompt.getResourceDir().."/affect-riding-18.png"..[[);
+    background-repeat: no;
+    background-position: center;
+    background-color: #00FF00;
+    border: 1px solid white;
+  ]]
+  setLabelStyleSheet("MuMeM.GPrompt.visuals.statusRiding", styleSheet, "style")
+end
+
+function MuMeM.GPrompt.Status.removeRiding()
+  --MuMeM.GPrompt.visuals.statusRiding:setBackgroundImage(MuMeM.GPrompt.getResourceDir().."/affect-riding-18.png","tiled")
+  
+  local styleSheet = [[
+    background-image: url(]]..MuMeM.GPrompt.getResourceDir().."/affect-riding-18.png"..[[);
+    background-repeat: no;
+    background-position: center;
+    background-color: darkGrey;
+    border: 1px solid white;
+  ]]
+  setLabelStyleSheet("MuMeM.GPrompt.visuals.statusRiding", styleSheet, "style")
+end
+
+function MuMeM.GPrompt.Status.updateRiding(isRiding)
+  if isRiding then
+    MuMeM.GPrompt.Status.setRiding()
+  else
+    MuMeM.GPrompt.Status.removeRiding()
+  end
+end</script>
+					<eventHandlerList>
+						<string>MuMeM.Player.Ride</string>
+					</eventHandlerList>
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.GPrompt.Status.Carrying</name>
+					<packageName></packageName>
+					<script>function MuMeM.GPrompt.Status.Carrying(event)
+  MuMeM.Log.debug("MuMeM.GPrompt.Status.Carrying()")
+
+  MuMeM.GPrompt.Status.updateCarrying(MuMeM.Player.carrying())
+end
+
+function MuMeM.GPrompt.Status.updateCarrying(carrying)
+  MuMeM.GPrompt.visuals.statusCarrying:echo(carrying)
+end
+</script>
+					<eventHandlerList>
+						<string>MuMeM.Player.Carrying</string>
+					</eventHandlerList>
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.GPrompt.Status.Light</name>
+					<packageName></packageName>
+					<script>function MuMeM.GPrompt.Status.Light(event)
+  MuMeM.Log.debug("MuMeM.GPrompt.Status.Light()")
+
+  MuMeM.GPrompt.Status.updateLight(MuMeM.Player.light())
+end
+
+function MuMeM.GPrompt.Status.updateLight(light)
+  MuMeM.GPrompt.visuals.statusLight:echo(light)
+end
+</script>
+					<eventHandlerList>
+						<string>MuMeM.Player.Light</string>
+					</eventHandlerList>
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.GPrompt.Status.Weather</name>
+					<packageName></packageName>
+					<script>function MuMeM.GPrompt.Status.Weather(event)
+  MuMeM.Log.debug("MuMeM.GPrompt.Status.Weather()")
+
+  MuMeM.GPrompt.Status.updateWeather(MuMeM.Player.weather())
+end
+
+function MuMeM.GPrompt.Status.updateWeather(weather)
+  MuMeM.GPrompt.visuals.statusWeather:echo(weather)
+end
+</script>
+					<eventHandlerList>
+						<string>MuMeM.Player.Weather</string>
+					</eventHandlerList>
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.GPrompt.Status.Fog</name>
+					<packageName></packageName>
+					<script>function MuMeM.GPrompt.Status.Fog(event)
+  MuMeM.Log.debug("MuMeM.GPrompt.Status.Fog()")
+
+  MuMeM.GPrompt.Status.updateFog(MuMeM.Player.fog())
+end
+
+function MuMeM.GPrompt.Status.updateFog(light)
+  MuMeM.GPrompt.visuals.statusFog:echo(fog)
+end
+</script>
+					<eventHandlerList>
+						<string>MuMeM.Player.Fog</string>
+					</eventHandlerList>
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.GPrompt.Status.Mood</name>
+					<packageName></packageName>
+					<script>function MuMeM.GPrompt.Status.Mood(event)
+  MuMeM.Log.debug("MuMeM.GPrompt.Status.Mood()")
+
+  MuMeM.GPrompt.Status.updateMood(MuMeM.Player.mood())
+end
+
+function MuMeM.GPrompt.Status.updateMood(mood)
+  local moodAbbr = "m?"
+  
+  if mood == "wimpy" then
+    moodAbbr = "mW"
+  elseif mood == "prudent" then
+    moodAbbr = "mP"
+  elseif mood == "normal" then
+    moodAbbr = "mN"
+  elseif mood == "brave" then
+    moodAbbr = "mB"
+  elseif mood == "aggressive" then
+    moodAbbr = "mA"
+  elseif mood == "berzerk" then
+    moodAbbr = "mZ"
+  end
+    
+  MuMeM.GPrompt.visuals.statusMood:echo(moodAbbr)
+end
+</script>
+					<eventHandlerList>
+						<string>MuMeM.Player.Mood</string>
+					</eventHandlerList>
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.GPrompt.Status.Climb</name>
+					<packageName></packageName>
+					<script>function MuMeM.GPrompt.Status.Climb(event)
+  MuMeM.Log.debug("MuMeM.GPrompt.Status.Climb()")
+
+  MuMeM.GPrompt.Status.updateClimb(MuMeM.Player.climb())
+end
+
+function MuMeM.GPrompt.Status.updateClimb(climb)
+  if climb == false then
+    MuMeM.GPrompt.visuals.statusClimb:echo(" ")
+  else
+    MuMeM.GPrompt.visuals.statusClimb:echo(climb)
+  end
+end
+</script>
+					<eventHandlerList>
+						<string>MuMeM.Player.Climb</string>
+					</eventHandlerList>
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.GPrompt.Status.Swim</name>
+					<packageName></packageName>
+					<script>function MuMeM.GPrompt.Status.Swim(event)
+  MuMeM.Log.debug("MuMeM.GPrompt.Status.Swim()")
+
+  MuMeM.GPrompt.Status.updateSwim(MuMeM.Player.swim())
+end
+
+function MuMeM.GPrompt.Status.updateSwim(swim)
+  if swim == false then
+    MuMeM.GPrompt.visuals.statusSwim:echo(" ")
+  else
+    MuMeM.GPrompt.visuals.statusSwim:echo("W")
+  end
+end
+</script>
+					<eventHandlerList>
+						<string>MuMeM.Player.Swim</string>
+					</eventHandlerList>
+				</Script>
+			</ScriptGroup>
+		</ScriptGroup>
+	</ScriptPackage>
+</MudletPackage>
