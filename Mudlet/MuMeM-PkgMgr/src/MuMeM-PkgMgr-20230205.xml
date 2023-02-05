@@ -12,8 +12,6 @@
       - none
 --]]
 
-echo("MuMeM.PkgMgr: loading\n")
-
 MuMeM = MuMeM or {}
 MuMeM.PkgMgr = MuMeM.PkgMgr or {}
 MuMeM.PkgMgr.GUI = MuMeM.PkgMgr.GUI or {}
@@ -27,17 +25,21 @@ MuMeM.PkgMgr.aliases.pkgmgr = MuMeM.PkgMgr.aliases.pkgmgr or
                                 tempAlias("^mpkgmgr$", function () MuMeM.PkgMgr.showGUI() end)
 
 
--- --- Module setup ----------------------------------------------
+-- --- Module setup (STANDALONE APP -------------------------------------
 
-MuMeM.PkgMgr.module_name = "MuMeM.PkgMgr"
-MuMeM.PkgMgr.module_dependencies = {"MuMeM.Core","MuMeM.Log"}
-MuMeM.modules = MuMeM.modules or {}
-MuMeM.modules[MuMeM.PkgMgr.module_name] = MuMeM.modules[MuMeM.PkgMgr.module_name] or {module=MuMeM.PkgMgr}</script>
+tempTimer( 0.01, function () raiseEvent( "MuMeM.PkgMgr.Initialize" ) end )
+</script>
 			<eventHandlerList />
 			<Script isActive="yes" isFolder="no">
 				<name>MuMeM.PkgMgr.Library</name>
 				<packageName></packageName>
 				<script>function MuMeM.PkgMgr.initialize()
+  if MuMeM.PkgMgr.isInitialized then
+    return
+  end
+  
+  MuMeM.PkgMgr.isInitialized = true         -- yes, do this at top!
+
   MuMeM.PkgMgr.MAX_ROWS = 10
 
   MuMeM.PkgMgr.GUI.MAX_ROWS = MuMeM.PkgMgr.MAX_ROWS
@@ -622,6 +624,16 @@ end</script>
 				<packageName></packageName>
 				<script></script>
 				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.PkgMgr.EventHandler.Initialize</name>
+					<packageName></packageName>
+					<script>function MuMeM.PkgMgr.EventHandler.Initialize()
+  MuMeM.PkgMgr.initialize() 
+end</script>
+					<eventHandlerList>
+						<string>MuMeM.PkgMgr.Initialize</string>
+					</eventHandlerList>
+				</Script>
 				<Script isActive="yes" isFolder="no">
 					<name>MuMeM.PkgMgr.EventHandler.httpGetDone</name>
 					<packageName></packageName>
