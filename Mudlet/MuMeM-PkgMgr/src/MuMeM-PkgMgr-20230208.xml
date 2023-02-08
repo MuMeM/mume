@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE MudletPackage>
+<MudletPackage version="1.001">
+	<ScriptPackage>
+		<Script isActive="yes" isFolder="no">
+			<name>MuMeM.PkgMgr.EventHandler.packageUnInstall</name>
+			<packageName></packageName>
+			<script>function MuMeM.PkgMgr.EventHandler.packageUnInstall(eventName, package)
+  if not MuMeM.PkgMgr.isInitialized then
+    return
+  end
+
+  MuMeM.PkgMgr.log(f"[REMOVE] package {package} removed")
+  MuMeM.PkgMgr.setPackageStatus(package)
+  
+  if #MuMeM.PkgMgr.packageInstallTree == 0 then
+    MuMeM.PkgMgr.displayPackages()
+  end
+end</script>
+			<eventHandlerList>
+				<string>sysUninstallPackage</string>
+			</eventHandlerList>
+		</Script>
+	</ScriptPackage>
+</MudletPackage>
