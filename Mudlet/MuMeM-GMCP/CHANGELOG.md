@@ -1,4 +1,9 @@
-### 202302023
+### 20230211
+
+  * Comm.* support added
+  * Char.Name support added
+
+### 20230203
 
   * Room.Char support added
 
