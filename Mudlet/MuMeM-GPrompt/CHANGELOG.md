@@ -1,3 +1,7 @@
+### 20230211
+
+  * Removed startup message
+
 ### 20230205
 
    * Updated dependencies
