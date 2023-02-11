@@ -2,51 +2,10 @@
 <!DOCTYPE MudletPackage>
 <MudletPackage version="1.001">
 	<ScriptPackage>
-		<ScriptGroup isActive="yes" isFolder="yes">
-			<name>MuMeM.Log</name>
+		<Script isActive="yes" isFolder="no">
+			<name>MuMem.Log.Library</name>
 			<packageName></packageName>
-			<script>MuMeM = MuMeM or {}
-MuMeM.Log = MuMeM.Log or {}
-
-MuMeM.Log.Level = {
-  EMERG = 0,
-  ALERT = 1,
-  CRIT = 2,
-  CRITIC = 2,
-  CRITICAL = 2,
-  ERR = 3,
-  ERROR = 3,
-  WARNING = 4,
-  NOTICE = 5,
-  INFO = 6,
-  DEBUG = 7,
-}
-
-MuMeM.Log.LevelAbbr = {
-  [MuMeM.Log.Level.EMERG]   = "P",
-  [MuMeM.Log.Level.ALERT]   = "A",
-  [MuMeM.Log.Level.CRIT]    = "C",
-  [MuMeM.Log.Level.ERR]     = "E",
-  [MuMeM.Log.Level.WARNING] = "W",
-  [MuMeM.Log.Level.NOTICE]  = "N",
-  [MuMeM.Log.Level.INFO]    = "I",
-  [MuMeM.Log.Level.DEBUG]   = "D",
-}
-
---MuMeM.Log.logLevel = MuMeM.Log.Level.DEBUG
-MuMeM.Log.logLevel = MuMeM.Log.Level.NOTICE
-
--- --- Module setup ----------------------------------------------
-
-MuMeM.Log.module_name = "MuMeM.Log"
-MuMeM.Log.module_dependencies = {"MuMeM.Core"}
-MuMeM.modules = MuMeM.modules or {}
-MuMeM.modules[MuMeM.Log.module_name] = MuMeM.modules[MuMeM.Log.module_name] or {module=MuMeM.Log}</script>
-			<eventHandlerList />
-			<Script isActive="yes" isFolder="no">
-				<name>MuMem.Log.Library</name>
-				<packageName></packageName>
-				<script>function MuMeM.Log.initialize()
+			<script>function MuMeM.Log.initialize()
   MuMeM.Log.modules = MuMeM.Log.modules or {}
 end
 
@@ -95,11 +54,13 @@ function MuMeM.Log.critical(msg, moduleName)
 end
 
 function MuMeM.Log.write(msg, moduleName, logLevel)
-  if moduleName and MuMeM.Log.modules[moduleName] then            -- per module settings override global!
+  -- per module settings override global!
+  if moduleName and MuMeM.Log.modules and MuMeM.Log.modules[moduleName] then
     if logLevel &gt; MuMeM.Log.modules[moduleName].logLevel then
       return
     end
-  elseif logLevel &gt; MuMeM.Log.logLevel then                        -- apply if we do not have per-module settings
+  -- apply global level if we do not have per-module settings
+  elseif logLevel &gt; MuMeM.Log.logLevel then 
     return
   end
   
@@ -109,8 +70,7 @@ function MuMeM.Log.write(msg, moduleName, logLevel)
   echo("MuMeM.Log", "["..getTime(true,"hh:mm:ss").." "..MuMeM.Log.LevelAbbr[logLevel].."] ["
          ..moduleName.."] "..msg.."\n")
 end</script>
-				<eventHandlerList />
-			</Script>
-		</ScriptGroup>
+			<eventHandlerList />
+		</Script>
 	</ScriptPackage>
 </MudletPackage>
