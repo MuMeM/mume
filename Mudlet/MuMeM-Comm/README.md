@@ -48,6 +48,12 @@ Sounds complicated? Just left and right click the buttons and see what happens. 
 `mcomm window show <name>` - shows a previously hidden/closed window
 `mcomm window hide <name>` - hides/closes a window. same effect as clicking the "X" on the window title bar
 
+### Aliases
+
+MuMeM-Comm adds a couple of aliases to the game, for adding your own chat messages to the communication window. These aliases are the ones you use for normal communication, but are prefixed with an `m`, so for example `msay` or `mnarrate`.
+
+I am conciously not overriding the existing commands and leave the choice to you. If you want to override, just make and alias `say` for `msay`. But using the standard commands also works fine, then just our own chats are not added to the chat window.
+
 ## FAQ
 
 #### How do I update a package?
