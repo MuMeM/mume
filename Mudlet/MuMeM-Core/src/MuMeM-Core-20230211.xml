@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE MudletPackage>
+<MudletPackage version="1.001">
+	<ScriptPackage>
+		<ScriptGroup isActive="yes" isFolder="yes">
+			<name>MuMeM.Core</name>
+			<packageName></packageName>
+			<script>MuMeM = MuMeM or {}
+MuMeM.Core = MuMeM.Core or {}
+MuMeM.Core.Module = MuMeM.Core.Module or {}
+MuMeM.Core.IO = MuMeM.Core.IO or {}
+MuMeM.Core.Util = MuMeM.Core.Util or {}
+
+MuMeM.modules = MuMeM.modules or {}
+
+
+-- --- Module setup ----------------------------------------------
+
+MuMeM.Core.module_name = "MuMeM.Core"
+MuMeM.Core.module_dependencies = {}
+MuMeM.modules = MuMeM.modules or {}
+MuMeM.modules[MuMeM.Core.module_name] = MuMeM.modules[MuMeM.Core.module_name] or {module=MuMeM.Core}
+
+tempTimer( 0.01, function () raiseEvent( "MuMeM_RegisterModule" ) end )</script>
+			<eventHandlerList />
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Core.Library</name>
+				<packageName></packageName>
+				<script>function MuMeM.Core.initialize()
+  return
+end
+
+function MuMeM.Core.registerModule()
+  print("NOT IMPLEMENTED")
+  -- This method must ONLY be called after the module is FULLY LOADED!!! (use the LOAD EVENT)
+  --MuMeM.Core.Module.load()
+end</script>
+				<eventHandlerList />
+			</Script>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMem.Core.Module</name>
+				<packageName></packageName>
+				<script></script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Core.Module.Library</name>
+					<packageName></packageName>
+					<script>function MuMeM.Core.Module.loadOne(mName)
+  local moduleObj = MuMeM.modules[mName].module
+  local shouldInitialize = true
+  
+  if moduleObj.module_dependencies then
+    for _,mDep in pairs(moduleObj.module_dependencies) do
+      if not MuMeM.modules[mDep] then
+        shouldInitialize = false
+        -- print(f"MuMeM module {mName} missing dependency {mDep}") 
+        break
+      elseif not MuMeM.modules[mDep].isInitialized then
+        MuMeM.Core.Module.loadOne(mDep, MuMeM.modules[mDep])
+        shouldInitialize = MuMeM.modules[mDep].isInitialized
+        break
+      end
+    end
+  end
+
+  if shouldInitialize then
+    moduleObj.initialize()
+    --print(f"MuMeM module {mName} initialized")
+    MuMeM.modules[mName].isInitialized = true
+  end
+end
+
+function MuMeM.Core.Module.loadAll()
+  for mName,_ in pairs(MuMeM.modules) do
+    if not MuMeM.modules[mName].isInitialized then
+      MuMeM.Core.Module.loadOne(mName)
+    end
+  end
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Core.Module.LoadEvent</name>
+					<packageName></packageName>
+					<script>function MuMeM.Core.Module.LoadEvent()
+  MuMeM.Core.Module.loadAll()
+end</script>
+					<eventHandlerList>
+						<string>MuMeM_RegisterModule</string>
+					</eventHandlerList>
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Core.IO</name>
+				<packageName></packageName>
+				<script></script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Core.IO.Library</name>
+					<packageName></packageName>
+					<script>
+-- SEE https://wiki.mudlet.org/w/Manual:Lua_Functions#File_System_Functions
+--
+-- !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+function MuMeM.Core.IO.concatPath(...)
+  local path
+  
+  if arg.n == 0 then
+    path = nil
+  else
+    path = arg[1]
+    for i=2,arg.n do
+      if not path:ends("/") then
+        path = path .. "/"
+      end
+      path = path .. arg[i]
+    end
+  end
+  
+  return path
+end
+
+function MuMeM.Core.IO.fileExists(path)   -- DEPRECATED
+  return io.exists(path)
+end
+
+function MuMeM.Core.IO.nodeExists(path)
+  return io.exists(path)
+end
+
+function MuMeM.Core.IO.isDir(path)
+  if not io.exists(path) then
+    return false
+  end
+  
+  if path:ends("/") then
+    path = path:sub(1,-2)
+  end
+
+  local ok, err, code = lfs.attributes(path, "mode")
+  if ok then
+    if ok == "directory" then
+      return true
+    else
+      return false
+    end
+  end
+  
+  return ok, err, code
+end
+
+function MuMeM.Core.IO.removeNode(path)
+  if not io.exists(path) then
+    return false
+  end
+
+  local ok, err, code = os.remove(path)
+  
+  return ok, err, code
+end
+
+function MuMeM.Core.IO.copyFile(srcFile, dstFile)
+  local srcFileIO = io.open(srcFile)
+  if not srcFileIO then
+    return false
+  end
+  
+  local dstFileIO = io.open(dstFile, "w")
+  if not srcFileIO then
+    srcFileIO:close()
+    return false
+  end
+  
+  while true do
+    local block = srcFileIO:read(2^13)
+    if not block then break end
+    dstFileIO:write(block)
+  end
+  
+  srcFileIO:close()
+  dstFileIO:close()
+  
+  return true
+end
+
+function MuMeM.Core.IO.createDir(path)
+  local rtc = lfs.mkdir(path)
+  return rtc
+end
+</script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Core.Util</name>
+				<packageName></packageName>
+				<script></script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Core.Util.Library</name>
+					<packageName></packageName>
+					<script>function MuMeM.Core.Util.copyProperty(property, default)
+  if property then
+    return MuMeM.Core.Util.copyData(property)
+  else
+    return MuMeM.Core.Util.copyData(default)
+  end
+end
+
+function MuMeM.Core.Util.copyData(data)
+  if type(data) == 'table' then
+    local copy = {}
+
+    for k,v in pairs(data) do
+      if k == "__index" then                                -- NOT COPY the __index (make this a func-param?)
+        copy[k] = v
+      elseif type(v) == "table" then
+        copy[k] = MuMeM.Core.Util.copyData(v)
+      else
+        copy[k] = v
+      end
+    end
+  
+    return copy
+  else
+    return data
+  end
+end
+
+function MuMeM.Core.Util.mergeTable(masterTable, slaveTable)
+  if masterTable and slaveTable then
+    for k,v in pairs(slaveTable) do
+      if k == "__index" then
+        masterTable[k] = v
+      elseif type(v) == "table" then
+        masterTable[k] = masterTable[k] or {}
+        MuMeM.Core.Util.mergeTable(masterTable[k], slaveTable[k])
+      else
+        masterTable[k] = v
+      end
+    end
+  end
+end
+
+function MuMeM.Core.Util.splitString (inputstr, sep)
+  if sep == nil then
+    sep = "%s"
+  end
+  
+  local t={}
+  for str in string.gmatch(inputstr, "([^"..sep.."]+)") do
+    table.insert(t, str)
+  end
+  
+  return t
+end</script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+		</ScriptGroup>
+	</ScriptPackage>
+</MudletPackage>
