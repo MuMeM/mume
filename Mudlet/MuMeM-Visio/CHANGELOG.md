@@ -1,3 +1,10 @@
+### 20230311
+
+  * Cleaning up image-pack.zip after download
+  * Room image import fixed
+  * Startup message removed
+  * replaced showWindow(obj) by obj:show() (MacOS 13 bugfix)
+
 ### 20230303
 
   * Clickable exists: When clicking on the exit, you move to that direction
