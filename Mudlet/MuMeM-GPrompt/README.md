@@ -33,6 +33,12 @@ Now this all sounds very complicated, but it will be easily understandable once 
 
 **WARNING**: MuMeM-GPrompt is conflicting with "mumem_gui". You need to uninstall/disable it first. See below how.
 
+### Via MuMeM Package Manager
+
+Just install [MuMeM Package Manager](https://github.com/MuMeM/mume/tree/main/Mudlet/MuMeM-PkgMgr). You can then install this application with a simple graphical user interfase.
+
+### Manual installation
+
 GPrompt needs the following dependencies. All of these can be found on the MuMeM github page.
 
   * MuMeM-Core
