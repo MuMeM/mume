@@ -4,7 +4,8 @@ MuMeM Visio
 ## Description
 MuMeM visio is a POC (Proof of Concept) on how to display images of rooms in MUME. In its current form it is very basic and just aims to give an impression of what a solution could look like.
 
-![MuMeM-Visio Screenshot](https://github.com/MuMeM/mume/blob/main/Mudlet/MuMeM-Visio/doc/MuMeM-Visio.png)
+![MuMeM-Visio Screenshot 1](https://github.com/MuMeM/mume/blob/main/Mudlet/MuMeM-Visio/doc/MuMeM-Visio-1.png)
+![MuMeM-Visio Screenshot 2](https://github.com/MuMeM/mume/blob/main/Mudlet/MuMeM-Visio/doc/MuMeM-Visio-2.png)
 
 ## Installation
 Download the latest package and its dependencies from this website and install it in Mudlet via the package manager. This will install a "directory" called "MuMeM-Visio" in the scripts section of Mudlet.
