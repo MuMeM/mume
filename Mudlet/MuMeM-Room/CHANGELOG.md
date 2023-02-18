@@ -1,3 +1,7 @@
+### 20230218
+
+  * Added Room.Info and Exits
+
 ### 20230211
 
   * Updated dependencies
