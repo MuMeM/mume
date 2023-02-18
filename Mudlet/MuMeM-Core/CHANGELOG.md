@@ -1,3 +1,7 @@
+### 20230218
+
+  * Added MD5 and SHA1 hashes
+
 ### 20230211
 
   * Added more utility functions
