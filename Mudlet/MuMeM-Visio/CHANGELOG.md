@@ -1,3 +1,13 @@
+### 20230318
+
+  * Added a compass (and again, awesome art by Freyja!)
+  * Replaced stock images (kudos again to Freyja!)
+  * Redesigned the layout ("menu" bar at top, room layer, action bar, ...)
+  * Extra functions now in own sub window ("More...")
+  * Room exits are updating (e.g. door status)
+  * Enlarged the image
+  * [internal] Complete overhaul and refactoring
+
 ### 20230311
 
   * Cleaning up image-pack.zip after download
