@@ -1,0 +1,661 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE MudletPackage>
+<MudletPackage version="1.001">
+	<ScriptPackage>
+		<ScriptGroup isActive="yes" isFolder="yes">
+			<name>MuMeM.Compass</name>
+			<packageName></packageName>
+			<script>--[[
+    Visual compass, clickable with exits and other actions
+    
+    Provides:
+      - Compass (image)
+      - Direction integration (clickable)
+      - Extra clicks (e.g. flee, ..)
+--]]
+
+mumem_inherit = mumem_inherit or function (className, baseName)
+  local classObj = _G
+  for str in string.gmatch(className, "([^\\.]+)") do
+    classObj = classObj[str]
+  end
+  
+  local baseObj = _G
+  for str in string.gmatch(baseName, "([^\\.]+)") do
+    baseObj = baseObj[str]
+  end
+
+  setmetatable(classObj, baseObj)
+  classObj.__index = classObj
+  
+  if className == baseName then
+    classObj.parentClass = "BASE"
+  else
+    classObj.parentClass = baseObj
+  end
+  classObj.className = className
+end
+
+mumem_isa = mume_isa or function (classObj, className)
+  if classObj == "BASE" then
+    return false
+  elseif classObj.className == className then
+    return true
+  end
+  return mumem_isa(classObj.parentClass, className)
+end
+
+-- --- Module setup ----------------------------------------------
+
+MuMeM = MuMeM or {}
+MuMeM.Compass = MuMeM.Compass or {}
+MuMeM.Compass.Widget = MuMeM.Compass.Widget or {}
+
+
+-- --- Module registration -----------------------------------------
+
+MuMeM.Compass.module_name = "MuMeM.Compass"
+MuMeM.Compass.module_dependencies = {"MuMeM.Core","MuMeM.Log","MuMeM.GMCP","MuMeM.Room"}
+MuMeM.modules = MuMeM.modules or {}
+MuMeM.modules[MuMeM.Compass.module_name] = MuMeM.modules[MuMeM.Compass.module_name] or {module=MuMeM.Compass}</script>
+			<eventHandlerList />
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Compass.Library</name>
+				<packageName></packageName>
+				<script>function MuMeM.Compass.initialize()
+
+end</script>
+				<eventHandlerList />
+			</Script>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Compass.Widgets</name>
+				<packageName></packageName>
+				<script></script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Compass.Pane</name>
+					<packageName></packageName>
+					<script>MuMeM.Compass.Pane = {
+  _paneWidth = 160,
+  _paneHeight = 160,
+  
+  _resourceDir = getMudletHomeDir().."/MuMeM-Compass/Resources",
+  _compassBackground = "/Compass160/compass160.png",
+  _compassTiles = false,
+
+  _parentWindow = nil,
+  _visuals = {},
+  
+  _eventHandlerRoomExit = nil,
+}
+
+mumem_inherit("MuMeM.Compass.Pane", "MuMeM.Compass.Pane")
+
+function MuMeM.Compass.Pane:new(props)
+  local me = props or {}
+
+  -- development version
+  if MuMeM.Core.IO.fileExists(getMudletHomeDir().."/MuMeM.Compass") then
+    me._resourceDir = getMudletHomeDir().."/MuMeM.Compass/Resources"
+  end
+  
+  me._visuals = {}
+
+  setmetatable(me, self)
+  self.__index = self
+    
+  return me
+end
+
+function MuMeM.Compass.Pane:create(parent, paneX, paneY)
+  self._parentWindow = parent
+
+  -- --- create the compass ---
+  self:createCompass(paneX, paneY)
+  
+  -- --- create the dial ---
+  self._dialWidget = MuMeM.Compass.Dial:new({_compass=self})
+  self._dialWidget:create(self._visuals.rootPane, 0, 0)
+  
+   -- --- register handlers ---
+  self._eventHandlerRoomExit = registerAnonymousEventHandler("MuMeM.Room.Exits", function () self:handleRoomExitsChanged() end )
+  self._eventHandlerRoomExit = registerAnonymousEventHandler("MuMeM.Room.Info", function () self:handleRoomExitsChanged() end )
+end
+
+function MuMeM.Compass.Pane:createCompass(paneX, paneY)
+  -- ABSTRACT: MUST BE OVERRIDDEN
+end
+
+
+function MuMeM.Compass.Pane:createSingle(parent, paneX, paneY)
+  local parentName = parent.name
+  
+  -- --- create the compass "label" ---
+  self._visuals.rootPane = Geyser.Label:new({
+    name=f"{parentName}#MuMeM.Compass.Pane.rootPane",
+    x = paneX, y = paneY,
+    width = self._paneWidth, height = self._paneHeight,
+  },parent)
+
+  self._visuals.rootPane:setStyleSheet([[
+    background-image: url("]]..self:compassBackground()..[[");
+  ]])
+  
+  -- --- register handlers ---
+  self._visuals.rootPane:setClickCallback( function (event) self:handleMouseClick(event) end )
+end
+
+function MuMeM.Compass.Pane:resourceDir()
+  return self._resourceDir
+end
+
+function MuMeM.Compass.Pane:compassBackground(section)
+  return MuMeM.Core.IO.concatPath(self:resourceDir(), self._compassBackground)
+end
+
+function MuMeM.Compass.Pane:paneWidth()
+  return self._paneWidth
+end
+
+function MuMeM.Compass.Pane:paneHeight()
+  return self._paneHeight
+end
+
+function MuMeM.Compass.Pane:parentWindow()
+  return self._parentWindow
+end
+
+function MuMeM.Compass.Pane:isTiled()
+  return self._compassTiles ~= false
+end
+
+function MuMeM.Compass.Pane:getClickedSector(x, y)
+  if y &lt; self._paneWidth / 3 then
+    if x &lt; self._paneHeight / 3 then
+      return "northwest"
+    elseif x &lt; self._paneHeight / 3 * 2 then
+      return "north"
+    else
+      return "northeast"
+    end
+  elseif y &lt; self._paneWidth / 3 * 2 then
+    if x &lt; self._paneHeight / 3 then
+      return "west"
+    elseif x &lt; self._paneHeight / 3 * 2 then
+      return "center"
+    else
+      return "east"
+    end
+  else
+    if x &lt; self._paneHeight / 3 then
+      return "southwest"
+    elseif x &lt; self._paneHeight / 3 * 2 then
+      return "south"
+    else
+      return "east"
+    end
+  end
+  
+  return "unknown"
+end
+
+function MuMeM.Compass.Pane:handleMouseClick(event)
+  sector = self:getClickedSector(event.x, event.y)
+  
+  self[sector.."SectorClicked"](self, event)
+end
+
+function MuMeM.Compass.Pane:northSectorClicked(event)
+  self:directionClicked(event, "north", "north")
+end
+
+function MuMeM.Compass.Pane:eastSectorClicked(event)
+  self:directionClicked(event, "east", "east")
+end
+
+function MuMeM.Compass.Pane:southSectorClicked(event)
+  self:directionClicked(event, "south", "south")
+end
+
+function MuMeM.Compass.Pane:westSectorClicked(event)
+  self:directionClicked(event, "west", "west")
+end
+
+function MuMeM.Compass.Pane:centerSectorClicked(event)
+--  self._dialWidget:activate(event.x, event.y)
+end
+
+
+function MuMeM.Compass.Pane:northwestSectorClicked(event)
+
+end
+
+function MuMeM.Compass.Pane:northeastSectorClicked(event)
+  self:directionClicked(event, "up", "northeast")
+end
+
+function MuMeM.Compass.Pane:southeastSectorClicked(event)
+  self:directionClicked(event, "down", "southeast")
+end
+
+function MuMeM.Compass.Pane:southwestSectorClicked(event)
+
+end
+
+function MuMeM.Compass.Pane:directionClicked(event, direction, sector)
+  if event.button == "LeftButton" then
+    if MuMeM.Room.Exits.exists(string.sub(direction,1,1)) then
+      send(direction)
+    end
+  else
+    self:activateDial(sector, direction, event.x, event.y)
+  end
+end
+
+function MuMeM.Compass.Pane:activateDial(sector, direction, x, y)
+  self._dialWidget:activate(x, y, direction)
+end
+
+function MuMeM.Compass.Pane:handleRoomExitsChanged()
+  --print("ROOM EXIT CHANGED")
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Compass.TiledPane</name>
+					<packageName></packageName>
+					<script>MuMeM.Compass.TiledPane = {
+  _compassTiles = {},
+}
+
+mumem_inherit("MuMeM.Compass.TiledPane", "MuMeM.Compass.Pane")
+
+function MuMeM.Compass.TiledPane:new(props)
+  local me = props or {}
+  
+  props._compassTiles = props._compassTiles or {}
+  
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+    
+  return me
+end
+
+function MuMeM.Compass.TiledPane:createCompass(paneX, paneY)
+  local parentName = self:parentWindow().name
+
+  -- --- create the compass "container" ---
+  self._visuals.rootPane = Geyser.Container:new({
+    name=f"{parentName}#MuMeM.Compass.Pane.rootPane",
+    x = paneX, y = paneY,
+    width = self._paneWidth, height = self._paneHeight,
+  },self:parentWindow())
+  
+  -- --- tiles ---
+  self:createTile("northwest")
+  self:createTile("north")
+  self:createTile("northeast")
+  self:createTile("west")
+  self:createTile("center")
+  self:createTile("east")
+  self:createTile("southwest")
+  self:createTile("south")
+  self:createTile("southeast")
+end
+
+function MuMeM.Compass.TiledPane:createTile(sector)
+  local paneName = self._visuals.rootPane.name
+  local ct = self:compassTile(sector)
+
+  self._visuals[sector] = Geyser.Label:new({
+    name=f"{paneName}:{sector}",
+    x = ct.x, y = ct.y,
+    width = ct.width, height = ct.height,
+  },self._visuals.rootPane)
+  self._visuals[sector]:setStyleSheet([[
+    background-image: url("]]..self:compassTileBackground(sector,false)..[[");
+  ]])
+
+  -- --- register click handlers ---
+  self._visuals[sector]:setClickCallback( function (event) self:handleMouseClick(sector, event) end )
+end
+
+function MuMeM.Compass.TiledPane:compassTileBackground(sector, status)
+  local tile = self:compassTile(sector)
+  
+  if status == true then
+    return MuMeM.Core.IO.concatPath(self:resourceDir(), tile.imageEnabled)
+  else
+    return MuMeM.Core.IO.concatPath(self:resourceDir(), tile.imageDisabled)
+  end
+end
+
+function MuMeM.Compass.TiledPane:compassTile(sector)
+  return self._compassTiles[sector]
+end
+
+function MuMeM.Compass.TiledPane:handleMouseClick(sector, event)
+  self[sector.."SectorClicked"](self, event)
+end
+
+function MuMeM.Compass.TiledPane:activateDial(sector, direction, x, y)
+  local ct = self:compassTile(sector)
+
+  --x = x + self._visuals[sector]:get_x()     -- NOT WORKING ??? WHY ????
+  --y = y + self._visuals[sector]:get_y()     -- seems to be relative to "VISIO MAIN"
+  
+  x = x + ct.x
+  y = y + ct.y
+
+  MuMeM.Compass.TiledPane.parentClass.activateDial(self, sector, direction, x, y)
+end
+
+function MuMeM.Compass.TiledPane:handleRoomExitsChanged()
+  for direction,sector in pairs({["n"]="north",["e"]="east",["s"]="south",["w"]="west",["u"]="northeast",["d"]="southeast"}) do
+    if MuMeM.Room.Exits.exists(direction) then
+      self._visuals[sector]:setStyleSheet([[
+        background-image: url("]]..self:compassTileBackground(sector,true)..[[");
+      ]])
+    else
+      self._visuals[sector]:setStyleSheet([[
+        background-image: url("]]..self:compassTileBackground(sector,false)..[[");
+      ]])  
+    end
+  end
+end
+</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Compass.Pane160</name>
+					<packageName></packageName>
+					<script>MuMeM.Compass.Pane160 = {
+} 
+
+mumem_inherit("MuMeM.Compass.Pane160", "MuMeM.Compass.Pane")
+
+function MuMeM.Compass.Pane160:new(props)
+  props = props or {}
+  
+  props._paneWidth = 160
+  props._paneHeight = 160
+  props._compassBackground = "compass160.png"
+    
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+ 
+  --me._commPane:create(me._mainWindow)
+  
+  return me
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Compass.Pane250</name>
+					<packageName></packageName>
+					<script>MuMeM.Compass.Pane250 = {
+} 
+
+mumem_inherit("MuMeM.Compass.Pane250", "MuMeM.Compass.TiledPane")
+
+function MuMeM.Compass.Pane250:new(props)
+  props = props or {}
+  
+  props._paneWidth = 250
+  props._paneHeight = 245
+  
+  props._compassTiles = {
+    ["northwest"] = {
+      imageDisabled = "/Compass250/compass250nw_disabled.png", 
+      imageEnabled = "/Compass250/compass250nw_enabled.png", 
+      x = 0, y = 0, width = 75, height = 75,
+    },
+    ["north"] = {
+      imageDisabled = "/Compass250/compass250n_disabled.png",
+      imageEnabled = "/Compass250/compass250n_enabled.png",
+      x = 75, y = 0, width = 100, height = 75,
+    },
+    ["northeast"] = {
+      imageDisabled = "/Compass250/compass250ne_disabled.png",
+      imageEnabled = "/Compass250/compass250ne_enabled.png",
+      x = 175, y =  0, width = 75, height = 75,
+    },
+    ["west"] = {
+      imageDisabled = "/Compass250/compass250w_disabled.png",
+      imageEnabled = "/Compass250/compass250w_enabled.png",
+      x=  0, y = 75, width = 75, height = 92,
+    },
+    ["center"] = {
+      imageDisabled = "/Compass250/compass250c_disabled.png",
+      imageEnabled = "/Compass250/compass250c_enabled.png",
+      x = 75, y = 75, width = 100, height = 92,
+    },
+    ["east"] = {
+      imageDisabled = "/Compass250/compass250e_disabled.png",
+      imageEnabled = "/Compass250/compass250e_enabled.png",
+      x = 175, y = 75, width = 75, height = 92,
+    },
+    ["southwest"] = {
+      imageDisabled = "/Compass250/compass250sw_disabled.png",
+      imageEnabled = "/Compass250/compass250sw_enabled.png",
+      x = 0, y = 167, width = 75, height = 78,
+    },
+    ["south"] = {
+      imageDisabled = "/Compass250/compass250s_disabled.png",
+      imageEnabled = "/Compass250/compass250s_enabled.png",
+      x = 75, y = 167, width = 100, height = 78,
+    },
+    ["southeast"] = {
+      imageDisabled = "/Compass250/compass250se_disabled.png",
+      imageEnabled = "/Compass250/compass250se_enabled.png",
+      x = 175, y = 167, width = 75, height = 78,
+    },
+  }
+
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+   
+  return me
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Compass.Dial</name>
+					<packageName></packageName>
+					<script>MuMeM.Compass.Dial = {
+  _paneWidth = 100,
+  _paneHeight = 100,
+  
+  _resourceDir = getMudletHomeDir().."/MuMeM-Compass/Resources",
+  
+  _direction = "X",             -- direction to "move"
+
+  _compass = nil,
+  _parentWindow = nil,
+  _visuals = {},
+}
+
+mumem_inherit("MuMeM.Compass.Dial", "MuMeM.Compass.Dial")
+
+function MuMeM.Compass.Dial:new(props)
+  local me = props or {}
+
+  -- development version
+  if MuMeM.Core.IO.fileExists(getMudletHomeDir().."/MuMeM.Compass") then
+    me._resourceDir = getMudletHomeDir().."/MuMeM.Compass/Resources"
+  end
+  
+  me._compass = props._compass
+  me._visuals = {}
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end
+
+function MuMeM.Compass.Dial:create(parent, paneX, paneY)
+  local parentName = parent.name
+  
+  self._parentWindow = parent
+
+  -- --- create the compass "label" ---
+  self._visuals.rootPane = Geyser.Label:new({
+    name=f"{parentName}#MuMeM.Compass.Dial.rootPane",
+    x = paneX, y = paneY,
+    width = self._paneWidth, height = self._paneHeight,
+  },parent)
+  self._visuals.rootPane:setStyleSheet([[
+    QLabel{ 
+        background-color: black;
+        border: 5px solid black;
+        border-radius: 8px;
+    }
+  ]])
+
+  -- --- create the sections ---
+  self:createSections({
+    {"northwest", 5, 5, "open", "open-hover"},
+    {"north", 35, 5, "close", "close-hover"},
+    {"northeast", 65, 5, "scout", "scout-hover"},
+    {"west", 5, 35, "lock", "lock-hover"},
+    {"center", 35, 35, "walk", "walk-hover"},
+    {"east", 65, 35, "look", "look-hover"},
+    {"southwest", 5, 65, "unlock", "unlock-hover"},
+    {"south", 35, 65, "bash", "bash-hover"},
+    {"southeast", 65, 65, "pick", "pick-hover"},
+  })
+
+  -- --- hide afer creation ---
+  self._visuals.rootPane:hide()
+  
+  -- --- register handlers ---
+  self._visuals.rootPane:setOnLeave(function () self:onLeave() end )
+end
+
+function MuMeM.Compass.Dial:createSections(sectionData)
+  local parentName = self:parentWindow().name
+
+  for _,sd in pairs(sectionData) do
+    local section,x,y,image,imageHover = unpack(sd)
+    
+    self._visuals[section] = Geyser.Label:new({
+      name=f"{parentName}#MuMeM.Compass.Dial.{section}",
+      x = x, y = y,
+      width = 30, height = 30,
+      color = "black",
+    },self._visuals.rootPane)
+    self._visuals[section]:setStyleSheet([[
+      QLabel{ 
+          background-image: url("]]..MuMeM.Core.IO.concatPath(self:resourceDir(), image)..[[");
+      }
+      QLabel::hover{
+          background-image: url("]]..MuMeM.Core.IO.concatPath(self:resourceDir(), imageHover)..[[");
+      }
+    ]])
+    
+    self._visuals[section]:setClickCallback( function (event) self:handleMouseClick(event, section) end )
+  end
+end
+
+function MuMeM.Compass.Dial:compass()
+  return self._compass
+end
+
+function MuMeM.Compass.Dial:resourceDir()
+  return self._resourceDir
+end
+
+function MuMeM.Compass.Dial:parentWindow()
+  return self._parentWindow
+end
+
+function MuMeM.Compass.Dial:activate(x, y, direction)
+  local showX,showY = 0,0
+  
+  showX = x - self._paneWidth / 2
+  showY = y - self._paneHeight / 2
+  
+  if showX &lt; 0 then
+    showX = showX - self:compass():paneWidth()
+  end
+  
+  if showY &lt; 0 then
+    showY = showY - self:compass():paneHeight()
+  end
+    
+  self._visuals.rootPane:move(showX, showY)
+  self._visuals.rootPane:raiseAll()
+  self._visuals.rootPane:show()
+
+  self._direction = direction
+end
+
+function MuMeM.Compass.Dial:onLeave(...)
+  self._visuals.rootPane:hide()
+end
+
+function MuMeM.Compass.Dial:handleMouseClick(event, section)
+  self._visuals.rootPane:hide()
+
+  -- TODO TODO TODO 
+  -- this currently is just a quick hack for a TECH PREVIEW
+  
+  if section == "northwest" then
+    if MuMeM.Room.Exits.exists(self._direction) then
+      send("open "..MuMeM.Room.Exits.get(self._direction):name())
+    else
+      send("open "..self._direction)
+    end
+  elseif section == "north" then
+    if MuMeM.Room.Exits.exists(self._direction) then
+      send("close "..MuMeM.Room.Exits.get(self._direction):name())
+    else
+      send("close "..self._direction)
+    end
+  elseif section == "northeast" then
+    send("scout "..self._direction)
+  elseif section == "west" then
+    if MuMeM.Room.Exits.exists(self._direction) then
+      send("unlock "..MuMeM.Room.Exits.get(self._direction):name())
+    else
+      send("unlock "..self._direction)
+    end
+  elseif section == "center" then
+    send(self._direction)
+  elseif section == "east" then
+    send("look "..self._direction)
+  elseif section == "southwest" then
+    if MuMeM.Room.Exits.exists(self._direction) then
+      send("lock "..MuMeM.Room.Exits.get(self._direction):name())
+    else
+      send("lock "..self._direction)
+    end
+  elseif section == "south" then
+    if MuMeM.Room.Exits.exists(self._direction) then
+      send("bash "..MuMeM.Room.Exits.get(self._direction):name())
+    else
+      send("bash "..self._direction)
+    end  
+  elseif section == "southeast" then
+    if MuMeM.Room.Exits.exists(self._direction) then
+      send("pick "..MuMeM.Room.Exits.get(self._direction):name())
+    else
+      send("pick "..self._direction)
+    end  
+  end
+  
+
+end</script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+		</ScriptGroup>
+	</ScriptPackage>
+</MudletPackage>
