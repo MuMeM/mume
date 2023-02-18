@@ -53,7 +53,7 @@ MuMeM.Visio.Alias.visere = MuMeM.Visio.Alias.visere or
 -- --- Module registration -----------------------------------------
 
 MuMeM.Visio.module_name = "MuMeM.Visio"
-MuMeM.Visio.module_dependencies = {"MuMeM.Core","MuMeM.Room"}
+MuMeM.Visio.module_dependencies = {"MuMeM.Core","MuMeM.Log","MuMeM.GMCP","MuMeM.Room","MuMeM.Player","MuMeM.Compass"}
 MuMeM.modules = MuMeM.modules or {}
 MuMeM.modules[MuMeM.Visio.module_name] = MuMeM.modules[MuMeM.Visio.module_name] or {module=MuMeM.Visio}</script>
 			<eventHandlerList />

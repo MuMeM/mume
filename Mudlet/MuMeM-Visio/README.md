@@ -15,6 +15,8 @@ You need to install these packages
   * MuMeM-Log
   * MuMeM-GMCP
   * MuMeM-Room
+  * MuMeM-Player
+  * MuMeM-Compass
   * MuMeM-Visio
 
 All this can also be done from within the game. To do so, you need to execute below lines, one after the other
