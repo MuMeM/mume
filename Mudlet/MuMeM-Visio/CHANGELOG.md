@@ -1,3 +1,10 @@
+### 20230319
+
+  * Import of mobiles added
+  * Mobiles can now be selected (currently only used for import)
+  * Main console background fixed
+  * Housekeeping and minor refactoring
+
 ### 20230318
 
   * Added a compass (and again, awesome art by Freyja!)
