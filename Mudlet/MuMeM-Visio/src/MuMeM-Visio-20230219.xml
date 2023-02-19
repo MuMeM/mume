@@ -71,7 +71,6 @@ function MuMeM.Visio.initialize()
   MuMeM.Visio.mobileImageDir = MuMeM.Visio.dataDir.."/MobileImages"
 
   MuMeM.Visio.isRooming = false
-  MuMeM.Visio.MainConsoleBackground = "OFF"   -- OFF | CENTER | BORDER | TILED
   MuMeM.Visio.isDownloading = false
   MuMeM.Visio.isUnzipping = false
   
@@ -81,6 +80,7 @@ function MuMeM.Visio.initialize()
   MuMeM.Visio.setupGUI(false)
   
   MuMeM.Visio.Mobiles.initialize()        -- &lt;--- also setup gui here ??? (YES, I THINK SO)
+  MuMeM.Visio.Background.initialize()
   
   MuMeM.Visio.log("MuMeM.Visio initialized")
 end
@@ -724,7 +724,7 @@ function MuMeM.Visio.Mobiles.deselectMobile()
 end
 
 function MuMeM.Visio.Mobiles.redrawSelection(action, mobileKey)
-  if MuMeM.Visio.Mobiles._selectedMobile.key ~= false then      -- nothing selected
+  if MuMeM.Visio.Mobiles._selectedMobile.key == false then      -- nothing selected
     return
   end
 
@@ -1203,7 +1203,7 @@ end</script>
     message = "background",
     stylesheet = buttonStyleSheet:getCSS(),
     },MuMeM.Visio.Extras.GUI.mainWindow)
-  MuMeM.Visio.Extras.GUI.buttonBackground:setClickCallback(function () MuMeM.Visio.setMainConsoleBackground() end )
+  MuMeM.Visio.Extras.GUI.buttonBackground:setClickCallback(function () MuMeM.Visio.Background.setMainConsoleBackground() end )
 
   -- --- Room Hash ---
   MuMeM.Visio.Extras.GUI.buttonRoomHash = Geyser.Label:new({
@@ -1251,7 +1251,11 @@ MuMeM.Visio.Background.EventHandler = MuMeM.Visio.Background.EventHandler or {}
 				<Script isActive="yes" isFolder="no">
 					<name>MuMeM.Visio.Background.Library</name>
 					<packageName></packageName>
-					<script>function MuMeM.Visio.Background.enable() 
+					<script>function MuMeM.Visio.Background.initialize() 
+  MuMeM.Visio.Background.MainConsoleBackground = "OFF"   -- OFF | CENTER | BORDER | TILED
+end
+
+function MuMeM.Visio.Background.enable() 
   MuMeM.Visio.Background.redrawMainConsoleBackground()
 end
 
@@ -1260,16 +1264,16 @@ function MuMeM.Visio.Background.disable()
 end
 
 function MuMeM.Visio.Background.setMainConsoleBackground()
-  if MuMeM.Visio.MainConsoleBackground == "OFF" then
-    MuMeM.Visio.MainConsoleBackground = "BORDER"
-  elseif MuMeM.Visio.MainConsoleBackground == "BORDER" then
-    MuMeM.Visio.MainConsoleBackground = "CENTER"
-  elseif MuMeM.Visio.MainConsoleBackground == "CENTER" then
-    MuMeM.Visio.MainConsoleBackground = "TILED"
+  if MuMeM.Visio.Background.MainConsoleBackground == "OFF" then
+    MuMeM.Visio.Background.MainConsoleBackground = "BORDER"
+  elseif MuMeM.Visio.Background.MainConsoleBackground == "BORDER" then
+    MuMeM.Visio.Background.MainConsoleBackground = "CENTER"
+  elseif MuMeM.Visio.Background.MainConsoleBackground == "CENTER" then
+    MuMeM.Visio.Background.MainConsoleBackground = "TILED"
   else
-    MuMeM.Visio.MainConsoleBackground = "OFF"
+    MuMeM.Visio.Background.MainConsoleBackground = "OFF"
   end
-  MuMeM.Visio.redrawMainConsoleBackground()
+  MuMeM.Visio.Background.redrawMainConsoleBackground()
 end
 
 function MuMeM.Visio.Background.redrawMainConsoleBackground()
@@ -1277,13 +1281,13 @@ function MuMeM.Visio.Background.redrawMainConsoleBackground()
     return
   end
   
-  if MuMeM.Visio.MainConsoleBackground == "OFF" then
+  if MuMeM.Visio.Background.MainConsoleBackground == "OFF" then
     resetBackgroundImage("main")
   else
     local fileName = MuMeM.Visio.getDataDir("/RoomImages/"..MuMeM.Visio.getRoomHash())
 
     if MuMeM.Core.IO.fileExists(fileName) then
-      if MuMeM.Visio.MainConsoleBackground == "TILED" then
+      if MuMeM.Visio.Background.MainConsoleBackground == "TILED" then
         local styleSheet = [[
           background-image: url(]]..fileName..[[);
         ]]
@@ -1292,7 +1296,7 @@ function MuMeM.Visio.Background.redrawMainConsoleBackground()
         --]]
         setBackgroundImage("main", styleSheet, "style")
       else
-        setBackgroundImage("main", fileName, string.lower(MuMeM.Visio.MainConsoleBackground))
+        setBackgroundImage("main", fileName, string.lower(MuMeM.Visio.Background.MainConsoleBackground))
       end
     else
       resetBackgroundImage("main")
