@@ -1,3 +1,7 @@
+### 20230219
+
+  * Added extra data to Room.Exits trigger (action)
+
 ### 20230218
 
   * Added Room.Info and Exits
