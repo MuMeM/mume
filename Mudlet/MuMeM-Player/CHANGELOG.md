@@ -1,3 +1,10 @@
+### 20230222
+
+  * Added new Char.Vitals fields
+  * Added Player.Opponent
+  * Added Player.Mount
+  * Added Player.Buffer
+
 ### 20230211
 
   * Add name and fullname
