@@ -1,3 +1,9 @@
+### 20230222
+
+  * Added position indicator
+  * Add opponent healthbar
+  * [Internal] refactoring and reclassing
+
 ### 20230211
 
   * Removed startup message
