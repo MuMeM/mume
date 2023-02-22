@@ -1,3 +1,7 @@
+### 20230222
+
+  * Added new GMCP values for Char.Vitals
+
 ### 20230218
 
   * Added Room.Info and Room.Exits-updates
