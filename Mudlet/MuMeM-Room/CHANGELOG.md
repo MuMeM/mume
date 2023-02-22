@@ -1,3 +1,7 @@
+### 20230222
+
+  * Bugfix for gmcp Room.Info setting
+
 ### 20230219
 
   * Added extra data to Room.Exits trigger (action)
