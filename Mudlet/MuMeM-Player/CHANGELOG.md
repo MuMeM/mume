@@ -1,3 +1,7 @@
+### 20230223
+
+  * Critical bugfixes
+
 ### 20230222
 
   * Added new Char.Vitals fields
