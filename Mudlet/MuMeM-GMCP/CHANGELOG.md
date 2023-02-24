@@ -1,5 +1,9 @@
 ### 20230222
 
+  * Fixed errors when MuMeM-Room not installed
+
+### 20230222
+
   * Added new GMCP values for Char.Vitals
 
 ### 20230218
