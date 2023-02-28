@@ -2,7 +2,7 @@
 <!DOCTYPE MudletPackage>
 <MudletPackage version="1.001">
 	<ScriptPackage>
-		<ScriptGroup isActive="no" isFolder="yes">
+		<ScriptGroup isActive="yes" isFolder="yes">
 			<name>MuMeM.Comm</name>
 			<packageName></packageName>
 			<script>--[[
@@ -71,7 +71,7 @@ MuMeM.Comm.aliases.mpray = MuMeM.Comm.aliases.mpray or tempAlias("^mpray(?: (.+)
 -- --- Module registration -----------------------------------------
 
 MuMeM.Comm.module_name = "MuMeM.Comm"
-MuMeM.Comm.module_dependencies = {"MuMeM.Core","MuMeM.Log","MuMeM.GMCP"}
+MuMeM.Comm.module_dependencies = {"MuMeM.Core","MuMeM.Log","MuMeM.GMCP","MuMeM.Widget"}
 MuMeM.modules = MuMeM.modules or {}
 MuMeM.modules[MuMeM.Comm.module_name] = MuMeM.modules[MuMeM.Comm.module_name] or {module=MuMeM.Comm}</script>
 			<eventHandlerList />
