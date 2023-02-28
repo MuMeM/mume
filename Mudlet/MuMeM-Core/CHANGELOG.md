@@ -1,3 +1,7 @@
+### 20230228
+
+  * Configuration calls (after initialize)
+
 ### 20230218
 
   * Added MD5 and SHA1 hashes
