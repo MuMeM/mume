@@ -1,3 +1,7 @@
+### 20230228
+
+  * Inheritance fixes
+
 ### 20230222
 
   * Bugfix for gmcp Room.Info setting
