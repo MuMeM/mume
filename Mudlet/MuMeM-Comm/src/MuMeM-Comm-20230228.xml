@@ -1749,7 +1749,7 @@ end</script>
     font-size: 8;
     border: 2px solid black;
     qproperty-alignment: 'AlignHCenter | AlignVCenter';
-    background-image: url("]]..MuMeM.Comm.getResourcePath("cogwheel-18.png")..[[");
+    background-image: url("undefined");
     background-repeat: no-repeat; 
     background-position: center;
     background-origin: margin;
