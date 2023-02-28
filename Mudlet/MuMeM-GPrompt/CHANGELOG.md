@@ -1,3 +1,7 @@
+### 20230228
+
+  * Scale lines now 2px thick for player scales
+
 ### 20230222
 
   * Added position indicator
