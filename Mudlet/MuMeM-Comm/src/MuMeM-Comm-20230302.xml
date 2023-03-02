@@ -1,0 +1,2922 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE MudletPackage>
+<MudletPackage version="1.001">
+	<ScriptPackage>
+		<ScriptGroup isActive="yes" isFolder="yes">
+			<name>MuMeM.Comm</name>
+			<packageName></packageName>
+			<script>--[[
+    Communication, like say, tell, narrate, ...
+    
+    Provides:
+      - Central communcation storage with events
+      - GUI object for communcation
+      - Concrete implementation
+--]]
+
+mumem_inherit = mumem_inherit or function (className, baseName)
+  local classObj = _G
+  for str in string.gmatch(className, "([^\\.]+)") do
+    classObj = classObj[str]
+  end
+  
+  local baseObj = _G
+  for str in string.gmatch(baseName, "([^\\.]+)") do
+    baseObj = baseObj[str]
+  end
+
+  setmetatable(classObj, baseObj)
+  classObj.__index = classObj
+  
+  if className == baseName then
+    classObj.parentClass = "BASE"
+  else
+    classObj.parentClass = baseObj
+  end
+  classObj.className = className
+end
+
+mumem_isa = mumem_isa or function (classObj, className)
+  if classObj == nil or classObj.parentClass == nil then
+    return false
+  elseif classObj == "BASE" then
+    return false
+  elseif classObj.className == className then
+    return true
+  end
+  return mumem_isa(classObj.parentClass, className)
+end
+
+-- --- Module setup ----------------------------------------------
+
+MuMeM = MuMeM or {}
+MuMeM.Comm = MuMeM.Comm or {}
+MuMeM.Comm.Repository = MuMeM.Comm.Repository or {}
+MuMeM.Comm.Factory = MuMeM.Comm.Factory or {}
+MuMeM.Comm.Search  = MuMeM.Comm.Search or {}
+MuMeM.Comm.Config  = MuMeM.Comm.Config or {}
+MuMeM.Comm.Preferences  = MuMeM.Comm.Preferences or {}
+
+
+MuMeM.Comm.aliases = MuMeM.Comm.aliases or {}
+
+MuMeM.Comm.aliases.mcomm = MuMeM.Comm.aliases.mcomm or tempAlias("^mcomm$", function () MuMeM.Comm.command() end)
+
+MuMeM.Comm.aliases.mtell = MuMeM.Comm.aliases.mtell or tempAlias("^mtell(?: ([^ ]+) (.+))?$", function () MuMeM.Comm.commandTell() end)
+MuMeM.Comm.aliases.msay = MuMeM.Comm.aliases.msay or tempAlias("^msay(?: (.+))?$", function () MuMeM.Comm.commandSay() end)
+MuMeM.Comm.aliases.myell = MuMeM.Comm.aliases.myell or tempAlias("^myell(?: (.+))?$", function () MuMeM.Comm.commandYell() end)
+MuMeM.Comm.aliases.mnarrate = MuMeM.Comm.aliases.mnarrate or tempAlias("^mnarrate(?: (.+))?$", function () MuMeM.Comm.commandNarrate() end)
+MuMeM.Comm.aliases.msing = MuMeM.Comm.aliases.msing or tempAlias("^msing(?: (.+))?$", function () MuMeM.Comm.commandSing() end)
+MuMeM.Comm.aliases.mpray = MuMeM.Comm.aliases.mpray or tempAlias("^mpray(?: (.+))?$", function () MuMeM.Comm.commandPray() end)
+
+-- --- Module registration -----------------------------------------
+
+MuMeM.Comm.module_name = "MuMeM.Comm"
+MuMeM.Comm.module_dependencies = {"MuMeM.Core","MuMeM.Log","MuMeM.GMCP","MuMeM.Widget"}
+MuMeM.modules = MuMeM.modules or {}
+MuMeM.modules[MuMeM.Comm.module_name] = MuMeM.modules[MuMeM.Comm.module_name] or {module=MuMeM.Comm}</script>
+			<eventHandlerList />
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Comm.Library</name>
+				<packageName></packageName>
+				<script>function MuMeM.Comm.initialize()
+  MuMeM.Comm.Repository.initialize()
+  MuMeM.Comm.Factory.initialize()
+  
+  MuMeM.Comm._widgets = {}
+  
+  MuMeM.GMCP.enableComm()
+end
+
+function MuMeM.Comm.configure()
+  MuMeM.Comm.Factory.configure()
+end
+
+function MuMeM.Comm.getResourcePath(...)
+  if MuMeM.Core.IO.nodeExists(MuMeM.Core.IO.concatPath(getMudletHomeDir(), "MuMeM.Comm")) then
+    return MuMeM.Core.IO.concatPath(getMudletHomeDir(), "MuMeM.Comm", "Resources", unpack(arg))
+  end
+  
+  return MuMeM.Core.IO.concatPath(getMudletHomeDir(), "MuMeM-Comm", "Resources", unpack(arg))
+end
+</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Comm.Factory</name>
+				<packageName></packageName>
+				<script>function MuMeM.Comm.Factory.initialize()
+  MuMeM.Comm.Factory._windowList = {}
+  MuMeM.Comm.Factory._windowAssemblyTable = {}
+  MuMeM.Comm.Factory._isLoaded = false
+end
+
+function MuMeM.Comm.Factory.configure()
+  MuMeM.Comm.Factory.load()
+
+  for windowId,windowAssemblyData in pairs(MuMeM.Comm.Factory._windowAssemblyTable) do
+    if windowAssemblyData.showOnStartup then
+      MuMeM.Comm.Factory.get(windowId, windowAssemblyData.className)
+    end
+  end
+end
+
+-- get() will return existing OR create new instances!
+-- use exists() for checking if it is already created
+function MuMeM.Comm.Factory.get(windowId, windowClassName)
+  if MuMeM.Comm.Factory._windowList[windowId] then
+    return MuMeM.Comm.Factory._windowList[windowId]
+  end
+
+  local pristine = false
+  
+  if MuMeM.Comm.Factory._windowAssemblyTable[windowId] then
+    windowClassName = MuMeM.Comm.Factory._windowAssemblyTable[windowId].className
+  else
+    pristine = true
+    windowClassName = windowClassName or "MuMeM.Comm.StandardWindow"
+  end  
+  
+  if windowClassName == "MuMeM.Comm.BasicWindow" then
+    window = MuMeM.Comm.BasicWindow:new({_windowId=windowId}, nil, pristine)
+  elseif windowClassName == "MuMeM.Comm.StandardWindow" then
+    window = MuMeM.Comm.StandardWindow:new({_windowId=windowId}, nil, pristine)
+  else
+    MuMeM.Log.warning("MuMeM.Comm.Factory.get(), windowClassName not defined: "..windowClassName, "MuMeM.Comm")
+  end
+  
+  window:load()
+
+  MuMeM.Comm.Factory._windowAssemblyTable[windowId] = 
+            MuMeM.Comm.Factory._windowAssemblyTable[windowId] or {className=windowClassName, showOnStartup=true}
+  MuMeM.Comm.Factory._windowList[windowId] = window
+  MuMeM.Comm.Factory.save()
+  
+  return window
+end
+
+function MuMeM.Comm.Factory.delete(windowId)  
+  if MuMeM.Comm.Factory._windowAssemblyTable[windowId] then
+    if MuMeM.Comm.Factory._windowList[windowId] then
+      MuMeM.Comm.Factory._windowList[windowId]:hide()
+    end
+    MuMeM.Comm.Factory._windowAssemblyTable[windowId] = nil
+    MuMeM.Comm.Factory._windowList[windowId] = nil
+    MuMeM.Comm.Config.deleteWindow(windowId)
+    MuMeM.Comm.Config.deletePane(windowId)        -- pane has same ID as window
+    MuMeM.Comm.Factory.save()
+  end
+  
+  return true
+end
+
+function MuMeM.Comm.Factory.exists(windowId)  
+  if MuMeM.Comm.Factory._windowList[windowId] then
+    return true
+  end
+  
+  if MuMeM.Comm.Factory._windowAssemblyTable[windowId] then
+    return true
+  end
+  
+  return false
+end
+
+function MuMeM.Comm.Factory.isLoaded(windowId)  
+  return MuMeM.Comm.Factory._windowList[windowId] ~= nil
+end
+
+function MuMeM.Comm.Factory.setShowOnStartup(windowId, state)  
+  if not MuMeM.Comm.Factory._windowAssemblyTable[windowId] then
+    return false
+  end
+  
+  if MuMeM.Comm.Factory._windowAssemblyTable[windowId].showOnStartup == state then
+    return true
+  end
+  
+  MuMeM.Comm.Factory._windowAssemblyTable[windowId].showOnStartup = state
+  MuMeM.Comm.Factory.save()
+  
+  return true
+end
+
+function MuMeM.Comm.Factory.toggleShowOnStartup(windowId)  
+  if not MuMeM.Comm.Factory._windowAssemblyTable[windowId] then
+    return false
+  end
+  
+  return MuMeM.Comm.Factory.setShowOnStartup(windowId, not MuMeM.Comm.Factory._windowAssemblyTable[windowId].showOnStartup)
+end
+
+function MuMeM.Comm.Factory.count()  
+  local c = 0
+  
+  for _,_ in pairs(MuMeM.Comm.Factory._windowAssemblyTable) do
+    c = c + 1
+  end
+  
+  return c
+end
+
+-- INTERNAL / PRIVATE
+function MuMeM.Comm.Factory.load()
+  if MuMeM.Comm.Factory._isLoaded then
+    return
+  end
+
+  MuMeM.Comm.Config.loadFactory(MuMeM.Comm.Factory)
+  
+  MuMeM.Comm.Factory._isLoaded = true
+end
+
+-- INTERNAL / PRIVATE
+function MuMeM.Comm.Factory.save()
+  MuMeM.Comm.Config.saveFactory(MuMeM.Comm.Factory)
+end
+</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Comm.Repository</name>
+				<packageName></packageName>
+				<script>function MuMeM.Comm.Repository.initialize()
+  MuMeM.Comm.Repository.MAX_ENTRIES = 2000
+  
+  MuMeM.Comm.Repository.KNOWN_MOBS = {
+    ["Aldereon"]=true, ["Amanrandil"]=true, ["Angdil"]=true, 
+    ["Barbaras"]=true, ["Barliman"]=true, 
+    ["Ciryariel"]=true, ["Clint"]=true,
+    ["Daegil"]=true,
+    ["Erienal"]=true,
+    ["Olly"]=true,
+  }
+
+  MuMeM.Comm.Repository._data = {}
+  --MuMeM.Comm.Repository._index = {}
+  MuMeM.Comm.Repository._dataCount = 0
+  
+  MuMeM.Comm.Repository._dataIndexNext = 1        -- position for next entry
+  MuMeM.Comm.Repository._dataIndexLow = 1         -- position of lowest entry (first entry)
+end
+
+function MuMeM.Comm.Repository.addEntry(channel, talker, text)
+  local datetime = getTime(false)
+  local insertPos = MuMeM.Comm.Repository._dataIndexNext
+  local plain_text = ansi2string(text)
+  local isMob = false
+  
+  if channel == "tells" and plain_text:find("^"..talker.." tells the group '") ~= nil then
+    channel = "gtells"
+  end
+  
+  if utf8.gmatch(talker,"%a+")() ~= talker then             -- utf8.gmatch returns a function!
+    isMob = true
+  elseif MuMeM.Comm.Repository.KNOWN_MOBS[talker] then
+    isMob = true
+  end
+
+  MuMeM.Comm.Repository._data[MuMeM.Comm.Repository._dataIndexNext] = {
+        ["datetime"] = datetime,
+        ["channel"] = channel,
+        ["talker"] = talker,
+        ["text"] = plain_text,
+        ["hhmm"] = string.format("%02d:%02d",datetime.hour,datetime.min),
+        ["mob"] = isMob,
+      }
+
+  --MuMeM.Comm.Repository._index[channel] = MuMeM.Comm.Repository._index[channel] or {}
+  --table.insert(MuMeM.Comm.Repository._index[channel], insertPos)
+  MuMeM.Comm.Repository._dataCount = MuMeM.Comm.Repository._dataCount + 1
+  MuMeM.Comm.Repository._dataIndexNext = MuMeM.Comm.Repository._dataIndexNext + 1
+
+  while MuMeM.Comm.Repository._dataCount &gt; MuMeM.Comm.Repository.MAX_ENTRIES do
+    MuMeM.Comm.Repository._data[MuMeM.Comm.Repository._dataIndexLow] = nil
+    MuMeM.Comm.Repository._dataIndexLow = MuMeM.Comm.Repository._dataIndexLow + 1
+    MuMeM.Comm.Repository._dataCount = MuMeM.Comm.Repository._dataCount - 1
+  end
+
+  raiseEvent("MuMeM.Comm.Repository."..channel, insertPos)
+  raiseEvent("MuMeM.Comm.Repository.Chat", channel, insertPos)
+end
+
+function MuMeM.Comm.Repository.getEntry(dataIdx)
+  if MuMeM.Comm.Repository._data[dataIdx] then
+    return table.deepcopy(MuMeM.Comm.Repository._data[dataIdx])
+  end
+  
+  return nil
+end
+
+function MuMeM.Comm.Repository.getEntryMob(dataIdx)
+  if MuMeM.Comm.Repository._data[dataIdx] then
+    return MuMeM.Comm.Repository._data[dataIdx].mob
+  end
+  
+  return nil
+end
+
+function MuMeM.Comm.Repository.getEntryText(dataIdx)
+  if MuMeM.Comm.Repository._data[dataIdx] then
+    return MuMeM.Comm.Repository._data[dataIdx].text
+  end
+  
+  return nil
+end
+
+function MuMeM.Comm.Repository.getEntryChat(dataIdx)
+  if MuMeM.Comm.Repository._data[dataIdx] then
+    return "["..MuMeM.Comm.Repository._data[dataIdx].hhmm.."] "..MuMeM.Comm.Repository._data[dataIdx].text
+  end
+  
+  return nil
+end
+
+function MuMeM.Comm.Repository.getNextChat(dataIdx, channelFilter, dataFilter)
+  local data
+
+  if channelFilter == nil then
+    return nil, nil, nil
+  end
+
+  if dataIdx == nil then
+    dataIdx = MuMeM.Comm.Repository._dataIndexLow
+  end
+
+  data = MuMeM.Comm.Repository._data[dataIdx]
+  while dataIdx &lt; MuMeM.Comm.Repository._dataIndexNext and data do
+    local channelMatch = (channelFilter[data["channel"]] ~= nil)
+    local dataMatch = true
+    for _,df in pairs(dataFilter) do
+      if df.column == "text" then
+        dataMatch = dataMatch and utf8.find(data[df.column], df.value)
+      else
+        dataMatch = dataMatch and data[df.column] == df.value
+      end
+    end
+    if channelMatch and dataMatch then
+      break
+    end
+    dataIdx = dataIdx + 1
+    data = MuMeM.Comm.Repository._data[dataIdx]
+  end
+ 
+  if data then
+    return dataIdx+1, MuMeM.Comm.Repository.getEntryChat(dataIdx), MuMeM.Comm.Repository._data[dataIdx].channel
+  end
+  
+  return nil, nil, nil
+end
+
+-- ----------------- TEST ------------------------------------------------------
+
+function MuMeM.Comm.Repository.createRandom(numChat)
+  local channels = { "tells", "emotes", "says", "yells", "tales", "songs", "prayers", "socials", "gtells" }
+  local talkers = {"Wardoshark", "Maraug", "Suvine", "Griffiths-grr", "Willfreeman", "Fibiter", "Hydraadams", 
+                    "Shrivera", "Spacemo", "Evancruncha", "Tolafia", "Colecauldron", "Reyesspell", "Philliw",
+                    "Rogerswoop", "Colemanogmagogia", "Helltinez", "Fostershu", "Grrramirez", "Gralama",
+                    "Fergusonflame", "Thocrusha", "Crookedspen", "Countess", "Coory", "Paketho", "Ogoross",
+                    "Moralelda", "Sanshot", "Piercen", "Harng", "Lawrenm", "Gigantlong", "Pontipayne", "Mutopi",
+                    "Gigantriffin", "Ortitrositia", "Hencackle", "Russedore", "Lobstroshall", "Johnaphima",
+                    "Drekareen", "Winimated", "Harrisbacca", "Shawicked", "Wixia", "Thoswimmer", "Brownoo",
+                    "Surningham", "Petersonell", "Flutterquinn", "Edwaflutter", "Clarkampa", "Jenkinsbotty",
+                    "Ruizwalker", "Deadwkins", "Battleter", "The", "Kumble", "Crocory", "Wooninki", "Haflame",
+                    "Aldereon", "Amanrandil", "Angdil", "Barbaras", "Barliman","Ciryariel", "Clint",
+                    "A warg", "hill giant", "boulder-smiter", "dash-dasher", "space monkey",
+                   }
+  local channelsMax = #channels
+  local talkersMax = #talkers
+  local channel
+  local talker
+  local text
+
+  for i=1,numChat do
+    channel = channels[math.random(1,channelsMax)]
+    talker = talkers[math.random(1,talkersMax)]
+    if channel == "gtells" then
+      text = talker.." tells the group 'This is some random "..channel.." text "..i.."'"
+      channel = "tells"
+    else
+      text = talker.." "..channel.." 'This is some random "..channel.." text "..i.."'"
+    end
+    MuMeM.Comm.Repository.addEntry(channel, talker, text)
+  end
+
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Comm.Commands</name>
+				<packageName></packageName>
+				<script>function MuMeM.Comm.talkerMyself()
+  if MuMeM.Player then
+    return MuMeM.Player.name()
+  end
+  
+  return "YOU"
+end
+
+function MuMeM.Comm.commandTell()
+  MuMeM.Comm.Repository.addEntry("tells", MuMeM.Comm.talkerMyself(), "You tell "..matches[2].." '"..matches[3].."'")
+  send("tell "..matches[2].." "..matches[3])
+end
+
+function MuMeM.Comm.commandSay()
+  MuMeM.Comm.Repository.addEntry("says", MuMeM.Comm.talkerMyself(), "You say '"..matches[2].."'")
+  send("say "..matches[2])
+end
+
+function MuMeM.Comm.commandYell()
+  MuMeM.Comm.Repository.addEntry("yells", MuMeM.Comm.talkerMyself(), "You yell '"..matches[2].."'")
+  send("yell "..matches[2])
+end
+
+function MuMeM.Comm.commandNarrate()
+  MuMeM.Comm.Repository.addEntry("tales", MuMeM.Comm.talkerMyself(), "You narrate '"..matches[2].."'")
+  send("narrate "..matches[2])
+end
+
+function MuMeM.Comm.commandSing()
+  MuMeM.Comm.Repository.addEntry("songs", MuMeM.Comm.talkerMyself(), "You sing '"..matches[2].."'")
+  send("sing "..matches[2])
+end
+
+function MuMeM.Comm.commandPray()
+  MuMeM.Comm.Repository.addEntry("prayers", MuMeM.Comm.talkerMyself(), "You pray '"..matches[2].."'")
+  send("pray "..matches[2])
+end
+
+-- ###################################################################################
+
+function MuMeM.Comm.command()
+  MuMeM.Comm.Preferences.show()
+end</script>
+				<eventHandlerList />
+			</Script>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Comm.Preferences</name>
+				<packageName></packageName>
+				<script></script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.Preferences</name>
+					<packageName></packageName>
+					<script>function MuMeM.Comm.Preferences.create()
+  MuMeM.Comm.Preferences.MAX_WINDOWS = 8
+  MuMeM.Comm.Preferences._visuals = {}
+  
+  -- --- Main Window ---
+  MuMeM.Comm.Preferences._visuals.mainWindow = Geyser.UserWindow:new({
+    name = "MuMeM.Comm.Preferences._visuals.mainWindow",
+    titleText = "MuMeM - Communication",
+    x = "10%", y="10%",
+    width = "400", height = "410",
+    color = "lightGray",
+    restoreLayout = false,
+    docked = false, autoDock = false, dockPosition = "f",
+  })
+  
+  -- --- Window List ---
+  MuMeM.Comm.Preferences._visuals.windowList = MuMeM.Widget.ItemList:new({
+    _name = "windowList",
+    _x = 5,_y = 5,
+    _width = "100%-10", _height = 200,
+    _numRows = MuMeM.Comm.Preferences.MAX_WINDOWS, _rowHeight = 20,
+    _columnLayout = {
+      {title="Window",x="0%",width="40%",columnKey="windowId"},
+      {title="Class",x="40%",width="30%",columnKey="className"},
+      {title="OnStart",x="70%",width="15%",columnKey="showOnStartup"},
+      {title="Loaded",x="85%",width="15%",columnKey="loaded"},
+    },
+  },MuMeM.Comm.Preferences._visuals.mainWindow)
+
+  -- --- Window List buttons ---
+  MuMeM.Comm.Preferences._visuals.buttonDeleteWindow = MuMeM.Widget.Button:new({
+    _text = "delete",
+    _x = 5,
+    _y = 210,
+    _clickCallback = function (event) MuMeM.Comm.Preferences.buttonDeleteWindow(event) end,
+  }, MuMeM.Comm.Preferences._visuals.mainWindow)
+  
+  MuMeM.Comm.Preferences._visuals.buttonToggleOnStart = MuMeM.Widget.Button:new({
+    _text = "toggle OnStart",
+    _x = 100,
+    _y = 210,
+    _width = 120,
+    _clickCallback = function (event) MuMeM.Comm.Preferences.buttonToggleOnStart(event) end,
+  }, MuMeM.Comm.Preferences._visuals.mainWindow)
+
+  MuMeM.Comm.Preferences._visuals.buttonShowWindow = MuMeM.Widget.Button:new({
+    _text = "show",
+    _x = "100%-"..(50+5),
+    _y = 210,
+    _clickCallback = function (event) MuMeM.Comm.Preferences.buttonShowWindow(event) end,
+  }, MuMeM.Comm.Preferences._visuals.mainWindow)
+
+  MuMeM.Comm.Preferences._visuals.buttonHideWindow = MuMeM.Widget.Button:new({
+    _text = "hide",
+    _x = "100%-"..(50+5+50+5),
+    _y = 210,
+    _clickCallback = function (event) MuMeM.Comm.Preferences.buttonHideWindow(event) end,
+  }, MuMeM.Comm.Preferences._visuals.mainWindow)
+  
+  -- --- The "add" box -----
+  MuMeM.Comm.Preferences._visuals.addBox = Geyser.Label:new({
+    name = Geyser.nameGen(),
+    x = 5, y = 250,
+    width = "100%-10", height = 85,
+    stylesheet = [[
+      background-color: #a9bcc7;
+      border: 2px solid black;
+    ]],
+  },MuMeM.Comm.Preferences._visuals.mainWindow)
+  
+  MuMeM.Comm.Preferences._visuals.addWindowIdLabel = MuMeM.Widget.Label:new({
+    _x = "50%+5", _y = 10, 
+    _width = "50%-15", _height = 20,
+    _text = "Window ID"
+  },MuMeM.Comm.Preferences._visuals.addBox)
+  
+  MuMeM.Comm.Preferences._visuals.addWindowId = MuMeM.Widget.TextInput:new({
+    _x = "50%+5", _y = 30, 
+    _width = "50%-15", _height = 20,
+  },MuMeM.Comm.Preferences._visuals.addBox)
+  
+  MuMeM.Comm.Preferences._visuals.addErrorMessage = MuMeM.Widget.Label:new({
+    _x = "50%+5", _y = 50, 
+    _width = "50%-15", _height = 20,
+    _text = ""
+  },MuMeM.Comm.Preferences._visuals.addBox)
+  MuMeM.Comm.Preferences._visuals.addErrorMessage:editStyleSheet("color", "red")
+
+  MuMeM.Comm.Preferences._visuals.rbGroup =  MuMeM.Widget.RadioGroup:new({
+    _x = "5", _y = 10,
+    _width = "50%-10", _height = "100%-20",
+    _text = "Class",
+  },MuMeM.Comm.Preferences._visuals.addBox)
+
+  MuMeM.Comm.Preferences._visuals.rbGroup:add(
+    MuMeM.Widget.RadioButton:new({
+      _x = 10, _y = 20,
+      _width = "80%", _height = 20,
+      _text = "Standard Window",
+      _enabled = true,
+      _value = "MuMeM.Comm.StandardWindow",
+
+    },MuMeM.Comm.Preferences._visuals.rbGroup)
+  )
+
+  MuMeM.Comm.Preferences._visuals.rbGroup:add(
+    MuMeM.Widget.RadioButton:new({
+      _x = 10, _y = 40,
+      _width = "80%", _height = 20,
+      _text = "Basic Window",
+      _value = "MuMeM.Comm.BasicWindow",
+    },MuMeM.Comm.Preferences._visuals.rbGroup)
+  )
+  
+  MuMeM.Comm.Preferences._visuals.buttonAdd = MuMeM.Widget.Button:new({
+    _text = "add",
+    _x = "100%-"..(50+5), _y = "100%-25",
+    _clickCallback = function (event) MuMeM.Comm.Preferences.buttonAddWindow(event) end
+  }, MuMeM.Comm.Preferences._visuals.addBox)
+
+  -- --- Close button ---
+  MuMeM.Comm.Preferences._visuals.buttonClose = MuMeM.Widget.Button:new({
+    _text = "close",
+    _x = "50%-50", _y = "100%-35",
+    _width = 100, _height = 30,
+    _clickCallback = function (event) MuMeM.Comm.Preferences.buttonClose(event) end,
+  }, MuMeM.Comm.Preferences._visuals.mainWindow)
+    
+  -- --- Update the list with the windows ---
+  MuMeM.Comm.Preferences.updateWindowList()
+end
+
+function MuMeM.Comm.Preferences.updateWindowList()
+  local showOnStartup = "shown"
+  local className = "none"
+  local dataTable = {}
+  for windowId,assemblyData in spairs(MuMeM.Comm.Factory._windowAssemblyTable) do
+    showOnStartup = "hidden"
+    loaded = "false"
+    if assemblyData.showOnStartup then
+      showOnStartup = "shown"
+    end
+    if MuMeM.Comm.Factory.isLoaded(windowId) then
+      loaded = "true"
+    end
+    className = string.sub(assemblyData.className,string.find(assemblyData.className, "\.[^\.]*$")+1)
+    
+    table.insert(dataTable, {windowId = windowId, 
+                             className = className, 
+                             showOnStartup = showOnStartup, 
+                             loaded = loaded, 
+                             _value = windowId
+                            }
+    )
+  end
+
+  MuMeM.Comm.Preferences._visuals.windowList:setDataTable(dataTable)
+end
+
+function MuMeM.Comm.Preferences.show()
+  if not MuMeM.Comm.Preferences._visuals then
+    MuMeM.Comm.Preferences.create()
+  end
+  
+  MuMeM.Widget.showUserWindow(MuMeM.Comm.Preferences._visuals.mainWindow)
+end
+
+function MuMeM.Comm.Preferences.hide()
+  if MuMeM.Comm.Preferences._visuals then
+    MuMeM.Comm.Preferences._visuals.mainWindow:hide()
+  end
+end
+
+-- ##############################################################################################
+
+function MuMeM.Comm.Preferences.buttonShowWindow(event)
+  local windowId = MuMeM.Comm.Preferences._visuals.windowList:selectedValue()
+  if windowId then
+    if MuMeM.Comm.Factory.isLoaded(windowId) then
+      MuMeM.Comm.Factory.get(windowId):show()
+    else
+      MuMeM.Comm.Factory.get(windowId):show()
+      MuMeM.Comm.Preferences.updateWindowList()
+    end
+  end
+end
+
+function MuMeM.Comm.Preferences.buttonHideWindow(event)
+  local windowId = MuMeM.Comm.Preferences._visuals.windowList:selectedValue()
+  if not windowId then
+    return
+  end
+  MuMeM.Comm.Factory.get(windowId):hide()
+end
+
+
+function MuMeM.Comm.Preferences.buttonToggleOnStart(event)
+  local windowId = MuMeM.Comm.Preferences._visuals.windowList:selectedValue()
+  if not windowId then
+    return
+  end
+  
+  MuMeM.Comm.Factory.toggleShowOnStartup(windowId)
+  MuMeM.Comm.Preferences.updateWindowList()
+end
+
+function MuMeM.Comm.Preferences.buttonAddWindow(event)
+  local windowClassName = ""
+  local windowId = MuMeM.Comm.Preferences._visuals.addWindowId:value()
+
+  if not windowId or windowId == "" then
+    MuMeM.Comm.Preferences._visuals.addErrorMessage:setText("no windowID")
+  elseif MuMeM.Comm.Factory.exists(windowId) then
+    MuMeM.Comm.Preferences._visuals.addErrorMessage:setText("already exists")
+  elseif MuMeM.Comm.Factory.count() &gt;= MuMeM.Comm.Preferences.MAX_WINDOWS then
+    MuMeM.Comm.Preferences._visuals.addErrorMessage:setText("too many windows")
+  else
+    windowClassName = MuMeM.Comm.Preferences._visuals.rbGroup:value()
+    MuMeM.Comm.Factory.get(windowId, windowClassName)
+    MuMeM.Comm.Preferences.updateWindowList()
+    MuMeM.Comm.Preferences._visuals.addWindowId:setText("")
+    MuMeM.Comm.Preferences._visuals.addErrorMessage:setText("")
+  end
+end
+
+function MuMeM.Comm.Preferences.buttonDeleteWindow(event)
+  local windowId = MuMeM.Comm.Preferences._visuals.windowList:selectedValue()
+  if not windowId then
+    return
+  end
+  
+  MuMeM.Comm.Factory.delete(windowId)
+  MuMeM.Comm.Preferences.updateWindowList()
+end
+
+function MuMeM.Comm.Preferences.buttonClose(event)
+  MuMeM.Comm.Preferences:hide()
+end</script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Comm.Window</name>
+				<packageName></packageName>
+				<script></script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.Window</name>
+					<packageName></packageName>
+					<script>MuMeM.Comm.Window = {
+  _windowId = nil,                -- set in :new()
+  
+  _mainWindow = nil,
+  _commPane = nil,
+} 
+
+mumem_inherit("MuMeM.Comm.Window", "MuMeM.Comm.Window")
+
+function MuMeM.Comm.Window:new(props, paneProps, pristine)
+  local me = props or {}
+  paneProps = paneProps or {}
+  
+  me._windowId = props._windowId or "Window"..math.random(1,9999)
+  
+  setmetatable(me, self)
+  self.__index = self
+  
+  -- --- Main Window ---
+  local restoreLayout = (pristine ~= true)
+
+  me._mainWindow = Geyser.UserWindow:new({
+    name = "MuMeM.Comm.BasicWindow:"..me._windowId,
+    titleText = "MuMeM - Communication - "..me._windowId,
+    x = 20 + math.random(0,30), y = 20 + math.random(0,30),
+    width = 600, height = 400,
+    restoreLayout = restoreLayout,
+    docked = false, autoDock = true, dockPosition = "f",
+  })
+
+  -- --- Add the pane ---
+  paneProps._paneId = me._windowId
+    
+  me._commPane = MuMeM.Comm.Pane:new(paneProps)
+  me._commPane:create(me._mainWindow)
+  
+  registerAnonymousEventHandler("MuMeM.Comm.Config.Pane.Save", function (a,b) me:catchPaneSaved(b) end)
+  
+  return me
+end
+
+function MuMeM.Comm.Window:windowId()
+  return self._windowId
+end
+
+function MuMeM.Comm.Window:mainWindow()
+  return self._mainWindow
+end
+
+function MuMeM.Comm.Window:commPane()
+  return self._commPane
+end
+
+function MuMeM.Comm.Window:show()
+  MuMeM.Widget.showUserWindow(self:mainWindow())
+end
+
+function MuMeM.Comm.Window:hide()
+  self:mainWindow():hide()
+end
+
+-- ####################################################################################
+
+function MuMeM.Comm.Window:load()
+  MuMeM.Comm.Config.loadWindow(self)
+  self:commPane():load()
+end
+
+function MuMeM.Comm.Window:catchPaneSaved(paneId)
+  if paneId == self:commPane():paneId() then
+    MuMeM.Comm.Config.saveWindow(self)
+  end
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.BasicWindow</name>
+					<packageName></packageName>
+					<script>MuMeM.Comm.BasicWindow = {
+} 
+
+mumem_inherit("MuMeM.Comm.BasicWindow", "MuMeM.Comm.Window")
+
+function MuMeM.Comm.BasicWindow:new(props, paneProps, pristine)
+  props = props or {}
+  paneProps = paneProps or {}
+  
+  paneProps._tabList = {
+    MuMeM.Comm.PaneTabMobChar:new{_tabX="0%",_tabY="0%",_tabWidth="20",_tabHeight="100%"},
+
+    MuMeM.Comm.PaneTabContainer:new{_tabX="20",_tabY="0",_tabWidth="100%-40",_tabHeight="100%",
+      _tabList = {
+        MuMeM.Comm.PaneTabTells:new{_tabX="0%",_tabY="0%",_tabWidth="11%",_tabHeight="100%"},
+        MuMeM.Comm.PaneTabGroupTells:new{_tabX="11%-1",_tabY="0%",_tabWidth="11%+1",_tabHeight="100%"},
+        MuMeM.Comm.PaneTabEmotes:new{_tabX="22%-1",_tabY="0%",_tabWidth="11%+1",_tabHeight="100%"},
+        MuMeM.Comm.PaneTabSocials:new{_tabX="33%-1",_tabY="0%",_tabWidth="11%+1",_tabHeight="100%"},
+        MuMeM.Comm.PaneTabSays:new{_tabX="44%-1",_tabY="0%",_tabWidth="11%+1",_tabHeight="100%"},
+        MuMeM.Comm.PaneTabYells:new{_tabX="55%-1",_tabY="0%",_tabWidth="11%+1",_tabHeight="100%"},
+        MuMeM.Comm.PaneTabTales:new{_tabX="66%-1",_tabY="0%",_tabWidth="11%+1",_tabHeight="100%"},
+        MuMeM.Comm.PaneTabSongs:new{_tabX="77%-1",_tabY="0%",_tabWidth="11%+1",_tabHeight="100%"},
+        MuMeM.Comm.PaneTabPrayers:new{_tabX="88%-1",_tabY="0%",_tabWidth="12%-18",_tabHeight="100%"},
+      },
+    },
+    
+    MuMeM.Comm.PaneTabSearch:new{_tabX="-40",_tabY="0%",_tabWidth="20",_tabHeight="100%"},
+    MuMeM.Comm.PaneTabSettings:new{_tabX="-20",_tabY="0%",_tabWidth="20",_tabHeight="100%"},
+  }
+  paneProps._tabPaneHeight = 20
+  
+  local me = self.parentClass:new(props, paneProps, pristine)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.StandardWindow</name>
+					<packageName></packageName>
+					<script>MuMeM.Comm.StandardWindow = {
+} 
+
+mumem_inherit("MuMeM.Comm.StandardWindow", "MuMeM.Comm.Window")
+
+function MuMeM.Comm.StandardWindow:new(props, paneProps, pristine)
+  props = props or {}
+  paneProps = paneProps or {}
+  
+  paneProps._tabList = {
+      MuMeM.Comm.PaneTabMobChar:new{_tabX="0%",_tabY="0%",_tabWidth="50",_tabHeight="100%"},
+
+      MuMeM.Comm.PaneTabContainer:new{_tabX="50",_tabY="0",_tabWidth="100%-150",_tabHeight="100%",
+        _tabList = {
+          MuMeM.Comm.PaneTabDirect:new{_tabX="0%",_tabY="0%",_tabWidth="22%",_tabHeight="50%"},
+          MuMeM.Comm.PaneTabLocal:new{_tabX="22%",_tabY="0%",_tabWidth="44%",_tabHeight="50%"},
+          MuMeM.Comm.PaneTabGlobal:new{_tabX="66%",_tabY="0%",_tabWidth="34%",_tabHeight="50%"},
+      
+          MuMeM.Comm.PaneTabTells:new{_tabX="0%",_tabY="50%",_tabWidth="11%",_tabHeight="50%"},
+          MuMeM.Comm.PaneTabGroupTells:new{_tabX="11%",_tabY="50%",_tabWidth="11%",_tabHeight="50%"},
+          MuMeM.Comm.PaneTabEmotes:new{_tabX="22%",_tabY="50%",_tabWidth="11%",_tabHeight="50%"},
+          MuMeM.Comm.PaneTabSocials:new{_tabX="33%",_tabY="50%",_tabWidth="11%",_tabHeight="50%"},
+          MuMeM.Comm.PaneTabSays:new{_tabX="44%",_tabY="50%",_tabWidth="11%",_tabHeight="50%"},
+          MuMeM.Comm.PaneTabYells:new{_tabX="55%",_tabY="50%",_tabWidth="11%",_tabHeight="50%"},
+          MuMeM.Comm.PaneTabTales:new{_tabX="66%",_tabY="50%",_tabWidth="11%",_tabHeight="50%"},
+          MuMeM.Comm.PaneTabSongs:new{_tabX="77%",_tabY="50%",_tabWidth="11%",_tabHeight="50%"},
+          MuMeM.Comm.PaneTabPrayers:new{_tabX="88%",_tabY="50%",_tabWidth="12%",_tabHeight="50%"},
+        },
+      },
+
+      MuMeM.Comm.PaneTabSearch:new{_tabX="-100",_tabY="0%",_tabWidth="50",_tabHeight="100%",_icon="search-32.png"},
+      MuMeM.Comm.PaneTabSettings:new{_tabX="-50",_tabY="0%",_tabWidth="50",_tabHeight="100%",_icon="cogwheel-32.png"},
+  }
+  
+  local me = self.parentClass:new(props, paneProps, pristine)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end</script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Comm.Widgets</name>
+				<packageName></packageName>
+				<script></script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.Pane</name>
+					<packageName></packageName>
+					<script>MuMeM.Comm.Pane = {
+  _paneId = "MAIN",
+  _tabPaneHeight = 50,
+  _visuals = {},
+  _tabList = {},
+  _channelTabList = {},       -- { [channel] = tab, ...}
+  _dataFilterList = {},       -- { tab, ...}
+  
+  _fontSize = 10,
+  _backgroundColor = "black",
+  
+  _chatBufferSize = 1000,
+  _chatBufferBatchSize = 100,
+      
+  _searchPane = false,
+  _configPane = false,
+}
+
+mumem_inherit("MuMeM.Comm.Pane", "MuMeM.Comm.Pane")
+
+function MuMeM.Comm.Pane:new(props)
+  local me = props or {}
+  
+  me._visuals = {}
+  me._tabList = props._tabList or {}
+  me._channelTabList = {}
+  me._dataFilterList = {}
+  
+  for _,tab in pairs(me._tabList) do
+    tab:setCommPane(me)
+  end
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end
+
+function MuMeM.Comm.Pane:create(parent, paneX, paneY, paneWidth, paneHeight)
+  local parentName = parent.name
+
+  paneX = paneX or 0
+  paneY = paneY or 0
+  paneWidth = paneWidth or "100%"
+  paneHeight = paneHeight or "100%"
+  
+  -- --- create the container ---
+  self._visuals.rootPane = Geyser.Container:new({
+    name=f"{parentName}#MuMeM.Comm.Pane.rootPane",
+    x = paneX, y = paneY,
+    width = paneWidth, height = paneHeight,
+  },parent)
+  
+  -- --- create the tab container ---
+  self._visuals.tabPane = Geyser.Container:new({
+    name=f"{parentName}#MuMeM.Comm.Pane.tabPane",
+    x = 0, y = 0,
+    width = "100%", height = self:tabPaneHeight(),
+  },self._visuals.rootPane)
+  
+  -- --- add the tabs ---
+  self:createTabs()
+
+  -- --- chatConsole ---
+  self._visuals.chatConsole = Geyser.MiniConsole:new({
+    name=f"{parentName}#MuMeM.Comm.Pane.chatConsole",
+    x = 0, y = self:tabPaneHeight(),
+    width = "100%", height = "100%-"..self:tabPaneHeight(),
+    autoWrap = true,
+    color = self:backgroundColor(),
+    scrollBar = true,
+    fontSize = self:fontSize(),
+  },self._visuals.rootPane)
+  self._visuals.chatConsole:setBufferSize(self:chatBufferSize(),self:chatBufferBatchSize())
+  
+  -- --- fill it ---
+  self:refill()
+  
+  -- --- register event handler ---
+  registerAnonymousEventHandler("MuMeM.Comm.Repository.Chat", 
+                 function (eventName,channel,dataIdx) self:receiveChat(eventName,channel,dataIdx) end) 
+end
+
+function MuMeM.Comm.Pane:createTabs()
+  self._visuals.tabs = {}
+  for _,tab in pairs(self._tabList) do
+    tab:create(self._visuals.tabPane)
+  end
+end
+
+function MuMeM.Comm.Pane:registerChannelTab(tab)
+  if mumem_isa(tab,"MuMeM.Comm.PaneChannelTab") then
+    self._channelTabList[tab:channel()] = tab
+  end
+end
+
+function MuMeM.Comm.Pane:registerDataFilter(filterObj)    -- implents the "DataFilterInterface" (seePaneTabMobChar)
+  table.insert(self._dataFilterList, filterObj)
+end
+
+function MuMeM.Comm.Pane:paneId()
+  return self._paneId
+end
+
+function MuMeM.Comm.Pane:tabPaneHeight()
+  return self._tabPaneHeight
+end
+
+function MuMeM.Comm.Pane:rootPane()
+  return self._visuals.rootPane
+end
+
+function MuMeM.Comm.Pane:rootPaneName()
+  return self:rootPane().name
+end
+
+function MuMeM.Comm.Pane:tabPane()
+  return self._visuals.tabPane
+end
+
+function MuMeM.Comm.Pane:tabPaneName()
+  return self:tabPane().name
+end
+
+function MuMeM.Comm.Pane:setFontSize(fontSize)
+  if fontSize ~= self:fontSize() then
+    self._fontSize = fontSize
+    self._visuals.chatConsole:setFontSize(self:fontSize())
+  end
+end
+
+function MuMeM.Comm.Pane:fontSize()
+  return self._fontSize
+end
+
+function MuMeM.Comm.Pane:setBackgroundColor(backgroundColor)
+  if backgroundColor ~= self:backgroundColor() then
+    self._backgroundColor = backgroundColor
+    -- self._visuals.chatConsole:setBgColor(self:backgroundColor())  DOES NOT WORK,use setColor()
+    self._visuals.chatConsole:setColor(self:backgroundColor())
+  end
+end
+
+function MuMeM.Comm.Pane:backgroundColor()
+  return self._backgroundColor
+end
+
+function MuMeM.Comm.Pane:chatBufferSize()
+  return self._chatBufferSize
+end
+
+function MuMeM.Comm.Pane:chatBufferBatchSize()
+  return self._chatBufferBatchSize
+end
+
+function MuMeM.Comm.Pane:channelTab(channel)
+  return self._channelTabList[channel]
+end
+
+function MuMeM.Comm.Pane:setChannelColor(channel, color)
+  local tab = self:channelTab(channel)
+  if tab then
+    tab:setChannelColor(color, channel)
+  end
+end
+
+function MuMeM.Comm.Pane:channelColor(channel)
+  local tab = self:channelTab(channel)
+  if tab then
+    return tab:channelColor(channel)
+  end
+  return nil
+end
+
+function MuMeM.Comm.Pane:channelFilter()
+  local channelFilter = {}
+  
+  for channel,tab in pairs(self._channelTabList) do
+    if tab:isEnabled() then
+      channelFilter[channel] = "X"
+    end
+  end
+  
+  return channelFilter
+end
+
+function MuMeM.Comm.Pane:enableChannels(channelList)
+  local channelHash = {}
+
+  for _,channel in pairs(channelList) do
+    channelHash[channel] = "X"
+  end
+
+  for _,tab in pairs(self._channelTabList) do
+    if channelHash[tab:channel()] then
+      tab:enable()
+    end
+  end
+  
+  self:refill()
+end
+
+function MuMeM.Comm.Pane:disableChannels(channelList)
+  local channelHash = {}
+
+  for _,channel in pairs(channelList) do
+    channelHash[channel] = "X"
+  end
+
+  for _,tab in pairs(self._channelTabList) do
+    if channelHash[tab:channel()] then
+      tab:disable()
+    end
+  end
+  
+  self:refill()
+end
+
+function MuMeM.Comm.Pane:enableOnlyChannels(channelList)
+  local channelHash = {}
+
+  for _,channel in pairs(channelList) do
+    channelHash[channel] = "X"
+  end
+  
+  for _,tab in pairs(self._channelTabList) do
+    if channelHash[tab:channel()] then
+      tab:enable()
+    else
+      tab:disable()
+    end
+  end
+  
+  self:refill()
+end
+
+-- ####################################################################################
+
+function MuMeM.Comm.Pane:addChat(chatMsg, color)
+  if color then
+    if string.sub(color,1,1) == "#" then
+      self._visuals.chatConsole:hecho(color..chatMsg.."\n")
+    else
+      self._visuals.chatConsole:cecho("&lt;"..color.."&gt;"..chatMsg.."\n")
+    end
+  else
+    self._visuals.chatConsole:echo(chatMsg.."\n")
+  end
+end
+
+function MuMeM.Comm.Pane:clearChat()
+  self._visuals.chatConsole:clear()
+  self._visuals.chatConsole:echo("")
+  self._visuals.chatConsole:clear()
+end
+
+function MuMeM.Comm.Pane:resetHard()
+  self._channelFilter = {}
+  self:clearChat()
+
+  -- disable all CHANNEL tabs
+  for _,tab in pairs(self._channelTabList) do
+    tab:disable()
+  end
+end
+
+function MuMeM.Comm.Pane:refill()
+  if not self._visuals.chatConsole then
+    return
+  end
+  
+  self:clearChat()
+
+  local channelFilter = self:channelFilter()
+  local dataFilter = {}
+  for _,df in pairs(self._dataFilterList) do
+    local dataFilterConstraint = df:dataFilterGetConstraint()
+    if dataFilterConstraint then
+      table.insert(dataFilter, dataFilterConstraint)
+    end
+  end
+    
+  local dataIdx,chatMsg,channel = MuMeM.Comm.Repository.getNextChat(nil, channelFilter, dataFilter)
+  while dataIdx do
+    self:addChat(chatMsg, self:channelColor(channel))
+    dataIdx,chatMsg,channel = MuMeM.Comm.Repository.getNextChat(dataIdx, channelFilter, dataFilter)
+  end
+end
+
+function MuMeM.Comm.Pane:receiveChat(eventName, channel, dataIdx)
+  local channelTab = self._channelTabList[channel]
+  
+  -- not listening to this channel at all
+  if not channelTab then
+    return
+  end
+
+  local channelIsEnabled = channelTab:isEnabled()
+  
+  -- short-cicruit
+  if not channelIsEnabled and channelTab:isPending() then
+    return
+  end
+
+  -- check if it is included (ALL must match)
+  local dataIsIncluded = true
+  for _,df in pairs(self._dataFilterList) do
+    dataIsIncluded = dataIsIncluded and df:dataFilterMatches(dataIdx)
+  end
+
+  -- decde on result
+  if not dataIsIncluded then
+    return
+  elseif channelTab:isEnabled() then
+    self:addChat(MuMeM.Comm.Repository.getEntryChat(dataIdx), channelTab:channelColor())
+  else
+    channelTab:setPending()
+  end
+end
+
+-- ####################################################################################
+
+function MuMeM.Comm.Pane:load()
+  MuMeM.Comm.Config.loadPane(self)
+  self:refill()
+end
+
+-- ####################################################################################
+
+function MuMeM.Comm.Pane:searchPane()
+  if self._searchPane == false then
+    self._searchPane = MuMeM.Comm.Search.Pane:new({
+      _commPane = self,
+    })
+  end
+  
+  return self._searchPane
+end
+
+function MuMeM.Comm.Pane:showSearchPane()
+  self:searchPane():show()
+end
+
+function MuMeM.Comm.Pane:hideSearchPane()
+  self:searchPane():hide()
+end
+
+function MuMeM.Comm.Pane:toggleSearchPane()
+  self:searchPane():toggle()
+end
+
+-- ####################################################################################
+
+function MuMeM.Comm.Pane:configPane()
+  if self._configPane == false then
+    self._configPane = MuMeM.Comm.Config.Pane:new({
+      _commPane = self,
+    })
+  end
+  
+  return self._configPane
+end
+
+function MuMeM.Comm.Pane:showConfigPane()
+  self:configPane():show()
+end
+
+function MuMeM.Comm.Pane:hideConfigPane()
+  self:configPane():hide()
+end
+
+function MuMeM.Comm.Pane:toggleConfigPane()
+  self:configPane():toggle()
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.PaneTab</name>
+					<packageName></packageName>
+					<script>MuMeM.Comm.PaneTab = {
+  _visuals = {},
+  _caption = "undefined",
+  _tabX = "0%",
+  _tabY = "0%",
+  _tabWidth = "10%",
+  _tabHeight = "50%",
+
+  _commPane = nil,
+  _eventHandler = nil,
+  
+  _styleSheetTab = Geyser.StyleSheet:new([[
+    background-color: white;
+    color: black;
+    font-size: 8pt;
+    border: 2px solid black;
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+  ]]),
+}
+
+mumem_inherit("MuMeM.Comm.PaneTab", "MuMeM.Comm.PaneTab")
+
+function MuMeM.Comm.PaneTab:new(props)
+  local me = props or {}
+  
+  me._visuals = {}
+    
+  setmetatable(me, self)
+  self.__index = self
+
+  return me
+end
+
+function MuMeM.Comm.PaneTab:create(parentWindow)
+  self._visuals.tabLabel = Geyser.Label:new({
+    name=Geyser.nameGen(),
+    x = self:tabX(), y = self:tabY(),
+    width = self:tabWidth(), height = self:tabHeight(),
+    stylesheet = self._styleSheetTab:getCSS(),
+  },parentWindow)
+  self._visuals.tabLabel:rawEcho(self:caption())
+
+  --self._visuals.tabLabel:setToolTip("Leftclick: X&lt;br&gt;Rightclick: some")
+      
+  self._visuals.tabLabel:setClickCallback( function (event) self:handleMouseClick(event) end )
+end
+
+function MuMeM.Comm.PaneTab:tabWindow()
+  return self._visuals.tabLabel
+end
+
+function MuMeM.Comm.PaneTab:caption()
+  return self._caption
+end
+
+function MuMeM.Comm.PaneTab:setCaption(caption)
+  self._caption = caption
+  self._visuals.tabLabel:rawEcho(self:caption())
+end
+
+function MuMeM.Comm.PaneTab:tabX()
+  return self._tabX
+end
+
+function MuMeM.Comm.PaneTab:tabY()
+  return self._tabY
+end
+
+function MuMeM.Comm.PaneTab:tabWidth()
+  return self._tabWidth
+end
+
+function MuMeM.Comm.PaneTab:tabHeight()
+  return self._tabHeight
+end
+
+-- DONE VIA STYLE SHEETS - REMOVE THIS (2022-03-01)
+--function MuMeM.Comm.PaneTab:fontSize()
+--  return self._styleSheetTab.styleTable["font-size"]
+--end
+
+-- DONE VIA STYLE SHEETS - REMOVE THIS (2022-03-01)
+--function MuMeM.Comm.PaneTab:fontColor()
+--  return self._styleSheetTab.styleTable["color"]
+--end
+
+function MuMeM.Comm.PaneTab:setCommPane(pane)
+  self._commPane = pane
+end
+
+function MuMeM.Comm.PaneTab:commPane()
+  return self._commPane
+end
+
+function MuMeM.Comm.PaneTab:applyTabStyleSheet(styleSheet)
+  self._visuals.tabLabel:setStyleSheet(styleSheet:getCSS())
+end
+
+function MuMeM.Comm.PaneTab:handleMouseClick(event)
+  MuMeM.Log.error("handleMouseClick not overriden!", "MuMeM.Comm")
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.PaneTabIcon</name>
+					<packageName></packageName>
+					<script>MuMeM.Comm.PaneTabIcon = {
+  _icon = "search-18.png",
+  
+  _styleSheetTab = Geyser.StyleSheet:new([[
+    background-color: #6495ED;
+    color: white;
+    font-size: 8;
+    border: 2px solid black;
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+    background-image: url("undefined");
+    background-repeat: no-repeat; 
+    background-position: center;
+    background-origin: margin;
+  ]]),
+}
+
+mumem_inherit("MuMeM.Comm.PaneTabIcon", "MuMeM.Comm.PaneTab")
+
+function MuMeM.Comm.PaneTabIcon:new(props)
+  props = props or {}
+  
+  props._caption = ""
+  
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end
+
+function MuMeM.Comm.PaneTabIcon:create(parentWindow)
+  MuMeM.Comm.PaneChannelTab.parentClass.create(self, parentWindow)
+  
+  local styleSheet = Geyser.StyleSheet:new(self._styleSheetTab:getCSS())
+  styleSheet:set("background-image", [[url("]]..MuMeM.Comm.getResourcePath(self._icon)..[[");]])  
+
+  self:applyTabStyleSheet(styleSheet)
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.PaneChannelTab</name>
+					<packageName></packageName>
+					<script>MuMeM.Comm.PaneChannelTab = {
+  _channel = "undefined",
+  
+  _enabled = true,
+  _pending = false,               -- pending messages
+  _channelColor = "white",
+  
+  _styleSheetTabEnabled = Geyser.StyleSheet:new([[
+    background-color: #00A36C;
+    color: white;
+    font-size: 8pt;
+    border: 2px solid black;
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+  ]]),
+  _styleSheetTabDisabled = Geyser.StyleSheet:new([[
+    background-color: #D3D3D3;
+    color: black;
+    font-size: 8pt;
+    border: 2px solid black;
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+  ]]),
+  _styleSheetTabPending = Geyser.StyleSheet:new([[
+    background-color: #D3D3D3;
+    color: red;
+    font-size: 8pt;
+    border: 2px solid black;
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+  ]]),
+}
+
+mumem_inherit("MuMeM.Comm.PaneChannelTab", "MuMeM.Comm.PaneTab")
+
+function MuMeM.Comm.PaneChannelTab:new(props)
+  props = props or {}
+  
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end
+
+function MuMeM.Comm.PaneChannelTab:create(parentWindow)
+  MuMeM.Comm.PaneChannelTab.parentClass.create(self, parentWindow)
+
+  self:commPane():registerChannelTab(self)
+
+  self:applyTabStyleSheet(self._styleSheetTabEnabled)
+end
+
+function MuMeM.Comm.PaneChannelTab:channel()
+  return self._channel
+end
+
+function MuMeM.Comm.PaneChannelTab:setChannelColor(color)
+  self._channelColor = color
+end
+
+function MuMeM.Comm.PaneChannelTab:channelColor()
+  return self._channelColor
+end
+
+-- DONE VIA STYLE SHEETS - REMOVE THIS (2022-03-01)
+--function MuMeM.Comm.PaneChannelTab:fontSize()
+--  if self:isEnabled() then
+--    return self._styleSheetTabEnabled.styleTable["font-size"]
+--  else
+--    return self._styleSheetTabDisabled.styleTable["font-size"]
+--  end
+--end
+
+-- DONE VIA STYLE SHEETS - REMOVE THIS (2022-03-01)
+--function MuMeM.Comm.PaneChannelTab:fontColor()
+--  if self:isEnabled() then
+--    return self._styleSheetTabEnabled.styleTable["color"]
+--  else
+--    return self._styleSheetTabDisabled.styleTable["color"]
+--  end
+--end
+
+function MuMeM.Comm.PaneChannelTab:enable(informComm)
+  if self._enabled then
+    return
+  end
+
+  self._enabled = true
+  self:applyTabStyleSheet(self._styleSheetTabEnabled)
+  
+  if informComm then
+    self:commPane():refill()
+  end
+end
+
+function MuMeM.Comm.PaneChannelTab:disable(informComm)
+  if not self._enabled then
+    return
+  end
+
+  self._enabled = false
+  self:applyTabStyleSheet(self._styleSheetTabDisabled)
+
+  if informComm then
+    self:commPane():refill()
+  end
+end
+
+function MuMeM.Comm.PaneChannelTab:isEnabled()
+  return self._enabled
+end
+
+function MuMeM.Comm.PaneChannelTab:toggleEnabled(informComm)
+  if self:isEnabled() then
+    self:disable(informComm)
+  else
+    self:enable(informComm)
+  end
+end
+
+function MuMeM.Comm.PaneChannelTab:setPending()
+  self._pending = true
+  self:applyTabStyleSheet(self._styleSheetTabPending)
+end
+
+function MuMeM.Comm.PaneChannelTab:removePending()
+  self._pending = false
+  if self:isEnabled() then
+    self:applyTabStyleSheet(self._styleSheetTabEnabled)
+  else
+    self:applyTabStyleSheet(self._styleSheetTabDisabled)
+  end
+end
+
+function MuMeM.Comm.PaneChannelTab:isPending()
+  return self._pending
+end
+
+function MuMeM.Comm.PaneChannelTab:handleMouseClick(event)
+  if event.button == "LeftButton" then
+    self:toggleEnabled(true)
+  else
+    self:commPane():resetHard()
+    self:enable(true)
+  end
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.PaneGroupTab</name>
+					<packageName></packageName>
+					<script>MuMeM.Comm.PaneGroupTab = {
+  _groupChannels = {},
+  
+  _styleSheetTab = Geyser.StyleSheet:new([[
+    background-color: #000080;
+    color: white;
+    font-size: 8;
+    border: 2px solid black;
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+  ]]),
+}
+
+mumem_inherit("MuMeM.Comm.PaneGroupTab", "MuMeM.Comm.PaneTab")
+
+function MuMeM.Comm.PaneGroupTab:new(props)
+  props = props or {}
+  
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end
+
+function MuMeM.Comm.PaneGroupTab:create(parentWindow)
+  MuMeM.Comm.PaneChannelTab.parentClass.create(self, parentWindow)
+  
+  self:applyTabStyleSheet(self._styleSheetTab)
+end
+
+function MuMeM.Comm.PaneGroupTab:groupChannels()
+  local groupChannels = {}
+    
+  for _,channel in pairs(self._groupChannels) do
+    table.insert(groupChannels, channel)
+  end
+  
+  return groupChannels
+end
+
+function MuMeM.Comm.PaneGroupTab:handleMouseClick(event)
+  if event.button == "LeftButton" then
+    self:commPane():enableChannels(self:groupChannels())
+  else
+    self:commPane():enableOnlyChannels(self:groupChannels())
+  end
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.PaneTabEmotes</name>
+					<packageName></packageName>
+					<script>MuMeM.Comm.PaneTabEmotes = {
+}
+
+mumem_inherit("MuMeM.Comm.PaneTabEmotes", "MuMeM.Comm.PaneChannelTab")
+
+function MuMeM.Comm.PaneTabEmotes:new(props)
+  props = props or {}
+  
+  props._channel = "emotes"
+  props._caption = "Emotes"
+  props._channelColor = "ansi_cyan"
+
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.PaneTabGroupTells</name>
+					<packageName></packageName>
+					<script>MuMeM.Comm.PaneTabGroupTells = {
+}
+
+mumem_inherit("MuMeM.Comm.PaneTabGroupTells", "MuMeM.Comm.PaneChannelTab")
+
+function MuMeM.Comm.PaneTabGroupTells:new(props)
+  props = props or {}
+  
+  props._channel = "gtells"
+  props._caption = "GTells"
+  props._channelColor = "ansi_green"
+    
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.PaneTabPrayers</name>
+					<packageName></packageName>
+					<script>MuMeM.Comm.PaneTabPrayers = {
+}
+
+mumem_inherit("MuMeM.Comm.PaneTabPrayers", "MuMeM.Comm.PaneChannelTab")
+
+function MuMeM.Comm.PaneTabPrayers:new(props)
+  props = props or {}
+  
+  props._channel = "prayers"
+  props._caption = "Prayers"
+  props._channelColor = "ansi_cyan"
+  
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.PaneTabSays</name>
+					<packageName></packageName>
+					<script>MuMeM.Comm.PaneTabSays = {
+}
+
+mumem_inherit("MuMeM.Comm.PaneTabSays", "MuMeM.Comm.PaneChannelTab")
+
+function MuMeM.Comm.PaneTabSays:new(props)
+  props = props or {}
+  
+  props._channel = "says"
+  props._caption = "Says"
+  props._channelColor = "ansi_cyan"
+    
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.PaneTabSocials</name>
+					<packageName></packageName>
+					<script>MuMeM.Comm.PaneTabSocials = {
+}
+
+mumem_inherit("MuMeM.Comm.PaneTabSocials", "MuMeM.Comm.PaneChannelTab")
+
+function MuMeM.Comm.PaneTabSocials:new(props)
+  props = props or {}
+  
+  props._channel = "socials"
+  props._caption = "Socials"
+  props._channelColor = "ansi_cyan"
+    
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.PaneTabSongs</name>
+					<packageName></packageName>
+					<script>MuMeM.Comm.PaneTabSongs = {
+}
+
+mumem_inherit("MuMeM.Comm.PaneTabSongs", "MuMeM.Comm.PaneChannelTab")
+
+function MuMeM.Comm.PaneTabSongs:new(props)
+  props = props or {}
+  
+  props._channel = "songs"
+  props._caption = "Songs"
+  props._channelColor = "ansi_yellow"
+    
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.PaneTabTales</name>
+					<packageName></packageName>
+					<script>MuMeM.Comm.PaneTabTales = {
+}
+
+mumem_inherit("MuMeM.Comm.PaneTabTales", "MuMeM.Comm.PaneChannelTab")
+
+function MuMeM.Comm.PaneTabTales:new(props)
+  props = props or {}
+  
+  props._channel = "tales"
+  props._caption = "Tales"
+  props._channelColor = "ansi_yellow"
+    
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.PaneTabTells</name>
+					<packageName></packageName>
+					<script>MuMeM.Comm.PaneTabTells = {
+}
+
+mumem_inherit("MuMeM.Comm.PaneTabTells", "MuMeM.Comm.PaneChannelTab")
+
+function MuMeM.Comm.PaneTabTells:new(props)
+  props = props or {}
+  
+  props._channel = "tells"
+  props._caption = "Tells"
+  props._channelColor = "ansi_green"
+    
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.PaneTabYells</name>
+					<packageName></packageName>
+					<script>MuMeM.Comm.PaneTabYells = {
+}
+
+mumem_inherit("MuMeM.Comm.PaneTabYells", "MuMeM.Comm.PaneChannelTab")
+
+function MuMeM.Comm.PaneTabYells:new(props)
+  props = props or {}
+  
+  props._channel = "yells"
+  props._caption = "Yells"
+  props._channelColor = "ansi_magenta"
+  
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.PaneTabAll</name>
+					<packageName></packageName>
+					<script>MuMeM.Comm.PaneTabAll = {
+  _styleSheetTab = Geyser.StyleSheet:new([[
+    background-color: #000080;
+    color: white;
+    font-size: 12;
+    border: 2px solid black;
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+  ]]),
+}
+
+mumem_inherit("MuMeM.Comm.PaneTabAll", "MuMeM.Comm.PaneGroupTab")
+
+function MuMeM.Comm.PaneTabAll:new(props)
+  props = props or {}
+  
+  props._caption = "All"
+  props._groupChannels = {"tells", "gtells", "emotes", "socials", "says", "yells", "tales", "songs", "prayers"}
+  
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end
+
+function MuMeM.Comm.PaneTabAll:handleMouseClick(event)
+  if event.button == "LeftButton" then
+    self:commPane():enableChannels(self:groupChannels())
+  else
+    self:commPane():disableChannels(self:groupChannels())
+  end
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.PaneTabDirect</name>
+					<packageName></packageName>
+					<script>MuMeM.Comm.PaneTabDirect = {
+}
+
+mumem_inherit("MuMeM.Comm.PaneTabDirect", "MuMeM.Comm.PaneGroupTab")
+
+function MuMeM.Comm.PaneTabDirect:new(props)
+  props = props or {}
+    
+  props._caption = "Direct"
+  props._groupChannels = {"tells","gtells"}
+  
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.PaneTabLocal</name>
+					<packageName></packageName>
+					<script>MuMeM.Comm.PaneTabLocal = {
+}
+
+mumem_inherit("MuMeM.Comm.PaneTabLocal", "MuMeM.Comm.PaneGroupTab")
+
+function MuMeM.Comm.PaneTabLocal:new(props)
+  props = props or {}
+    
+  props._caption = "Local"
+  props._groupChannels = {"emotes", "socials", "says", "yells"}
+  
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.PaneTabGlobal</name>
+					<packageName></packageName>
+					<script>MuMeM.Comm.PaneTabGlobal = {
+}
+
+mumem_inherit("MuMeM.Comm.PaneTabGlobal", "MuMeM.Comm.PaneGroupTab")
+
+function MuMeM.Comm.PaneTabGlobal:new(props)
+  props = props or {}
+  
+  props._caption = "Global"
+  props._groupChannels = {"tales", "songs", "prayers"}
+  
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.PaneTabSettings</name>
+					<packageName></packageName>
+					<script>MuMeM.Comm.PaneTabSettings = {
+  _icon = "cogwheel-18.png",
+  
+  _styleSheetTab = Geyser.StyleSheet:new([[
+    background-color: #6495ED;
+    color: white;
+    font-size: 8;
+    border: 2px solid black;
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+    background-image: url("undefined");
+    background-repeat: no-repeat; 
+    background-position: center;
+    background-origin: margin;
+  ]]),
+}
+
+mumem_inherit("MuMeM.Comm.PaneTabSettings", "MuMeM.Comm.PaneTabIcon")
+
+function MuMeM.Comm.PaneTabSettings:new(props)
+  props = props or {}
+  
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end
+
+function MuMeM.Comm.PaneTabSettings:handleMouseClick(event)
+  if event.button == "LeftButton" then
+    self:commPane():toggleConfigPane()
+  else
+    self:commPane():hideConfigPane()
+  end
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.PaneTabSearch</name>
+					<packageName></packageName>
+					<script>MuMeM.Comm.PaneTabSearch = {
+  _icon = "search-18.png",
+  _searchRegex = "",
+  
+  _styleSheetTab = Geyser.StyleSheet:new([[
+    background-color: #6495ED;
+    color: white;
+    font-size: 8;
+    border: 2px solid black;
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+    background-image: url("undefined");
+    background-repeat: no-repeat; 
+    background-position: center;
+    background-origin: margin;
+  ]]),
+}
+
+mumem_inherit("MuMeM.Comm.PaneTabSearch", "MuMeM.Comm.PaneTabIcon")
+
+function MuMeM.Comm.PaneTabSearch:new(props)
+  props = props or {}
+  
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end
+
+function MuMeM.Comm.PaneTabSearch:create(parentWindow)
+  MuMeM.Comm.PaneTabSearch.parentClass.create(self, parentWindow)
+
+  registerAnonymousEventHandler(f"MuMeM.Comm.Search.Pane.{self:commPane():paneId()}.Search",
+                function (eventName,searchRegex) self:setSearchRegex(searchRegex) end )
+  self:commPane():registerDataFilter(self)
+end
+
+function MuMeM.Comm.PaneTabSearch:setSearchRegex(searchRegex)
+  if searchRegex == self:searchRegex() then
+    return
+  end
+  
+  self._searchRegex = searchRegex
+
+  local styleSheet = Geyser.StyleSheet:new(self._styleSheetTab:getCSS())
+  if self:searchRegex() == "" then
+    styleSheet:set("background-color", "#6495ED")  
+  else
+    styleSheet:set("background-color", "#00FF00")  
+  end
+  styleSheet:set("background-image", [[url("]]..MuMeM.Comm.getResourcePath(self._icon)..[[");]])  
+  self:applyTabStyleSheet(styleSheet)
+  
+  self:commPane():refill()
+end
+
+function MuMeM.Comm.PaneTabSearch:searchRegex(searchRegex)
+  return self._searchRegex
+end
+
+function MuMeM.Comm.PaneTabSearch:handleMouseClick(event)
+  if event.button == "LeftButton" then
+    self:commPane():toggleSearchPane()
+  else
+    self:commPane():hideSearchPane()
+  end
+end
+
+-- ##### FilterInterface #################################################
+
+function MuMeM.Comm.PaneTabSearch:dataFilterGetConstraint()
+  local searchRegex = self:searchRegex()
+  
+  if not searchRegex or searchRegex == "" then
+    return nil
+  end
+  
+  return {["column"]="text", ["value"]=searchRegex}
+end
+
+function MuMeM.Comm.PaneTabSearch:dataFilterMatches(dataIdx)
+  local searchRegex = self:searchRegex()
+  
+  if searchRegex == "" then
+    return true
+  end
+  
+  local text = MuMeM.Comm.Repository.getEntryText(dataIdx)
+  
+  return text ~= nil and utf8.find(text, searchRegex) ~= nil
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.PaneTabMobChar</name>
+					<packageName></packageName>
+					<script>MuMeM.Comm.PaneTabMobChar = {
+  _mobCharFilter = "B",         -- B = both, M = Mobs, C = Chars
+
+  _styleSheetTab = Geyser.StyleSheet:new([[
+    background-color: #355E3B;
+    color: white;
+    font-size: 8pt;
+    border: 2px solid black;
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+    background-image: url("undefined");
+    background-repeat: no-repeat; 
+    background-position: center;
+    background-origin: margin;
+  ]]),
+}
+
+MuMeM.Comm.PaneTabMobChar.CAPTIONS = {
+  ["SHORT"] = { ["B"] = "&amp;", ["C"] = "C", ["M"] = "M" },
+  ["LONG"]  = { ["B"] = "C&amp;M", ["C"] = "Char", ["M"] = "Mob" },
+}
+
+
+mumem_inherit("MuMeM.Comm.PaneTabMobChar", "MuMeM.Comm.PaneTab")
+
+function MuMeM.Comm.PaneTabMobChar:new(props)
+  props = props or {}
+  
+  props._caption = ""
+  
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end
+
+function MuMeM.Comm.PaneTabMobChar:create(parentWindow)
+  MuMeM.Comm.PaneTabMobChar.parentClass.create(self, parentWindow)
+  
+  self:commPane():registerDataFilter(self)
+  
+  self:setCaption()
+end
+
+function MuMeM.Comm.PaneTabMobChar:setCaption(caption)
+  local idx = "LONG"
+  if self:tabWindow():get_width() &lt;= 20 then
+    idx = "SHORT"
+  end
+  
+  MuMeM.Comm.PaneTabMobChar.parentClass.setCaption(self,MuMeM.Comm.PaneTabMobChar.CAPTIONS[idx][self:mobCharFilter()])  
+end
+
+function MuMeM.Comm.PaneTabMobChar:mobCharFilter()
+  return self._mobCharFilter
+end
+
+function MuMeM.Comm.PaneTabMobChar:shiftMobCharFilter(mobCharFilter)
+  if self:mobCharFilter() == "B" then
+    self:setMobCharFilter("C")
+  elseif self:mobCharFilter() == "C" then
+    self:setMobCharFilter("M")
+  elseif self:mobCharFilter() == "M" then
+    self:setMobCharFilter("B")
+  end 
+end
+
+function MuMeM.Comm.PaneTabMobChar:setMobCharFilter(mobCharFilter)
+  if self._mobCharFilter ~= mobCharFilter then
+    self._mobCharFilter = mobCharFilter
+    self:setCaption()
+    self:commPane():refill()
+  end
+end
+
+function MuMeM.Comm.PaneTabMobChar:handleMouseClick(event)
+  self:shiftMobCharFilter()
+end
+
+-- ##### FilterInterface #################################################
+
+function MuMeM.Comm.PaneTabMobChar:dataFilterGetConstraint()
+  local mobCharFilter = self:mobCharFilter()
+
+  if mobCharFilter == "C" then
+    return {["column"]="mob", ["value"]=false}
+  elseif mobCharFilter == "M" then
+    return {["column"]="mob", ["value"]=true}
+  end
+
+  return nil
+end
+
+function MuMeM.Comm.PaneTabMobChar:dataFilterMatches(dataIdx)
+  local mobCharFilter = self:mobCharFilter()
+  
+  if mobCharFilter == "B" then
+    return true
+  end
+  
+  local dataIsMob = MuMeM.Comm.Repository.getEntryMob(dataIdx)
+  
+  return (mobCharFilter == "M" and dataIsMob == true) or (mobCharFilter == "C" and dataIsMob == false)
+end
+</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.PaneTabContainer</name>
+					<packageName></packageName>
+					<script>MuMeM.Comm.PaneTabContainer = {
+  _tabList = {},
+  
+  _tabX = "0%",
+  _tabY = "0%",
+  _tabWidth = "100%",
+  _tabHeight = "100%",
+  
+  _containerWindow = nil,
+  _commPane = nil,
+}
+
+mumem_inherit("MuMeM.Comm.PaneTabContainer", "MuMeM.Comm.PaneTabContainer")
+
+function MuMeM.Comm.PaneTabContainer:new(props)
+  local me = props or {}
+  
+  me._tabList = props._tabList or {}
+  
+  me._visuals = {}
+    
+  setmetatable(me, self)
+  self.__index = self
+
+  return me
+end
+
+function MuMeM.Comm.PaneTabContainer:create(parentWindow)
+  self._containerWindow = Geyser.Container:new({
+    name = Geyser.nameGen(),
+    x = self:tabX(), y = self:tabY(),
+    width = self:tabWidth(), height = self:tabHeight(),
+  },parentWindow)
+  
+  for _,tab in pairs(self._tabList) do
+    tab:create(self._containerWindow)
+  end
+  self._containerWindow:show()
+end
+
+function MuMeM.Comm.PaneTabContainer:tabX()
+  return self._tabX
+end
+
+function MuMeM.Comm.PaneTabContainer:tabY()
+  return self._tabY
+end
+
+function MuMeM.Comm.PaneTabContainer:tabWidth()
+  return self._tabWidth
+end
+
+function MuMeM.Comm.PaneTabContainer:tabHeight()
+  return self._tabHeight
+end
+
+function MuMeM.Comm.PaneTabContainer:setCommPane(pane)
+  self._commPane = pane
+  
+  for _,tab in pairs(self._tabList) do
+    tab:setCommPane(pane)
+  end
+end
+
+function MuMeM.Comm.PaneTabContainer:commPane()
+  return self._commPane
+end</script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Comm.Search</name>
+				<packageName></packageName>
+				<script></script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.Search.Pane</name>
+					<packageName></packageName>
+					<script>MuMeM.Comm.Search.Pane = {
+  _styleSheetPane = Geyser.StyleSheet:new([[
+    background-color: #D3D3D3;
+    border: 2px solid magenta;
+  ]]),
+
+  _styleSheetInput = Geyser.StyleSheet:new([[
+    background-color: white;
+    color: black;
+    font-size: 10pt;
+    border: 1px solid black;
+  ]]),
+ 
+  _styleSheetButton = Geyser.StyleSheet:new([[
+    background-color: white;
+    color: white;
+    font-size: 8;
+    border: 2px solid black;
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+    background-image: url("undefined");
+    background-repeat: no-repeat; 
+    background-position: center;
+    background-origin: margin;
+  ]]),
+  
+  _commPane = nil,
+  
+  _visuals = nil,
+  _isHidden = true,
+  
+  _searchText = "",
+}
+
+mumem_inherit("MuMeM.Comm.Search.Pane", "MuMeM.Comm.Search.Pane")
+
+function MuMeM.Comm.Search.Pane:new(props)
+  local me = props or {}
+  
+  me._visuals = {}
+  
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end
+
+function MuMeM.Comm.Search.Pane:create()
+  local parentName = self:commPane():rootPaneName()
+  
+  -- --- root pane ---
+  self._visuals.rootPane = Geyser.Label:new({
+    name = Geyser.nameGen(),
+    x = "-50%", y = self:commPane():tabPaneHeight()+5,
+    width = "50%-20", height = 30,
+    stylesheet = self._styleSheetPane:getCSS(),
+  },self:commPane():rootPane())
+  
+  -- --- search text ---
+  self._visuals.searchText = Geyser.CommandLine:new({
+    name = Geyser.nameGen(),
+    x = 5, y = 5, 
+    width = "100%-60", height = 20,
+    stylesheet = self._styleSheetInput:getCSS(),
+  },self:rootPane())
+  
+  self._visuals.searchText:setAction(function () self:apply() end)
+  
+  -- --- search button ---
+  local styleSheet = Geyser.StyleSheet:new(self._styleSheetButton:getCSS())
+  styleSheet:set("background-image", [[url("]]..MuMeM.Comm.getResourcePath("search-18.png")..[[");]]) 
+  styleSheet:set("background-color", "#228B22") 
+  
+  self._visuals.buttonSearch = Geyser.Label:new({
+    name = Geyser.nameGen(),
+    x = -50, y = 5,
+    width = 20, height = 20,
+    stylesheet = styleSheet:getCSS(),
+  },self:rootPane())
+  
+  self._visuals.buttonSearch:setClickCallback(function (event) self:applyClicked(event) end)
+
+  -- --- wipe button ---
+  local styleSheet = Geyser.StyleSheet:new(self._styleSheetButton:getCSS())
+  styleSheet:set("background-image", [[url("]]..MuMeM.Comm.getResourcePath("wipe-18.png")..[[");]]) 
+  styleSheet:set("background-color", "#FFFDD0") 
+
+  self._visuals.buttonWipe = Geyser.Label:new({
+    name = Geyser.nameGen(),
+    x = -25, y = 5,
+    width = 20, height = 20,
+    stylesheet = styleSheet:getCSS(),
+  },self:rootPane())
+  
+  self._visuals.buttonWipe:setClickCallback(function (event) self:wipeClicked(event) end)
+end
+
+function MuMeM.Comm.Search.Pane:createButton(buttonID, x, y, label, callback)
+  self._visuals[buttonID] = Geyser.Label:new({
+    name=f"{parentName}#ConfigPane#{buttonID}",
+    x = x, y = y,
+    width = 50, height = 20,
+    stylesheet = self._styleSheetButton:getCSS(),
+  },self:rootPane())
+  self._visuals[buttonID]:rawEcho(label)
+  
+end
+
+function MuMeM.Comm.Search.Pane:readSearchText()
+  self._searchText = self._visuals.searchText:getText()
+end
+
+function MuMeM.Comm.Search.Pane:setSearchText(searchText)
+  self._searchText = searchText
+  self._visuals.searchText:print(searchText)
+end
+
+function MuMeM.Comm.Search.Pane:searchText()
+  return self._searchText
+end
+
+function MuMeM.Comm.Search.Pane:apply(event)
+  self:readSearchText()  
+  raiseEvent(f"MuMeM.Comm.Search.Pane.{self:commPane():paneId()}.Search", self:searchText())
+end
+
+function MuMeM.Comm.Search.Pane:wipe(event)
+  self:setSearchText("")
+  raiseEvent(f"MuMeM.Comm.Search.Pane.{self:commPane():paneId()}.Search", self:searchText())
+end
+
+function MuMeM.Comm.Search.Pane:rootPane()
+  return self._visuals.rootPane
+end
+
+function MuMeM.Comm.Search.Pane:setCommPane(pane)
+  self._commPane = pane
+end
+
+function MuMeM.Comm.Search.Pane:commPane()
+  return self._commPane
+end
+
+function MuMeM.Comm.Search.Pane:applyClicked(event)
+  self:apply()
+  
+  if event.button == "RightButton" then
+    self:hide()
+  end
+end
+
+function MuMeM.Comm.Search.Pane:wipeClicked(event)
+  self:wipe()
+  
+  if event.button == "RightButton" then
+    self:hide()
+  end
+end
+
+
+function MuMeM.Comm.Search.Pane:isHidden()
+  return self._isHidden
+end
+
+function MuMeM.Comm.Search.Pane:show()
+  if not self._visuals.rootPane then
+    self:create()
+  end
+  
+  if self:isHidden() then
+    self._isHidden = false
+    self:setSearchText(self:searchText())      -- sync input with actual search-"filter"
+    self:rootPane():show()
+    self:rootPane():raiseAll()
+  end
+end
+
+function MuMeM.Comm.Search.Pane:hide()
+  if not self:isHidden() then
+    self._isHidden = true
+    self:rootPane():hide()
+  end
+end
+
+function MuMeM.Comm.Search.Pane:toggle()
+  if self:isHidden() then
+    self:show()
+  else
+    self:hide()
+  end
+end</script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Comm.Config</name>
+				<packageName></packageName>
+				<script></script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.Config.Library</name>
+					<packageName></packageName>
+					<script>-- #######################################################################
+--   STATIC
+-- #######################################################################
+
+-- ##### FACTORY (Singleton) #############################################
+
+function MuMeM.Comm.Config.getFactoryConfig(factory)
+  local config = {}
+  
+  config["windowAssemblyTable"] = factory._windowAssemblyTable
+  
+  return config
+end
+
+function MuMeM.Comm.Config.setFactoryConfig(factory, config)
+  factory._windowAssemblyTable = config["windowAssemblyTable"]
+end
+
+function MuMeM.Comm.Config.loadFactory(factory)
+  local saveDir = MuMeM.Core.IO.concatPath(getMudletHomeDir(), "mumem-config")
+  local saveFile = f"MuMeM-Comm_Factory.json"
+
+  local config = MuMeM.Core.IO.loadTable(MuMeM.Core.IO.concatPath(saveDir, saveFile))
+  if not config then
+    MuMeM.Log.warning("Could not load savefile: "..MuMeM.Core.IO.concatPath(saveDir, saveFile), "MuMeM.Comm")
+    return false
+  end
+   
+  MuMeM.Comm.Config.setFactoryConfig(factory, config)
+  
+  return true
+end
+
+function MuMeM.Comm.Config.saveFactory(factory)
+  local saveDir = MuMeM.Core.IO.concatPath(getMudletHomeDir(), "mumem-config")
+  local saveFile = f"MuMeM-Comm_Factory.json"
+    
+  MuMeM.Core.IO.createDir(saveDir)
+  MuMeM.Core.IO.saveTable(MuMeM.Core.IO.concatPath(saveDir, saveFile), 
+                          MuMeM.Comm.Config.getFactoryConfig(factory)
+                         )
+  
+  return true
+end
+
+-- ##### WINDOW ##########################################################
+
+function MuMeM.Comm.Config.getWindowConfig(commWindow)
+  local config = {}
+  
+  config["windowId"] = commWindow:windowId()
+  config["windowClass"] = commWindow.className
+  config["windowWidth"] = commWindow:mainWindow():get_width() + 2
+  config["windowHeight"] = commWindow:mainWindow():get_height() + 21
+  
+  return config
+end
+
+function MuMeM.Comm.Config.setWindowConfig(commWindow, config)
+  commWindow:mainWindow():resize(config["windowWidth"], config["windowHeight"])
+end
+
+function MuMeM.Comm.Config.loadWindow(window)
+  local saveDir = MuMeM.Core.IO.concatPath(getMudletHomeDir(), "mumem-config")
+  local saveFile = f"MuMeM-Comm_Window-{window:windowId()}.json"
+
+  local config = MuMeM.Core.IO.loadTable(MuMeM.Core.IO.concatPath(saveDir, saveFile))
+  if not config then
+    MuMeM.Log.warning("Could not load savefile: "..MuMeM.Core.IO.concatPath(saveDir, saveFile), "MuMeM.Comm")
+    return false
+  end
+   
+  MuMeM.Comm.Config.setWindowConfig(window, config)
+  
+  return true
+end
+
+function MuMeM.Comm.Config.saveWindow(window)
+  local saveDir = MuMeM.Core.IO.concatPath(getMudletHomeDir(), "mumem-config")
+  local saveFile = f"MuMeM-Comm_Window-{window:windowId()}.json"
+    
+  MuMeM.Core.IO.createDir(saveDir)
+  MuMeM.Core.IO.saveTable(MuMeM.Core.IO.concatPath(saveDir, saveFile), 
+                          MuMeM.Comm.Config.getWindowConfig(window)
+                         )
+  
+  return true
+end
+
+function MuMeM.Comm.Config.deleteWindow(windowId)
+  local saveDir = MuMeM.Core.IO.concatPath(getMudletHomeDir(), "mumem-config")
+  local saveFile = f"MuMeM-Comm_Window-{windowId}.json"
+    
+  MuMeM.Core.IO.removeNode(MuMeM.Core.IO.concatPath(saveDir, saveFile))
+  
+  return true
+end
+
+-- ##### PANE ############################################################
+
+function MuMeM.Comm.Config.getPaneConfig(commPane)
+  local config = {}
+  
+  config["chatFontSize"] = commPane:fontSize()
+  config["chatBackgroundColor"] = commPane:backgroundColor()
+  config["colorTells"] = commPane:channelColor("tells")
+  config["colorEmotes"] = commPane:channelColor("emotes")
+  config["colorSocials"] = commPane:channelColor("socials")
+  config["colorSays"] = commPane:channelColor("says")
+  config["colorYells"] = commPane:channelColor("yells")
+  config["colorTales"] = commPane:channelColor("tales")
+  config["colorSongs"] = commPane:channelColor("songs")
+  config["colorPrayers"] = commPane:channelColor("prayers")
+  
+  return config
+end
+
+function MuMeM.Comm.Config.setPaneConfig(commPane, config)
+  commPane:setFontSize(config["chatFontSize"])
+  commPane:setBackgroundColor(config["chatBackgroundColor"])
+  commPane:setChannelColor("tells", config["colorTells"])
+  commPane:setChannelColor("emotes", config["colorEmotes"])
+  commPane:setChannelColor("socials", config["colorSocials"])
+  commPane:setChannelColor("says", config["colorSays"])
+  commPane:setChannelColor("yells", config["colorYells"])
+  commPane:setChannelColor("tales", config["colorTales"])
+  commPane:setChannelColor("songs", config["colorSongs"])
+  commPane:setChannelColor("prayers", config["colorPrayers"])
+end
+
+function MuMeM.Comm.Config.loadPane(pane)
+  local saveDir = MuMeM.Core.IO.concatPath(getMudletHomeDir(), "mumem-config")
+  local saveFile = f"MuMeM-Comm_Pane-{pane:paneId()}.json"
+
+  local config = MuMeM.Core.IO.loadTable(MuMeM.Core.IO.concatPath(saveDir, saveFile))
+  if not config then
+    MuMeM.Log.warning("Could not load savefile: "..MuMeM.Core.IO.concatPath(saveDir, saveFile), "MuMeM.Comm")
+    return false
+  end
+   
+  MuMeM.Comm.Config.setPaneConfig(pane, config)
+  
+  return true
+end
+
+function MuMeM.Comm.Config.savePane(pane)
+  local saveDir = MuMeM.Core.IO.concatPath(getMudletHomeDir(), "mumem-config")
+  local saveFile = f"MuMeM-Comm_Pane-{pane:paneId()}.json"
+    
+  MuMeM.Core.IO.createDir(saveDir)
+  MuMeM.Core.IO.saveTable(MuMeM.Core.IO.concatPath(saveDir, saveFile), 
+                          MuMeM.Comm.Config.getPaneConfig(pane)
+                         )
+  
+  return true
+end
+
+function MuMeM.Comm.Config.deletePane(paneId)
+  local saveDir = MuMeM.Core.IO.concatPath(getMudletHomeDir(), "mumem-config")
+  local saveFile = f"MuMeM-Comm_Pane-{paneId}.json"
+    
+  MuMeM.Core.IO.removeNode(MuMeM.Core.IO.concatPath(saveDir, saveFile))
+  
+  return true
+end
+
+</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.Config.Pane</name>
+					<packageName></packageName>
+					<script>MuMeM.Comm.Config.Pane = {
+  _styleSheetPane = Geyser.StyleSheet:new([[
+    background-color: #D3D3D3;
+    border: 5px solid magenta;
+  ]]),
+
+  _styleSheetTitle = Geyser.StyleSheet:new([[
+    background-color: transparent;
+    color: black;
+    font-size: 10pt;
+    qproperty-alignment: 'AlignRight | AlignVCenter';
+  ]]),
+  
+  _styleSheetInput = Geyser.StyleSheet:new([[
+    background-color: white;
+    color: black;
+    font-size: 10pt;
+    border: 1px solid black;
+  ]]),
+
+  _styleSheetYes = Geyser.StyleSheet:new([[
+    background-color: white;
+    color: white;
+    font-size: 10pt;
+    border-top-left-radius: 4px;
+    border-bottom-left-radius: 4px;
+    border: 1px solid black;
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+  ]]),
+  
+  _styleSheetNo = Geyser.StyleSheet:new([[
+    background-color: darkGreen;
+    color: white;
+    font-size: 10pt;
+    border: 1px solid black;
+    border-top-right-radius: 4px;
+    border-bottom-right-radius: 4px;   
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+  ]]),
+ 
+  _styleSheetButton = Geyser.StyleSheet:new([[
+    background-color: darkGray;
+    color: black;
+    font-size: 10pt;
+    border: 2px solid black;
+    border-radius: 5px;
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+  ]]),
+  
+  _commPane = nil,
+  
+  _visuals = nil,
+  _isHidden = true,
+  _rowHeight = 21,
+  _insetTop = 10,
+}
+
+mumem_inherit("MuMeM.Comm.Config.Pane", "MuMeM.Comm.Config.Pane")
+
+function MuMeM.Comm.Config.Pane:new(props)
+  local me = props or {}
+  
+  me._visuals = {}
+  
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end
+
+function MuMeM.Comm.Config.Pane:create()
+  local parentName = self:commPane():rootPaneName()
+  
+  self._visuals.rootPane = Geyser.Label:new({
+    name=f"{parentName}#ConfigPane#rootPane",
+    x = "-50%", y = self:commPane():tabPaneHeight()+5,
+    width = "50%-20", height = "100%-"..(self:commPane():tabPaneHeight()+5+5),
+    stylesheet = self._styleSheetPane:getCSS(),
+  },self:commPane():rootPane())
+
+  self:createInputLine("chatBackgroundColor", 1, "Chat BG Color")
+  self:createInputLine("chatFontSize", 2, "Chat Font Size")
+  self:createInputLine("colorTells", 3, "Color Tells")
+  self:createInputLine("colorEmotes", 4, "Color Emotes")
+  self:createInputLine("colorSocials", 5, "Color Socials")
+  self:createInputLine("colorSays", 6, "Color Says")
+  self:createInputLine("colorYells", 7, "Color Yells")
+  self:createInputLine("colorTales", 8, "Color Tales")
+  self:createInputLine("colorSongs", 9, "Color Songs")
+  self:createInputLine("colorPrayers", 10, "Color Prayers")
+  --self:createYesNoLine("showMobs", 11, "Show MOBs")
+
+  self:createButton("Close", 10, "100%-30", "Close", function () self:hide() end)
+  self:createButton("Apply", "100%-115", "100%-30", "Apply", function () self:apply() end)
+  self:createButton("Save", "100%-60", "100%-30", "Save", function () self:save() end)
+end
+
+function MuMeM.Comm.Config.Pane:createInputLine(configName, row, title)
+  local rowY = self._insetTop + self._rowHeight * (row-1)
+  
+  self._visuals[f"{configName}Label"] = Geyser.Label:new({
+    name=f"{parentName}#ConfigPane#{configName}Label",
+    x = 10, y = rowY,
+    width = "50%-15", height = 20,
+    stylesheet = self._styleSheetTitle:getCSS(),
+  },self:rootPane())
+  self._visuals[f"{configName}Label"]:rawEcho(title)
+
+  self._visuals[f"{configName}Input"] = Geyser.CommandLine:new({
+    name=f"{parentName}#ConfigPane#{configName}Input", 
+    x = "50%+5", y = rowY, 
+    width = "50%-15", height = 20,
+    stylesheet = self._styleSheetInput:getCSS(),
+  },self:rootPane())
+
+  self._visuals[f"{configName}Input"]:setAction(function() end)
+end
+
+function MuMeM.Comm.Config.Pane:createYesNoLine(configName, row, title, callback)
+  local rowY = self._insetTop + self._rowHeight * (row-1)
+  
+  self._visuals[f"{configName}Label"] = Geyser.Label:new({
+    name=f"{parentName}#ConfigPane#{configName}Label",
+    x = 10, y = rowY,
+    width = "50%-15", height = 20,
+    stylesheet = self._styleSheetTitle:getCSS(),
+  },self:rootPane())
+  self._visuals[f"{configName}Label"]:rawEcho(title)
+
+  self._visuals[f"{configName}Yes"] = Geyser.Label:new({
+    name=f"{parentName}#ConfigPane#{configName}Yes", 
+    x = "50%+5", y = rowY, 
+    width = "40", height = 20,
+    stylesheet = self._styleSheetYes:getCSS(),
+  },self:rootPane())
+  self._visuals[f"{configName}Yes"]:rawEcho("Yes")
+  self._visuals[f"{configName}Yes"]._value = false
+  self._visuals[f"{configName}Yes"]:setClickCallback(function () self:setYesNoValue(configName, true) end)
+  
+  self._visuals[f"{configName}No"] = Geyser.Label:new({
+    name=f"{parentName}#ConfigPane#{configName}No", 
+    x = "50%+45", y = rowY, 
+    width = "40", height = 20,
+    stylesheet = self._styleSheetNo:getCSS(),
+  },self:rootPane())
+  self._visuals[f"{configName}No"]:rawEcho("No")
+  self._visuals[f"{configName}No"]._value = false
+  self._visuals[f"{configName}No"]:setClickCallback(function () self:setYesNoValue(configName, false) end)
+
+end
+
+function MuMeM.Comm.Config.Pane:createButton(buttonID, x, y, label, callback)
+  self._visuals[buttonID] = Geyser.Label:new({
+    name=f"{parentName}#ConfigPane#{buttonID}",
+    x = x, y = y,
+    width = 50, height = 20,
+    stylesheet = self._styleSheetButton:getCSS(),
+  },self:rootPane())
+  self._visuals[buttonID]:rawEcho(label)
+  
+  self._visuals[buttonID]:setClickCallback(callback)
+end
+
+function MuMeM.Comm.Config.Pane:setInputValue(configName, value)
+  self._visuals[f"{configName}Input"]:print(value or "")
+end
+
+function MuMeM.Comm.Config.Pane:getInputValue(configName)
+  return self._visuals[f"{configName}Input"]:getText()
+end
+
+function MuMeM.Comm.Config.Pane:setYesNoValue(configName, value)
+  self._visuals[f"{configName}Yes"]._value = value
+  self._visuals[f"{configName}No"]._value = not value
+
+  if value then
+    self._styleSheetYes:set("background-color", "darkGreen")
+    self._styleSheetYes:set("color", "white")
+    self._styleSheetNo:set("background-color", "white")
+    self._styleSheetNo:set("color", "black")
+  else
+    self._styleSheetYes:set("background-color", "white")
+    self._styleSheetYes:set("color", "black")
+    self._styleSheetNo:set("background-color", "darkGreen")
+    self._styleSheetNo:set("color", "white")
+  end
+
+  self._visuals._visuals[f"{configName}Yes"]:setStyleSheet(self._styleSheetYes:getCSS())
+  self._visuals._visuals[f"{configName}No"]:setStyleSheet(self._styleSheetNo:getCSS())
+end
+
+function MuMeM.Comm.Config.Pane:getYesNoValue(configName)
+  return self._visuals[f"{configName}Yes"]._value
+end
+
+function MuMeM.Comm.Config.Pane:reset()
+  self:setInputValue("chatFontSize", self:commPane():fontSize())
+  self:setInputValue("chatBackgroundColor", self:commPane():backgroundColor())
+  self:setInputValue("colorTells", self:commPane():channelColor("tells"))
+  self:setInputValue("colorEmotes", self:commPane():channelColor("emotes"))
+  self:setInputValue("colorSocials", self:commPane():channelColor("socials"))
+  self:setInputValue("colorSays", self:commPane():channelColor("says"))
+  self:setInputValue("colorYells", self:commPane():channelColor("yells"))
+  self:setInputValue("colorTales", self:commPane():channelColor("tales"))
+  self:setInputValue("colorSongs", self:commPane():channelColor("songs"))
+  self:setInputValue("colorPrayers", self:commPane():channelColor("prayers"))
+  --self:setYesNoValue("showMobs", self:commPane():showMobs())
+end
+
+function MuMeM.Comm.Config.Pane:apply()
+  self:commPane():setFontSize(tonumber(self:getInputValue("chatFontSize")))
+  self:commPane():setBackgroundColor(self:getInputValue("chatBackgroundColor"))
+
+  self:commPane():setChannelColor("tells", self:getInputValue("colorTells"))
+  self:commPane():setChannelColor("emotes", self:getInputValue("colorEmotes"))
+  self:commPane():setChannelColor("socials", self:getInputValue("colorSocials"))
+  self:commPane():setChannelColor("says", self:getInputValue("colorSays"))
+  self:commPane():setChannelColor("yells", self:getInputValue("colorYells"))
+  self:commPane():setChannelColor("tales", self:getInputValue("colorTales"))
+  self:commPane():setChannelColor("songs", self:getInputValue("colorSongs"))
+  self:commPane():setChannelColor("prayers", self:getInputValue("colorPrayers"))
+  --self:commPane():setShowMobs(self:getYesNoValue("showMobs"))
+  
+  self:commPane():refill()
+end
+
+function MuMeM.Comm.Config.Pane:save()
+  self:apply()
+  MuMeM.Comm.Config.savePane(self:commPane())
+  self:hide()
+  raiseEvent("MuMeM.Comm.Config.Pane.Save", self:commPane():paneId())
+end
+
+function MuMeM.Comm.Config.Pane:rootPane()
+  return self._visuals.rootPane
+end
+
+function MuMeM.Comm.Config.Pane:setCommPane(pane)
+  self._commPane = pane
+end
+
+function MuMeM.Comm.Config.Pane:commPane()
+  return self._commPane
+end
+
+function MuMeM.Comm.Config.Pane:isHidden()
+  return self._isHidden
+end
+
+function MuMeM.Comm.Config.Pane:show()
+  if not self._visuals.rootPane then
+    self:create()
+  end
+  
+  if self:isHidden() then
+    self._isHidden = false
+    self:reset()
+    self:rootPane():show()
+    self:rootPane():raiseAll()
+  end
+end
+
+function MuMeM.Comm.Config.Pane:hide()
+  if not self:isHidden() then
+    self._isHidden = true
+    self:rootPane():hide()
+  end
+end
+
+function MuMeM.Comm.Config.Pane:toggle()
+  if self:isHidden() then
+    self:show()
+  else
+    self:hide()
+  end
+end</script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+		</ScriptGroup>
+	</ScriptPackage>
+</MudletPackage>

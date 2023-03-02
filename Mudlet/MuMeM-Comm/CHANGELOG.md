@@ -1,3 +1,11 @@
+### 20230302
+
+  * Added ability to search
+  * Added new tab - Mob/Char filter
+  * Replaced "All" tab with "Mob/Char" filter
+  * Updated both window layouts
+  * Window layouts are now saved (see MuMeM-Core)
+
 ### 20230228
 
   * All graphical configuration
