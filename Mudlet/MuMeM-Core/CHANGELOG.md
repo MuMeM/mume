@@ -1,3 +1,8 @@
+### 20230302
+
+  * Restores window layout per profile
+  * Improved error handling during configuration calls
+
 ### 20230228
 
   * Configuration calls (after initialize)
