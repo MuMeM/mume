@@ -1,3 +1,7 @@
+### 20230303
+
+  * Bugfix for fog setting
+
 ### 20230223
 
   * Critical bugfixes
