@@ -1,3 +1,8 @@
+### 20230303
+
+  * Almost all status now as icons instead of text
+  * Environment/Terrain added
+
 ### 20230228
 
   * Scale lines now 2px thick for player scales
