@@ -1,3 +1,7 @@
+### 20230303
+
+  * Emitting events for all RoomInfo fields
+
 ### 20230228
 
   * Inheritance fixes

@@ -1,0 +1,779 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE MudletPackage>
+<MudletPackage version="1.001">
+	<ScriptPackage>
+		<ScriptGroup isActive="yes" isFolder="yes">
+			<name>MuMeM.Room</name>
+			<packageName></packageName>
+			<script>--[[
+    All information about the room ... and its "contents" (currenty RoomChars / mobiles)
+--]]
+
+mumem_inherit = mumem_inherit or function (className, baseName)
+  local classObj = _G
+  for str in string.gmatch(className, "([^\\.]+)") do
+    classObj = classObj[str]
+  end
+  
+  local baseObj = _G
+  for str in string.gmatch(baseName, "([^\\.]+)") do
+    baseObj = baseObj[str]
+  end
+
+  setmetatable(classObj, baseObj)
+  classObj.__index = classObj
+  
+  if className == baseName then
+    classObj.parentClass = "BASE"
+  else
+    classObj.parentClass = baseObj
+  end
+  classObj.className = className
+end
+
+mumem_isa = mumem_isa or function (classObj, className)
+  if classObj == nil or classObj.parentClass == nil then
+    return false
+  elseif classObj == "BASE" then
+    return false
+  elseif classObj.className == className then
+    return true
+  end
+  return mumem_isa(classObj.parentClass, className)
+end
+
+-- --- Module setup ----------------------------------------------
+
+MuMeM = MuMeM or {}
+MuMeM.Room = MuMeM.Room or {}
+MuMeM.Room.Exit = MuMeM.Room.Exit or {}
+MuMeM.Room.Exits = MuMeM.Room.Exits or {}
+MuMeM.Room.Mobile = MuMeM.Room.Mobile or {}
+MuMeM.Room.Mobiles = MuMeM.Room.Mobiles or {}
+MuMeM.Room.EventHandler = MuMeM.Room.EventHandler or {}
+
+-- --- Module registration -----------------------------------------
+
+MuMeM.Room.module_name = "MuMeM.Room"
+MuMeM.Room.module_dependencies = {"MuMeM.Core","MuMeM.Log","MuMeM.GMCP"}
+MuMeM.modules = MuMeM.modules or {}
+MuMeM.modules[MuMeM.Room.module_name] = MuMeM.modules[MuMeM.Room.module_name] or {module=MuMeM.Room}</script>
+			<eventHandlerList />
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Room.Library</name>
+				<packageName></packageName>
+				<script>--[[
+  Room = {
+    Info = {
+      area = "STRING",
+      desc = "STRING",
+      environment = "city",  -&gt; https://mume.org/help/terrain
+      exits = {
+        e = {},
+        n = {},
+        s = {},
+        w = {}
+      },
+      name = "STRING"
+    }
+  }
+--]]
+
+-- ### INITIALIZATION #############################################################
+
+function MuMeM.Room.initialize()
+  MuMeM.Room.reset()
+  
+  MuMeM.Room.Exits.initialize()
+  MuMeM.Room.Mobiles.initialize()
+end
+
+function MuMeM.Room.reset()
+  MuMeM.Room._area = nil
+  MuMeM.Room._desc = nil
+  MuMeM.Room._environment = nil
+  MuMeM.Room._exits = {}
+  MuMeM.Room._name = nil
+  
+  MuMeM.Room._hash = nil
+  
+  MuMeM.Room.Mobiles._mobiles = {}
+end
+
+
+
+-- ### PROPERTIES #################################################################
+
+function MuMeM.Room.area()
+  return MuMeM.Room._area
+end
+
+function MuMeM.Room.desc()
+  return MuMeM.Room._desc
+end
+
+function MuMeM.Room.environment()
+  return MuMeM.Room._environment
+end
+
+function MuMeM.Room.name()
+  return MuMeM.Room._name
+end
+
+function MuMeM.Room.hash()
+  if not MuMeM.Room._hash then
+    if MuMeM.Room._area and MuMeM.Room._name and MuMeM.Room.desc then
+      --MuMeM.Room._hash = MuMeM.Core.Hash.md5.Calc(MuMeM.Room._area..MuMeM.Room._name..MuMeM.Room._desc)
+      MuMeM.Room._hash = MuMeM.Core.Hash.sha1.hex(MuMeM.Room._area..MuMeM.Room._name..MuMeM.Room._desc)
+    end
+  end
+  
+  return MuMeM.Room._hash
+end
+
+function MuMeM.Room.md5()
+  if MuMeM.Room._area and MuMeM.Room._name and MuMeM.Room.desc then
+    return MuMeM.Core.Hash.md5.Calc(MuMeM.Room._area..MuMeM.Room._name..MuMeM.Room._desc)
+  end
+
+  return nil
+end
+
+function MuMeM.Room.sha1()
+  if MuMeM.Room._area and MuMeM.Room._name and MuMeM.Room.desc then
+    return MuMeM.Core.Hash.sha1.hex(MuMeM.Room._area..MuMeM.Room._name..MuMeM.Room._desc)
+  end
+  
+  return nil
+end
+
+-- ### GMCP #######################################################################
+
+function MuMeM.Room.gmcpSetRoomInfo(gmcpRoomInfo)
+  MuMeM.Room._area = gmcpRoomInfo.area
+  MuMeM.Room._desc = gmcpRoomInfo.desc
+  MuMeM.Room._environment = gmcpRoomInfo.environment
+  MuMeM.Room._name = gmcpRoomInfo.name
+  
+  MuMeM.Room._hash = nil
+
+  MuMeM.Room.Exits.gmcpSet(gmcpRoomInfo.exits, true)
+  
+  raiseEvent("MuMeM.Room.Info.Area")        -- currently these cannot change independently!
+  raiseEvent("MuMeM.Room.Info.Desc")        -- fix this code when they can do that
+  raiseEvent("MuMeM.Room.Info.Environment")
+  raiseEvent("MuMeM.Room.Info.Name")
+
+  raiseEvent("MuMeM.Room.Info")
+  --raiseEvent("MuMeM.Room.Exits")    -- NOPE, as this triggers twice at most
+                                      -- Maybe send it with (causedByInfo = true) or so
+end</script>
+				<eventHandlerList />
+			</Script>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Room.EventHandler</name>
+				<packageName></packageName>
+				<script></script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Room.EventHandler.Connect</name>
+					<packageName></packageName>
+					<script>function MuMeM.Room.EventHandler.Connect(event, ...)
+  -- happens when the profile becomes available and player connects
+  -- CAVEAT: MMapper stays connected!
+  if event == "sysConnectionEvent" then
+    MuMeM.Room.reset()
+  end
+
+  -- happens when GMCP becomes available, which is "normally" at login!
+  -- CAVEAT: This can also happen during gameplay (enable / disable protocol)
+  if event == "sysProtocolEnabled" and arg[1] == "GMCP" then
+    MuMeM.Room.reset()
+  end
+end</script>
+					<eventHandlerList>
+						<string>sysConnectionEvent</string>
+					</eventHandlerList>
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Room.Exit</name>
+				<packageName></packageName>
+				<script></script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Room.Exit</name>
+					<packageName></packageName>
+					<script>--[[
+broken	door is broken
+climb-down	is a downward climb
+climb-up	is an upward climb
+closed	door is closed; if not set any door is open
+magic	is a portal
+road	is a road
+sundeath	causes sundeath (Troll only)
+sunny	is sunny (Troll and Orc only)
+trail	is a trail
+water	leads to water
+--]]
+
+MuMeM.Room.Exit = {
+  _direction = "X",
+  _name = false,
+  _broken = false,
+  _climbDown = false,
+  _climbUp = false,
+  _closed = false,
+  _magic = false,
+  _road = false,
+  _sundeath = false,
+  _sunny = false,
+  _trail = false,
+  _water = false,
+}
+
+mumem_inherit("MuMeM.Room.Exit", "MuMeM.Room.Exit")
+
+function MuMeM.Room.Exit:new(props)
+  me = props or {}
+    
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end
+
+-- --- PROPERTIES --------------------------------------------------------
+
+function MuMeM.Room.Exit:direction()
+  return self._direction
+end
+
+function MuMeM.Room.Exit:name()
+  if self._name == false then
+    return nil
+  else
+    return self._name
+  end
+end
+
+function MuMeM.Room.Exit:broken()
+  return self._broken
+end
+
+function MuMeM.Room.Exit:climbUp()
+  return self._climbDown
+end
+
+function MuMeM.Room.Exit:climbDown()
+  return self._climbUp
+end 
+
+function MuMeM.Room.Exit:closed()
+  return self._closed
+end
+
+function MuMeM.Room.Exit:magic()
+  return self._magic
+end
+
+function MuMeM.Room.Exit:road()
+  return self._road
+end
+
+function MuMeM.Room.Exit:sundeath()
+  return self._sundeath
+end
+
+function MuMeM.Room.Exit:sunny()
+  return self._sunny
+end
+
+function MuMeM.Room.Exit:trail()
+  return self._trail
+end
+
+function MuMeM.Room.Exit:water()
+  return self._water
+end
+
+-- --- PROPERTY METHODS -----------------------------------------------------
+
+function MuMeM.Room.Exit:longDirection()
+  local exitMap = { n="north", e="east", s="south", w="west", u="up", d="down" }
+  return exitMap[self:direction()]
+end
+
+function MuMeM.Room.Exit:shortDirection()
+  return self:direction()
+end
+
+function MuMeM.Room.Exit:isBroken()
+  return self:broken()
+end
+
+function MuMeM.Room.Exit:isClimbUp()
+  return self:climbUp()
+end
+
+function MuMeM.Room.Exit:isClimbDown()
+  return self:climbDown()
+end 
+
+function MuMeM.Room.Exit:isClosed()
+  return self:closed()
+end
+
+function MuMeM.Room.Exit:isMagic()
+  return self:magic()
+end
+
+function MuMeM.Room.Exit:isOpen()
+  return not self:isClosed()
+end
+
+function MuMeM.Room.Exit:isRoad()
+  return self:road()
+end
+
+function MuMeM.Room.Exit:isSundeath()
+  return self:sundeath()
+end
+
+function MuMeM.Room.Exit:isSunny()
+  return self:sunny()
+end
+
+function MuMeM.Room.Exit:isTrail()
+  return self:trail()
+end
+
+function MuMeM.Room.Exit:isWater()
+  return self:water()
+end
+  
+-- --- METHODS -----------------------------------------------------------
+
+function MuMeM.Room.Exit:updateProperties(props)
+  --[[
+      Full RESET the properties. Add new ones, udate existing, REMOVE 'unknown'
+  --]]
+
+  --self._direction = direction     -- THIS MUST NOT / CANNOT CHANGE
+  self._name = props._name
+      
+  self._broken = props._broken
+  self._climbDown = props._climbDown
+  self._climbUp = props._climbUp
+  self._closed = props._closed
+  self._magic = props._magic
+  self._road = props._road
+  self._sundeath = props._sundeath
+  self._sunny = props._sunny
+  self._water = props._water
+end
+
+function MuMeM.Room.Exit:dump()
+  display(self)
+end
+
+-- --- STATIC GMCP TO PROPS -----------------------------------------------
+
+function MuMeM.Room.Exit.gmcpToProps(direction, gmcpData)
+  local props = {}
+  
+  props._direction = direction
+  props._name = gmcpData.name
+  
+  if gmcpData.flags then
+    for _,v in pairs(gmcpData.flags) do
+      if v == "broken" then
+        props._broken = true
+      elseif v == "climbDown" then
+        props._climbDown = true
+      elseif v == "closed" then
+        props._closed = true
+      elseif v == "magic" then
+        props._magic = true
+      elseif v == "road" then
+        props._road = true
+      elseif v == "sundeath" then
+        props._sundeath = true
+      elseif v == "sunny" then
+        props._sunny = true
+      elseif v == "trail" then
+        props._trail = true
+      elseif v == "water" then
+        props._water = true
+      end
+    end
+  end
+  
+  return props
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Room.Exits</name>
+					<packageName></packageName>
+					<script>function MuMeM.Room.Exits.initialize()
+  MuMeM.Room.Exits._exitSanitizeMap = {
+    ["north"] = "n", ["east"] = "e", ["south"] = "s", ["west"] = "w", ["up"] = "u", ["down"] = "d",
+    ["n"] = "n", ["e"] = "e", ["s"] = "s", ["w"] = "w", ["u"] = "u", ["d"] = "d",
+  }
+   
+  MuMeM.Room.Exits._exits = {}
+end
+
+function MuMeM.Room.Exits.empty()
+  MuMeM.Room.Exits._exits = {}
+end
+
+function MuMeM.Room.Exits.get(direction)
+  direction = MuMeM.Room.Exits.sanitizeDirection(direction)
+  return MuMeM.Room.Exits._exits[direction]
+end
+
+function MuMeM.Room.Exits.add(direction, exit)
+  direction = MuMeM.Room.Exits.sanitizeDirection(direction)
+  MuMeM.Room.Exits._exits[direction] = exit
+end
+
+function MuMeM.Room.Exits.remove(direction)
+  direction = MuMeM.Room.Exits.sanitizeDirection(direction)
+  MuMeM.Room.Exits._exits[direction] = nil
+end
+
+function MuMeM.Room.Exits.update(direction, exitProps)
+  direction = MuMeM.Room.Exits.sanitizeDirection(direction)
+  exit = MuMeM.Room.Exits.get(direction)
+  exit:updateProperties(exitProps)
+end
+
+function MuMeM.Room.Exits.exists(direction)
+  direction = MuMeM.Room.Exits.sanitizeDirection(direction)
+  return MuMeM.Room.Exits._exits[direction] ~= nil
+end
+
+function MuMeM.Room.Exits.isEmpty()
+  --return MuMeM.Room.Exits._exits and next(MuMeM.Room.Exits._exits) == nil
+  return next(MuMeM.Room.Exits._exits) == nil
+end
+
+function MuMeM.Room.Exits.sanitizeDirection(direction)
+  return MuMeM.Room.Exits._exitSanitizeMap[direction]
+end
+
+-- ----------------------------------------------------------------------
+
+function MuMeM.Room.Exits.getNext(key)
+  local returnNext = false
+  
+--  if not MuMeM.Room.Exits._exits then
+--    return nil, nil
+--  end
+  
+  if not key then
+    key = "_"
+  end
+  
+  for _,k in pairs({"_","n","e","s","w","u","d"}) do
+    if returnNext then
+      if MuMeM.Room.Exits._exits[k] then
+        return k, MuMeM.Room.Exits._exits[k]
+      end
+    elseif key == k then
+      returnNext = true
+    end
+  end
+  
+  return nil, nil
+end
+
+function MuMeM.Room.Exits.dumpExits()
+  print("Exits in room:")
+  for k,v in pairs(MuMeM.Room.Exits._exits) do
+    v:dump()
+  end
+end
+
+-- ----------------------------------------------------------------------
+
+function MuMeM.Room.Exits.gmcpSet(exitsTable, silently)
+  MuMeM.Room.Exits.empty()
+  
+  if exitsTable then
+    for direction,exitTable in pairs(exitsTable) do
+      local props = MuMeM.Room.Exit.gmcpToProps(direction, exitTable)
+      MuMeM.Room.Exits.add(direction, MuMeM.Room.Exit:new(props))
+    end
+  end
+  
+  if not silently then
+    raiseEvent("MuMeM.Room.Exits")
+  end
+end
+
+function MuMeM.Room.Exits.gmcpAdd(direction, exitTable)
+  local props = MuMeM.Room.Exit.gmcpToProps(direction, exitTable)
+
+  MuMeM.Room.Exits.add(exitTable.id, MuMeM.Room.Exit:new(props))
+
+  raiseEvent("MuMeM.Room.Exits")
+end
+
+function MuMeM.Room.Exits.gmcpRemove(direction)
+  MuMeM.Room.Exits.remove(direction)
+
+  raiseEvent("MuMeM.Room.Exits")
+end
+
+function MuMeM.Room.Exits.gmcpUpdate(direction, exitTable)
+  local props = MuMeM.Room.Exit.gmcpToProps(direction, exitTable)
+
+  if MuMeM.Room.Exits.exists(direction) then
+    MuMeM.Room.Exits.update(direction, props)
+  else
+    MuMeM.Room.Exits.add(direction, MuMeM.Room.Exit:new(props))
+  end
+  
+  raiseEvent("MuMeM.Room.Exits")
+end</script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Room.Mobile</name>
+				<packageName></packageName>
+				<script></script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Room.Mobile</name>
+					<packageName></packageName>
+					<script>MuMeM.Room.Mobile = {
+  _id = 0,
+  _name = "mobile",
+  _desc = "mobile description",
+  _flags = {},
+  _labels = {},
+  _position = "undefined",
+--  _fighting = nil|"you",
+}
+
+mumem_inherit("MuMeM.Room.Mobile", "MuMeM.Room.Mobile")
+
+function MuMeM.Room.Mobile:new(props)
+  me = props or {}
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end
+
+-- --- PROPERTIES --------------------------------------------------------
+
+function MuMeM.Room.Mobile:id()
+  return self._id
+end
+
+function MuMeM.Room.Mobile:setId(id)
+  self._id = id
+end
+
+function MuMeM.Room.Mobile:name()
+  return self._name
+end
+
+function MuMeM.Room.Mobile:setName(name)
+  self._name = name
+end
+
+function MuMeM.Room.Mobile:desc()
+  return self._desc
+end
+
+function MuMeM.Room.Mobile:setDesc(desc)
+  self._desc = desc
+end
+
+function MuMeM.Room.Mobile:flags()
+  return self._flags
+end
+
+function MuMeM.Room.Mobile:setFlags(flags)
+  self._flags = MuMeM.Core.Util.copyData(flags)
+end
+
+function MuMeM.Room.Mobile:labels()
+  return self._labels
+end
+
+function MuMeM.Room.Mobile:setLabels(labels)
+  self._labels = MuMeM.Core.Util.copyData(labels)
+end
+
+function MuMeM.Room.Mobile:position()
+  return self._position
+end
+
+function MuMeM.Room.Mobile:setPosition(position)
+  self._position = position
+end
+
+function MuMeM.Room.Mobile:fighting()
+  return self._fighting
+end
+
+function MuMeM.Room.Mobile:setFighting(fighting)
+  self._fighting = fighting
+end
+
+-- --- METHODS -----------------------------------------------------------
+
+function MuMeM.Room.Mobile:fileName()
+  return string.gsub(self:name()," ","_")
+end
+
+function MuMeM.Room.Mobile:updateProperties(props)
+  --[[
+      Update properties: ONLY update passed ones, do not remove props not passed!
+  --]]
+  for k,v in pairs(props) do
+    if k == '_id' then
+      if v ~= self:id() then
+        MuMeM.Log.critical("MuMeM.Room.Mobile:updateProperties(): Tried to update ID", "MuMeM.Room")
+      end
+    else
+      local func = "set"..string.upper(string.sub(k,2,2))..string.sub(k,3)
+      if self[func] then
+        self[func](self,v)
+      end
+    end
+  end
+end
+
+function MuMeM.Room.Mobile:dump()
+  print("MOB:", self._id, self._name, self._desc, self._position)
+end
+
+-- --- STATIC GMCP TO PROPS -----------------------------------------------
+
+function MuMeM.Room.Mobile.gmcpToProps(gmcpData)
+  local props = {}
+  
+  props._desc = gmcpData.desc
+  props._id = gmcpData.id
+  props._name = gmcpData.name
+  props._position = gmcpData.position
+  props._fighting = gmcpData.fighting
+
+  props._labels = MuMeM.Core.Util.copyData(gmcpData.labels)
+  props._flags = MuMeM.Core.Util.copyData(gmcpData.flags)
+  
+  return props
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Room.Mobiles</name>
+					<packageName></packageName>
+					<script>function MuMeM.Room.Mobiles.initialize()
+
+end
+
+function MuMeM.Room.Mobiles.empty()
+  MuMeM.Room.Mobiles._mobiles = {}
+end
+
+function MuMeM.Room.Mobiles.get(id)
+  return MuMeM.Room.Mobiles._mobiles[id]
+end
+
+function MuMeM.Room.Mobiles.add(id, mobile)
+  MuMeM.Room.Mobiles._mobiles[id] = mobile
+end
+
+function MuMeM.Room.Mobiles.remove(id)
+  MuMeM.Room.Mobiles._mobiles[id] = nil
+end
+
+function MuMeM.Room.Mobiles.update(id, mobileProps)
+  mobile = MuMeM.Room.Mobiles.get(id)
+  mobile:updateProperties(mobileProps)
+end
+
+-- ----------------------------------------------------------------------
+
+function MuMeM.Room.Mobiles.getFirst()
+  local key,mobile = next(MuMeM.Room.Mobiles._mobiles)
+  
+  return mobile
+end
+
+function MuMeM.Room.Mobiles.getNext(key)
+  local key,mobile = next(MuMeM.Room.Mobiles._mobiles, key)
+  
+  return key,mobile
+end
+
+function MuMeM.Room.Mobiles.sortedKeys()
+  local sortedKeys = {}
+
+  for k in pairs(MuMeM.Room.Mobiles._mobiles) do
+    table.insert(sortedKeys, k)
+  end
+  table.sort(sortedKeys)
+  
+  return sortedKeys
+end
+
+function MuMeM.Room.Mobiles.dumpMobiles()
+  print("Mobiles in room:")
+  for k,v in pairs(MuMeM.Room.Mobiles._mobiles) do
+    v:dump()
+  end
+end
+
+-- ----------------------------------------------------------------------
+
+function MuMeM.Room.Mobiles.gmcpSetMobiles(charsTable)
+  MuMeM.Room.Mobiles.empty()
+  
+  for k,v in pairs(charsTable) do
+    local props = MuMeM.Room.Mobile.gmcpToProps(v)
+    MuMeM.Room.Mobiles.add(v.id, MuMeM.Room.Mobile:new(props))
+  end
+  
+  raiseEvent("MuMeM.Room.Mobiles", "set")
+end
+
+function MuMeM.Room.Mobiles.gmcpAddMobile(charTable)
+  local props = MuMeM.Room.Mobile.gmcpToProps(charTable)
+  MuMeM.Room.Mobiles.add(charTable.id, MuMeM.Room.Mobile:new(props))
+
+  raiseEvent("MuMeM.Room.Mobiles", "add", charTable.id)
+  
+--  MuMeM.Room.Mobiles.dumpMobiles()
+end
+
+function MuMeM.Room.Mobiles.gmcpRemoveMobile(charId)
+  MuMeM.Room.Mobiles.remove(charId)
+
+  raiseEvent("MuMeM.Room.Mobiles", "remove", charId)
+end
+
+function MuMeM.Room.Mobiles.gmcpUpdateMobile(charTable)
+  local props = MuMeM.Room.Mobile.gmcpToProps(charTable)
+  MuMeM.Room.Mobiles.update(charTable.id, props)
+
+  raiseEvent("MuMeM.Room.Mobiles", "update", charTable.id)
+  
+--  MuMeM.Room.Mobiles.dumpMobiles()
+end</script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+		</ScriptGroup>
+	</ScriptPackage>
+</MudletPackage>
