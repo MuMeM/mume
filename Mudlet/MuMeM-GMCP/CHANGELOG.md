@@ -1,3 +1,8 @@
+### 20230307
+
+  * Add Comm echo messages
+  * Added info functions for Comm.Channel.List
+
 ### 20230222
 
   * Fixed errors when MuMeM-Room not installed
