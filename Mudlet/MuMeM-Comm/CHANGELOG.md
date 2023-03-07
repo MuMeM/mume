@@ -1,3 +1,7 @@
+### 20230307
+
+  * Adding own chat messages from gmcp
+
 ### 20230302
 
   * Added ability to search
