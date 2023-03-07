@@ -1,0 +1,724 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE MudletPackage>
+<MudletPackage version="1.001">
+	<ScriptPackage>
+		<ScriptGroup isActive="yes" isFolder="yes">
+			<name>MuMeM.PkgMgr</name>
+			<packageName></packageName>
+			<script>--[[
+    A graphical package manager for MuMeM packages.
+    
+    This is a stand-alone application!
+--]]
+
+MuMeM = MuMeM or {}
+MuMeM.PkgMgr = MuMeM.PkgMgr or {}
+MuMeM.PkgMgr.GUI = MuMeM.PkgMgr.GUI or {}
+MuMeM.PkgMgr.EventHandler = MuMeM.PkgMgr.EventHandler or {}
+
+MuMeM.PkgMgr.aliases = MuMeM.PkgMgr.aliases or {}
+
+MuMeM.PkgMgr.REPO_DATA_URL = "https://raw.githubusercontent.com/MuMeM/mume/main/Mudlet/MuMeM-PkgMgr/repo-data.json"
+
+MuMeM.PkgMgr.aliases.pkgmgr = MuMeM.PkgMgr.aliases.pkgmgr or
+                                tempAlias("^mpkgmgr$", function () MuMeM.PkgMgr.showGUI() end)
+
+
+-- --- Module setup (STANDALONE APP -------------------------------------
+
+tempTimer( 0.1, function () raiseEvent( "MuMeM.PkgMgr.Initialize" ) end )
+</script>
+			<eventHandlerList />
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.PkgMgr.Library</name>
+				<packageName></packageName>
+				<script>function MuMeM.PkgMgr.initialize()
+  if MuMeM.PkgMgr.isInitialized then
+    return
+  end
+  
+  MuMeM.PkgMgr.isInitialized = true         -- yes, do this at top!
+
+  MuMeM.PkgMgr.MAX_ROWS = 10
+
+  MuMeM.PkgMgr.GUI.MAX_ROWS = MuMeM.PkgMgr.MAX_ROWS
+  MuMeM.PkgMgr.GUI.ROW_HEIGHT = 25
+  MuMeM.PkgMgr.GUI.CONTENT_BORDER_WIDTH = 2
+
+  MuMeM.PkgMgr.packages = {}
+  MuMeM.PkgMgr.packageInstallTree = {}
+
+  MuMeM.PkgMgr.GUI.setup(false)
+end
+
+function MuMeM.PkgMgr.log(msg)
+  MuMeM.PkgMgr.GUI.visuals.log:echo(msg.."\n")
+end
+
+function MuMeM.PkgMgr.setPackageStatus(package)
+  if not MuMeM.PkgMgr.packages[package] then
+    return
+  end
+  
+  local pkgInfo = getPackageInfo(package)
+  if pkgInfo.mpackage then
+    MuMeM.PkgMgr.packages[package].isInstalled = true
+    MuMeM.PkgMgr.packages[package].installedVersion = pkgInfo.version
+  else
+    MuMeM.PkgMgr.packages[package].isInstalled = false
+  end
+end
+
+function MuMeM.PkgMgr.loadPackages()
+  MuMeM.PkgMgr.log("[DOWNLOAD] Requesting repo data...")
+  getHTTP(MuMeM.PkgMgr.REPO_DATA_URL)
+end
+
+function MuMeM.PkgMgr.registerPackages(packageTable)
+  MuMeM.PkgMgr.packages = {}
+  
+  for i=1,#packageTable do
+    local package = packageTable[i].package
+    MuMeM.PkgMgr.packages[package] = packageTable[i]   
+    MuMeM.PkgMgr.setPackageStatus(package)
+  end
+end
+
+function MuMeM.PkgMgr.displayPackages()
+  MuMeM.PkgMgr.GUI.emptyList()
+  
+  local sortedKeys = {}
+  for key in pairs(MuMeM.PkgMgr.packages) do
+    table.insert(sortedKeys, key)
+  end
+  table.sort(sortedKeys, function(a, b)
+    if MuMeM.PkgMgr.packages[a].category == MuMeM.PkgMgr.packages[b].category then
+      return a &lt; b
+    else
+      return MuMeM.PkgMgr.packages[a].category &lt; MuMeM.PkgMgr.packages[b].category
+    end
+  end)
+
+  for _,package in pairs(sortedKeys) do
+    local packageData = MuMeM.PkgMgr.packages[package]
+    local pkgInfo = getPackageInfo(package)
+    if pkgInfo.mpackage then
+      MuMeM.PkgMgr.packages[package].isInstalled = true
+      MuMeM.PkgMgr.packages[package].installedVersion = pkgInfo.version
+    else
+      MuMeM.PkgMgr.packages[package].isInstalled = false
+    end
+
+    MuMeM.PkgMgr.GUI.addPackage(packageData)
+  end
+end
+
+function MuMeM.PkgMgr.isPackageInstalled(package)
+  local installedPackages = getPackages()
+  
+  for _,installedPackage in pairs(installedPackages) do
+    if package == installedPackage then
+        return getPackageInfo(package).mpackage ~= nil
+    end
+  end
+
+  return false  
+end
+
+function MuMeM.PkgMgr.mayRemovePackage(package)
+  if not package then
+    return false
+  end
+
+  --MuMeM.PkgMgr.log(f"[REMOVE] checking dependencies for {package}.")
+  
+  for iPkg,iPkgData in pairs(MuMeM.PkgMgr.packages) do
+    if MuMeM.PkgMgr.isPackageInstalled(iPkg) then
+      if iPkgData.dependencies then
+        for _,iPkgDep in pairs(iPkgData.dependencies) do
+          if iPkgDep == package then
+            MuMeM.PkgMgr.log(f"[REMOVE] package {iPkg} depends on {package}. Remove {iPkg} first.")
+            return false
+          end
+        end
+      end
+    end
+  end
+  
+  return true
+end
+
+function MuMeM.PkgMgr.buildInstallTree(package)
+  for _,pkg in pairs(MuMeM.PkgMgr.packageInstallTree) do
+    if pkg == package then
+      return
+    end
+  end
+  
+  if MuMeM.PkgMgr.packages[package].dependencies then
+    for _,iPkgDep in pairs(MuMeM.PkgMgr.packages[package].dependencies) do
+      MuMeM.PkgMgr.buildInstallTree(iPkgDep)
+    end
+  end
+  
+  table.insert(MuMeM.PkgMgr.packageInstallTree, package) 
+end
+
+function MuMeM.PkgMgr.processInstallTree()
+  local package = MuMeM.PkgMgr.packageInstallTree[1]
+
+  if not package then
+    return
+  end
+
+  MuMeM.PkgMgr.log(f"[INSTALL] installing {package}...")
+  if MuMeM.PkgMgr.isPackageInstalled(package) then
+    uninstallPackage(package)
+  end
+  installPackage(MuMeM.PkgMgr.packages[package].location)
+end
+
+function MuMeM.PkgMgr.installPackage(package)
+  package = package or MuMeM.PkgMgr.GUI.getSelectedPackage()
+  if not package then
+    return
+  end
+    
+  if #MuMeM.PkgMgr.packageInstallTree &gt; 0 then
+    MuMeM.PkgMgr.log(f"[INSTALL] install already in progress, please wait")
+    return
+  end
+  
+  MuMeM.PkgMgr.GUI.unselectRow()
+  
+  MuMeM.PkgMgr.buildInstallTree(package)
+  MuMeM.PkgMgr.processInstallTree()
+end
+
+function MuMeM.PkgMgr.installAllPackages(package)
+  if #MuMeM.PkgMgr.packageInstallTree &gt; 0 then
+    MuMeM.PkgMgr.log(f"[INSTALL] install already in progress, please wait")
+    return
+  end
+  
+  for package,_ in pairs(MuMeM.PkgMgr.packages) do
+    if package ~= "MuMeM-PkgMgr" then
+      table.insert(MuMeM.PkgMgr.packageInstallTree, package)
+    end
+  end
+  
+  MuMeM.PkgMgr.processInstallTree()
+end
+
+function MuMeM.PkgMgr.removePackage(package)
+  package = package or MuMeM.PkgMgr.GUI.getSelectedPackage()
+
+  if not package then
+    return
+  end
+  
+  if not MuMeM.PkgMgr.isPackageInstalled(package) then
+    MuMeM.PkgMgr.log(f"[REMOVE] package {package} is not installed, nothing to remove.")
+    return
+  end
+  
+  if MuMeM.PkgMgr.mayRemovePackage(package) then
+    MuMeM.PkgMgr.log(f"[REMOVE] removing {package}...")
+    uninstallPackage(package)
+  end
+end
+
+function MuMeM.PkgMgr.removeAllPackages()
+  if #MuMeM.PkgMgr.packageInstallTree &gt; 0 then
+    MuMeM.PkgMgr.log(f"[REMOVE] install in progress, please wait")
+    return
+  end
+  
+  for package,_ in pairs(MuMeM.PkgMgr.packages) do
+    if package ~= "MuMeM-PkgMgr" and MuMeM.PkgMgr.isPackageInstalled(package) then
+      MuMeM.PkgMgr.log(f"[REMOVE] removing {package}...")
+      uninstallPackage(package)
+    end
+  end
+end
+
+function MuMeM.PkgMgr.showGUI()
+  MuMeM.PkgMgr.initialize()           -- BUGFIX FOR MAC?????
+  MuMeM.PkgMgr.loadPackages()
+  MuMeM.PkgMgr.GUI.visuals.mainWindow:show()
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.PkgMgr.GUI</name>
+				<packageName></packageName>
+				<script>function MuMeM.PkgMgr.GUI.setup(force)
+
+  MuMeM.PkgMgr.GUI.visuals = MuMeM.PkgMgr.GUI.visuals or {}
+
+  if MuMeM.PkgMgr.GUI.visuals.mainWindow and not force then
+    return
+  end
+  
+  local packageListHeight = MuMeM.PkgMgr.GUI.ROW_HEIGHT * 
+                            (MuMeM.PkgMgr.GUI.MAX_ROWS + 1) + 
+                            MuMeM.PkgMgr.GUI.CONTENT_BORDER_WIDTH * 2 - 1
+
+  -- --- Main Window ---
+  MuMeM.PkgMgr.GUI.visuals.mainWindow = Geyser.UserWindow:new({
+    name = "MuMeM.PkgMgr.GUI.visuals.mainWindow",
+    titleText = "MuMeM - Package Manager",
+    x = "10%", y="10%",
+    width = "800", height = "1000",
+    color = "lightGray",
+    restoreLayout = false,
+    docked = false, autoDock = false, dockPosition = "f",
+  })
+
+  -- --- Package list container ---
+  MuMeM.PkgMgr.GUI.visuals.packageListContainer = Geyser.Label:new({
+    name = "MuMeM.PkgMgr.GUI.visuals.packageListContainer",
+    x = 10, y = 10,
+    width = "100%-20", height = packageListHeight,
+    fontSize = 12,
+  }, MuMeM.PkgMgr.GUI.visuals.mainWindow)
+  MuMeM.PkgMgr.GUI.visuals.packageListContainer:setStyleSheet([[
+    background-color: darkGray;
+    border: ]]..MuMeM.PkgMgr.GUI.CONTENT_BORDER_WIDTH..[[px solid black;
+    qproperty-alignment: 'AlignHCenter | AlignTop';
+  ]])
+  MuMeM.PkgMgr.GUI.visuals.packageListContainer:setClickCallback(function () MuMeM.PkgMgr.GUI.unselectRow() end )
+  MuMeM.PkgMgr.GUI.visuals.packageListContainer:echo("&lt;br&gt;&lt;br&gt;&lt;br&gt;&lt;b&gt;click sync&lt;/b&gt;")
+  
+  -- --- Adding the packages to the list ---
+  MuMeM.PkgMgr.GUI.addRowToGUI(0)
+  for n=1,10 do
+    MuMeM.PkgMgr.GUI.addRowToGUI(n)
+  end
+  
+  -- --- Package description ---
+  MuMeM.PkgMgr.GUI.visuals.packageDescription = Geyser.Label:new({
+    name = "MuMeM.PkgMgr.GUI.visuals.packageDescription",
+    x = 10, y = 10 + packageListHeight + 10,
+    width = "100%-20", height = 400,
+    fgColor = "black",
+    fontSize = 12,
+  }, MuMeM.PkgMgr.GUI.visuals.mainWindow)
+  MuMeM.PkgMgr.GUI.visuals.packageDescription:setStyleSheet([[
+    background-color: darkGray;
+    border: 2px solid black;
+    qproperty-alignment: 'AlignLeft | AlignTop';
+  ]])
+  
+  -- --- Logging ---
+  MuMeM.PkgMgr.GUI.visuals.log = Geyser.MiniConsole:new({
+    name="MuMeM.PkgMgr.GUI.visuals.log",
+    x = 10, y = 10 + packageListHeight + 10 + 400 + 10,
+    width = "100%-20", height = "100%-"..(10 + packageListHeight + 10 + 160 + 10 + 400),
+    autoWrap = true,
+    color = "black",
+    scrollBar = true,
+    fontSize = 8,
+  },MuMeM.PkgMgr.GUI.visuals.mainWindow)
+  MuMeM.PkgMgr.GUI.visuals.log:setBufferSize(100,10)
+  
+  -- --- Notification ---
+  MuMeM.PkgMgr.GUI.visuals.notification = Geyser.Label:new({
+    name = "MuMeM.PkgMgr.GUI.visuals.notification",
+    x = 10, y = "-140",
+    width = "100%-20", height = 80,
+    fgColor = "black",
+    fontSize = 15,
+    message = "&lt;b&gt;NOTICE&lt;/b&gt;: You need to restart after applying &lt;b&gt;any&lt;/b&gt; changes!!!",
+  }, MuMeM.PkgMgr.GUI.visuals.mainWindow)
+  MuMeM.PkgMgr.GUI.visuals.notification:setStyleSheet([[
+    background-color: lightYellow;
+    border: 2px solid black;
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+  ]])
+  
+  -- --- Button Container ---
+  MuMeM.PkgMgr.GUI.visuals.buttonContainer = Geyser.Container:new({
+    name = "MuMeM.PkgMgr.GUI.visuals.buttonContainer",
+    x = 10, y = "-40",
+    width = "100%-20", height = 30,
+  }, MuMeM.PkgMgr.GUI.visuals.mainWindow)
+  
+  local buttonStyleSheet = Geyser.StyleSheet:new([[
+    background-color: grey;
+    border-width: 2px;
+    border-style: solid;
+    border-color: black;
+    border-radius: 5px;
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+  ]])
+  
+  -- --- Button InstallOne ---  
+  MuMeM.PkgMgr.GUI.visuals.installOne = Geyser.Label:new({
+    name = "MuMeM.PkgMgr.GUI.visuals.installOne",
+    x = "100%-250", y = 0,
+    width = 120, height = 30,
+    fontSize = 12,
+    message = "install",
+    stylesheet = buttonStyleSheet:getCSS(),
+  }, MuMeM.PkgMgr.GUI.visuals.buttonContainer)
+  MuMeM.PkgMgr.GUI.visuals.installOne:setClickCallback(function () MuMeM.PkgMgr.installPackage() end )
+  
+  -- --- Button InstallAll ---  
+  MuMeM.PkgMgr.GUI.visuals.installAll = Geyser.Label:new({
+    name = "MuMeM.PkgMgr.GUI.visuals.installAll",
+    x = "100%-120", y = 0,
+    width = 120, height = 30,
+    fontSize = 12,
+    message = "install ALL",
+    stylesheet = buttonStyleSheet:getCSS(),
+  }, MuMeM.PkgMgr.GUI.visuals.buttonContainer)
+  MuMeM.PkgMgr.GUI.visuals.installAll:setClickCallback(function () MuMeM.PkgMgr.installAllPackages() end )
+
+  -- --- Button RemoveOne ---  
+  MuMeM.PkgMgr.GUI.visuals.removeOne = Geyser.Label:new({
+    name = "MuMeM.PkgMgr.GUI.visuals.removeOne",
+    x = 130, y = 0,
+    width = 120, height = 30,
+    fontSize = 12,
+    message = "remove",
+    stylesheet = buttonStyleSheet:getCSS(),
+  }, MuMeM.PkgMgr.GUI.visuals.buttonContainer)
+  MuMeM.PkgMgr.GUI.visuals.removeOne:setClickCallback(function () MuMeM.PkgMgr.removePackage() end )
+  
+  -- --- Button removeAll ---  
+  MuMeM.PkgMgr.GUI.visuals.removeAll = Geyser.Label:new({
+    name = "MuMeM.PkgMgr.GUI.visuals.removeAll",
+    x = 0, y = 0,
+    width = 120, height = 30,
+    fontSize = 12,
+    message = "remove ALL",
+    stylesheet = buttonStyleSheet:getCSS(),
+  }, MuMeM.PkgMgr.GUI.visuals.buttonContainer)
+  MuMeM.PkgMgr.GUI.visuals.removeAll:setClickCallback(function () MuMeM.PkgMgr.removeAllPackages() end )
+  
+  -- --- Button sync ---  
+  MuMeM.PkgMgr.GUI.visuals.sync = Geyser.Label:new({
+    name = "MuMeM.PkgMgr.GUI.visuals.sync",
+    x = "41%", y = 0,
+    width = 120, height = 30,
+    fontSize = 12,
+    message = "sync",
+    stylesheet = buttonStyleSheet:getCSS(),
+  }, MuMeM.PkgMgr.GUI.visuals.buttonContainer)
+  MuMeM.PkgMgr.GUI.visuals.sync:setClickCallback(function () MuMeM.PkgMgr.loadPackages() end )
+  
+  -- --- Hide it when we are finished drawing everything ---  
+  MuMeM.PkgMgr.GUI.visuals.mainWindow:hide()
+end
+
+function MuMeM.PkgMgr.GUI.addRowToGUI(row)
+  MuMeM.PkgMgr.GUI.visuals.row = MuMeM.PkgMgr.GUI.visuals.row or {}
+  MuMeM.PkgMgr.GUI.visuals.row[row] = {}
+  
+  MuMeM.PkgMgr.GUI.selectedRow = nil
+  MuMeM.PkgMgr.GUI.nextRow = 1
+
+  -- --- for easier reading ---
+  local cbw = MuMeM.PkgMgr.GUI.CONTENT_BORDER_WIDTH
+  local cbw2 = MuMeM.PkgMgr.GUI.CONTENT_BORDER_WIDTH * 2
+  local rowHeight = MuMeM.PkgMgr.GUI.ROW_HEIGHT
+  
+  -- --- styleSheets ---
+  local fontSize
+  local fgColor
+  
+  if row == 0 then
+    fgColor = "white"
+    fontSize = 12
+    row = 0
+  else
+    fgColor = "black"
+    fontSize = 10
+  end
+
+  local styleSheetRow = MuMeM.PkgMgr.GUI.rowStyleSheet(row)
+
+  -- --- background / row ---
+  MuMeM.PkgMgr.GUI.visuals.row[row].container = Geyser.Label:new({
+    name = f"MuMeM.PkgMgr.GUI.visuals.row[{row}].container",
+    x = cbw, y = row*rowHeight + cbw,
+    width = f"100%-{cbw2}", height=MuMeM.PkgMgr.GUI.ROW_HEIGHT,
+    stylesheet = styleSheetRow:getCSS(),
+  }, MuMeM.PkgMgr.GUI.visuals.packageListContainer)
+  
+  if row &gt; 0 then
+    MuMeM.PkgMgr.GUI.visuals.row[row].container:setClickCallback(function () MuMeM.PkgMgr.GUI.selectRow(row) end )
+  end
+    
+  -- --- Package list package name ---
+  MuMeM.PkgMgr.GUI.visuals.row[row].packageName = Geyser.Label:new({
+    name = f"MuMeM.PkgMgr.GUI.visuals.row[{row}].packageName",
+    x = "5", y = 0,
+    width = "20%-5", height = MuMeM.PkgMgr.GUI.ROW_HEIGHT,
+    message = "Name",
+    fontSize = fontSize, fgColor = fgColor, color = "transparent",
+    --stylesheet = styleSheetLabel:getCSS(),
+  }, MuMeM.PkgMgr.GUI.visuals.row[row].container)
+  MuMeM.PkgMgr.GUI.visuals.row[row].packageName:enableClickthrough()
+ 
+  -- --- Package list package title ---
+  MuMeM.PkgMgr.GUI.visuals.row[row].packageTitle = Geyser.Label:new({
+    name = f"MuMeM.PkgMgr.GUI.visuals.row[{row}].packageTitle",
+    x = "20%", y = 0,
+    width = "40%", height = MuMeM.PkgMgr.GUI.ROW_HEIGHT,
+    fontSize = fontSize, fgColor = fgColor, color = "transparent",
+    message = "Title",
+    fontSize = fontSize,
+  }, MuMeM.PkgMgr.GUI.visuals.row[row].container) 
+  MuMeM.PkgMgr.GUI.visuals.row[row].packageTitle:enableClickthrough()
+  
+  -- --- Package list package category ---
+  MuMeM.PkgMgr.GUI.visuals.row[row].packageCategory = Geyser.Label:new({
+    name = f"MuMeM.PkgMgr.GUI.visuals.row[{row}].packageCategory",
+    x = "60%", y = 0,
+    width = "8%", height = MuMeM.PkgMgr.GUI.ROW_HEIGHT,
+    fontSize = fontSize, fgColor = fgColor, color = "transparent",
+    message = "Type",
+    fontSize = fontSize,
+  }, MuMeM.PkgMgr.GUI.visuals.row[row].container)
+  MuMeM.PkgMgr.GUI.visuals.row[row].packageCategory:enableClickthrough()
+
+  -- --- Package list package version ---
+  MuMeM.PkgMgr.GUI.visuals.row[row].packageVersion = Geyser.Label:new({
+    name = f"MuMeM.PkgMgr.GUI.visuals.row[{row}].packageVersion",
+    x = "68%", y = 0,
+    width = "12%", height = MuMeM.PkgMgr.GUI.ROW_HEIGHT,
+    fontSize = fontSize, fgColor = fgColor, color = "transparent",
+    message = "Version",
+    fontSize = fontSize,
+  }, MuMeM.PkgMgr.GUI.visuals.row[row].container)
+  MuMeM.PkgMgr.GUI.visuals.row[row].packageVersion:enableClickthrough()
+  
+  -- --- Package list package status ---
+  MuMeM.PkgMgr.GUI.visuals.row[row].packageStatus = Geyser.Label:new({
+    name = f"MuMeM.PkgMgr.GUI.visuals.row[{row}].packageStatus",
+    x = "80%", y = 0,
+    width = "20%", height = MuMeM.PkgMgr.GUI.ROW_HEIGHT,
+    fontSize = fontSize, fgColor = fgColor, color = "transparent",
+    message = "Status",
+    fontSize = fontSize,
+  }, MuMeM.PkgMgr.GUI.visuals.row[row].container)
+  MuMeM.PkgMgr.GUI.visuals.row[row].packageStatus:enableClickthrough()
+  
+  if row &gt; 0 then
+    MuMeM.PkgMgr.GUI.visuals.row[row].container:hide()
+  end
+end
+
+function MuMeM.PkgMgr.GUI.rowStyleSheet(rowNum)
+  local bgColor = "black"
+  if rowNum == MuMeM.PkgMgr.GUI.selectedRow then
+    bgColor = "#1f4f2d"
+  elseif rowNum &gt; 0 then
+    bgColor = "#a9bcc7"
+    if rowNum % 2 == 0 then
+      bgColor = "#5582a7"
+    end
+  end
+    
+  return Geyser.StyleSheet:new({
+    ["background-color"] = bgColor,
+    ["border-bottom"] = "1px solid black",
+  })
+end
+
+function MuMeM.PkgMgr.GUI.updateDescription()
+  local package = MuMeM.PkgMgr.GUI.getSelectedPackage()
+  if package then
+    local description = MuMeM.PkgMgr.packages[package].description:gsub("\n","&lt;br&gt;")
+    MuMeM.PkgMgr.GUI.visuals.packageDescription:echo(description)
+  else
+    MuMeM.PkgMgr.GUI.visuals.packageDescription:echo("")
+  end
+end
+
+function MuMeM.PkgMgr.GUI.unselectRow()
+  if not MuMeM.PkgMgr.GUI.selectedRow then
+    return
+  end
+  
+  local rowNum = MuMeM.PkgMgr.GUI.selectedRow
+  MuMeM.PkgMgr.GUI.selectedRow = nil
+  MuMeM.PkgMgr.GUI.visuals.row[rowNum].container:setStyleSheet(MuMeM.PkgMgr.GUI.rowStyleSheet(rowNum):getCSS())
+  MuMeM.PkgMgr.GUI.visuals.row[rowNum].packageName:setFgColor("black")
+  MuMeM.PkgMgr.GUI.visuals.row[rowNum].packageTitle:setFgColor("black")
+  MuMeM.PkgMgr.GUI.visuals.row[rowNum].packageCategory:setFgColor("black")
+  MuMeM.PkgMgr.GUI.visuals.row[rowNum].packageVersion:setFgColor("black")
+  MuMeM.PkgMgr.GUI.visuals.row[rowNum].packageStatus:setFgColor("black")
+    
+  MuMeM.PkgMgr.GUI.updateDescription()
+end
+
+function MuMeM.PkgMgr.GUI.selectRow(rowNum)
+  if MuMeM.PkgMgr.GUI.selectedRow == rowNum then
+    MuMeM.PkgMgr.GUI.unselectRow(row)
+  else
+    MuMeM.PkgMgr.GUI.unselectRow(row)
+    MuMeM.PkgMgr.GUI.selectedRow = rowNum
+    MuMeM.PkgMgr.GUI.visuals.row[rowNum].container:setStyleSheet(MuMeM.PkgMgr.GUI.rowStyleSheet(rowNum):getCSS())
+    MuMeM.PkgMgr.GUI.visuals.row[rowNum].packageName:setFgColor("white")
+    MuMeM.PkgMgr.GUI.visuals.row[rowNum].packageTitle:setFgColor("white")
+    MuMeM.PkgMgr.GUI.visuals.row[rowNum].packageCategory:setFgColor("white")
+    MuMeM.PkgMgr.GUI.visuals.row[rowNum].packageVersion:setFgColor("white")
+    MuMeM.PkgMgr.GUI.visuals.row[rowNum].packageStatus:setFgColor("white")
+
+    MuMeM.PkgMgr.GUI.updateDescription()
+  end
+end
+
+function MuMeM.PkgMgr.GUI.emptyList()
+  MuMeM.PkgMgr.GUI.unselectRow()
+
+  for rowNum=1,math.min(MuMeM.PkgMgr.GUI.nextRow, MuMeM.PkgMgr.GUI.MAX_ROWS) do
+    MuMeM.PkgMgr.GUI.visuals.row[rowNum].container:hide()
+  end
+  
+  MuMeM.PkgMgr.GUI.nextRow = 1
+end
+
+function MuMeM.PkgMgr.GUI.getSelectedPackage()
+  if MuMeM.PkgMgr.GUI.selectedRow then
+    return MuMeM.PkgMgr.GUI.visuals.row[MuMeM.PkgMgr.GUI.selectedRow]._mumem_package
+  end
+
+  return nil
+end
+
+function MuMeM.PkgMgr.GUI.addPackage(packageData)
+  if MuMeM.PkgMgr.GUI.nextRow &gt; MuMeM.PkgMgr.GUI.MAX_ROWS then
+    return
+  end
+  
+  local rowNum = MuMeM.PkgMgr.GUI.nextRow
+  
+  MuMeM.PkgMgr.GUI.visuals.row[rowNum]._mumem_package = packageData.package
+  MuMeM.PkgMgr.GUI.visuals.row[rowNum].packageName:echo(packageData.package)
+  MuMeM.PkgMgr.GUI.visuals.row[rowNum].packageTitle:echo(packageData.title)
+  MuMeM.PkgMgr.GUI.visuals.row[rowNum].packageCategory:echo(packageData.category)
+  MuMeM.PkgMgr.GUI.visuals.row[rowNum].packageVersion:echo(packageData.version)
+
+  if packageData.isInstalled then
+    if packageData.installedVersion == packageData.version then
+      MuMeM.PkgMgr.GUI.visuals.row[rowNum].packageStatus:echo("up-to-date")
+    elseif packageData.installedVersion &lt; packageData.version then
+      MuMeM.PkgMgr.GUI.visuals.row[rowNum].packageStatus:echo("upgrade")
+    else
+      MuMeM.PkgMgr.GUI.visuals.row[rowNum].packageStatus:echo("downgrade")
+    end   
+  else
+    MuMeM.PkgMgr.GUI.visuals.row[rowNum].packageStatus:echo("not installed")
+  end  
+ 
+  MuMeM.PkgMgr.GUI.visuals.row[rowNum].container:show()
+
+  MuMeM.PkgMgr.GUI.nextRow = MuMeM.PkgMgr.GUI.nextRow + 1
+end</script>
+				<eventHandlerList />
+			</Script>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.PkgMgr.EventHandler</name>
+				<packageName></packageName>
+				<script></script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.PkgMgr.EventHandler.Initialize</name>
+					<packageName></packageName>
+					<script>function MuMeM.PkgMgr.EventHandler.Initialize()
+  MuMeM.PkgMgr.initialize() 
+end</script>
+					<eventHandlerList>
+						<string>MuMeM.PkgMgr.Initialize</string>
+					</eventHandlerList>
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.PkgMgr.EventHandler.httpGetDone</name>
+					<packageName></packageName>
+					<script>function MuMeM.PkgMgr.EventHandler.httpGetDone(eventName, url, body, extra)
+  if not MuMeM.PkgMgr.isInitialized then
+    return
+  end
+  
+  if url ~= MuMeM.PkgMgr.REPO_DATA_URL then
+    return
+  end
+  
+  MuMeM.PkgMgr.log("[DOWNLOAD] Repo data downloaded")
+  
+  MuMeM.PkgMgr.registerPackages(yajl.to_value(body))
+  MuMeM.PkgMgr.displayPackages()
+  
+  MuMeM.PkgMgr.log("[DOWNLOAD] List updated")  
+end</script>
+					<eventHandlerList>
+						<string>sysGetHttpDone</string>
+					</eventHandlerList>
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.PkgMgr.EventHandler.httpGetError</name>
+					<packageName></packageName>
+					<script>function MuMeM.PkgMgr.EventHandler.httpGetError(eventName, errorMsg, url, extra)
+  if not MuMeM.PkgMgr.isInitialized then
+    return
+  end
+  
+  if url ~= MuMeM.PkgMgr.REPO_DATA_URL then
+    return
+  end
+  
+  MuMeM.PkgMgr.log("[DOWNLOAD] Could not download repo data!")
+end</script>
+					<eventHandlerList>
+						<string>sysGetHttpError</string>
+					</eventHandlerList>
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.PkgMgr.EventHandler.packageInstall</name>
+					<packageName></packageName>
+					<script>function MuMeM.PkgMgr.EventHandler.packageInstall(eventName, package, location)
+  if not MuMeM.PkgMgr.isInitialized then
+    return
+  end
+  
+  MuMeM.PkgMgr.log(f"[INSTALL] package {package} installed")
+  MuMeM.PkgMgr.setPackageStatus(package)
+
+  if package == MuMeM.PkgMgr.packageInstallTree[1] then
+    table.remove(MuMeM.PkgMgr.packageInstallTree, 1)
+    tempTimer( 0.5, [[ MuMeM.PkgMgr.processInstallTree() ]] )
+  end
+
+  MuMeM.PkgMgr.displayPackages()
+end</script>
+					<eventHandlerList>
+						<string>sysInstallPackage</string>
+					</eventHandlerList>
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.PkgMgr.EventHandler.packageUnInstall</name>
+					<packageName></packageName>
+					<script>function MuMeM.PkgMgr.EventHandler.packageUnInstall(eventName, package)
+  if not MuMeM.PkgMgr.isInitialized then
+    return
+  end
+
+  MuMeM.PkgMgr.log(f"[REMOVE] package {package} removed")
+  MuMeM.PkgMgr.setPackageStatus(package)
+  
+  if #MuMeM.PkgMgr.packageInstallTree == 0 then
+    MuMeM.PkgMgr.displayPackages()
+  end
+end</script>
+					<eventHandlerList>
+						<string>sysUninstallPackage</string>
+					</eventHandlerList>
+				</Script>
+			</ScriptGroup>
+		</ScriptGroup>
+	</ScriptPackage>
+</MudletPackage>

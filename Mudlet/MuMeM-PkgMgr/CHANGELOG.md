@@ -1,3 +1,8 @@
+### 20230307
+
+  * Removed autodocking
+  * Will no longer previous position (always starts on same place)
+
 ### 20230210
 
   * Another bugfix release for MacOS 13
