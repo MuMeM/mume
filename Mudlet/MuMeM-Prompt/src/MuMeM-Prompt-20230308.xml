@@ -1,0 +1,2667 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE MudletPackage>
+<MudletPackage version="1.001">
+	<ScriptPackage>
+		<ScriptGroup isActive="yes" isFolder="yes">
+			<name>MuMeM.Prompt</name>
+			<packageName></packageName>
+			<script>--[[
+    Displays a "graphical prompt" at the bottom of the screen.
+    The line contains the usual information you would suspect from a prompt.
+--]]
+
+mumem_inherit = mumem_inherit or function (className, baseName)
+  local classObj = loadstring("return " .. className)()
+  local baseObj = loadstring("return " .. baseName)()
+
+  setmetatable(classObj, baseObj)
+  classObj.__index = classObj
+  
+  if className == baseName then
+    classObj.parentClass = "BASE"
+  else
+    classObj.parentClass = baseObj
+  end
+  classObj.className = className
+end
+
+mumem_isa = mumem_isa or function (classObj, className)
+  if classObj == nil or classObj.parentClass == nil then
+    return false
+  elseif classObj == "BASE" then
+    return false
+  elseif classObj.className == className then
+    return true
+  end
+  return mumem_isa(classObj.parentClass, className)
+end
+
+-- --- Module setup ----------------------------------------------
+
+MuMeM = MuMeM or {}
+MuMeM.Prompt = MuMeM.Prompt or {}
+MuMeM.Prompt.EventHandler = MuMeM.Prompt.EventHandler or {}
+MuMeM.Prompt.Status = MuMeM.Prompt.Status or {}
+MuMeM.Prompt.visuals = MuMeM.Prompt.visuals or {}
+
+MuMeM.Prompt.command = MuMeM.Prompt.command or tempAlias("^mprompt$", function() MuMeM.Prompt.Preferences.Dialog.show() end)
+
+
+--MuMeM.Prompt.setupPrompt(false)
+
+-- --- Module registration -----------------------------------------
+
+MuMeM.Prompt.module_name = "MuMeM.Prompt"
+MuMeM.Prompt.module_dependencies = {"MuMeM.Core","MuMeM.Log","MuMeM.GMCP","MuMeM.Player","MuMeM.Room","MuMeM.Widget"}
+MuMeM.modules = MuMeM.modules or {}
+MuMeM.modules[MuMeM.Prompt.module_name] = MuMeM.modules[MuMeM.Prompt.module_name] or {module=MuMeM.Prompt}</script>
+			<eventHandlerList />
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Prompt.Library</name>
+				<packageName></packageName>
+				<script>function MuMeM.Prompt.initialize()
+  if MuMeM.Core.IO.nodeExists(getMudletHomeDir().."/MuMeM.Prompt") then
+    MuMeM.Prompt.resourceDir = getMudletHomeDir().."/MuMeM.Prompt/Resources"
+  else
+    MuMeM.Prompt.resourceDir = getMudletHomeDir().."/MuMeM-Prompt/Resources"
+  end
+  
+  MuMeM.Prompt.Layout.Manager.initialize()
+end
+
+function MuMeM.Prompt.configure()
+end
+
+function MuMeM.Prompt.getResourceDir()
+  return MuMeM.Prompt.resourceDir
+end
+
+function MuMeM.Prompt.setupPrompt()
+  MuMeM.Prompt.Layout.Manager.build()
+end</script>
+				<eventHandlerList />
+			</Script>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Prompt.Widget</name>
+				<packageName></packageName>
+				<script>MuMeM.Prompt.Widget = MuMeM.Prompt.Widget or {
+  ELASTICITY_FIXED = 1,
+  ELASTICITY_FLEXIBLE = 2,
+  
+  ICON_ORIGIN_BACKGROUND = 1,
+  ICON_ORIGIN_BORDER = 2,
+  
+  BOUNDARY_CALCULATION_PERCENTAGE = 1,
+  BOUNDARY_CALCULATION_ABSOLUTE = 2,
+}</script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Widget.WidthCons</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Widget.WidthCons = MuMeM.Prompt.Widget.WidthCons or {
+  _elasticity = MuMeM.Prompt.Widget.ELASTICITY_FIXED,
+  _fixedWidth = 0,
+  _minWidth = 0,
+  _maxWidth = 999,
+  _ratio = 1000,
+  _realWidth = 0,
+} 
+
+mumem_inherit("MuMeM.Prompt.Widget.WidthCons", "MuMeM.Prompt.Widget.WidthCons")
+
+function MuMeM.Prompt.Widget.WidthCons:new(props)
+  local me = props or {}
+      
+  setmetatable(me, self)
+  self.__index = self
+ 
+  return me
+end
+
+function MuMeM.Prompt.Widget.WidthCons:elasticity()
+  return self._elasticity
+end
+
+function MuMeM.Prompt.Widget.WidthCons:fixedWidth()
+  return self._fixedWidth
+end
+
+function MuMeM.Prompt.Widget.WidthCons:flexibleWidth()
+  return self._minWidth, self._maxWidth, self._ratio
+end
+
+function MuMeM.Prompt.Widget.WidthCons:setFixed(width)
+  self._elasticity = MuMeM.Prompt.Widget.ELASTICITY_FIXED
+  self._fixedWidth = width
+  self._realWidth = width
+end
+
+function MuMeM.Prompt.Widget.WidthCons:setFlexible(minWidth, maxWidth, ratio)
+  self._elasticity = MuMeM.Prompt.Widget.ELASTICITY_FLEXIBLE
+  self._minWidth = minWidth or 0
+  self._maxWidth = maxWidth or 9999
+  self._ratio = ratio or 1000
+  self._realWidth = minWidth
+end
+
+function MuMeM.Prompt.Widget.WidthCons:setRealWidth(width)
+  --[[
+        DO NOT CALL YOURSELF, used by Layout.Manager to update sizes (and reposition)
+  ]]--
+  self._realWidth = width
+end
+
+function MuMeM.Prompt.Widget.WidthCons:width()
+  return self._realWidth
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Widget.Widget</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Widget.Widget = MuMeM.Prompt.Widget.Widget or {
+  _name = null,
+  _x = 0,
+  _y = 0,
+  _height = 20,
+  _widthCons = false,
+  _marginLeft = 0,
+  _marginRight = 0,
+    
+  _panel = false,
+  _eventHandlers = false,
+} 
+
+mumem_inherit("MuMeM.Prompt.Widget.Widget", "MuMeM.Prompt.Widget.Widget")
+
+function MuMeM.Prompt.Widget.Widget:new(props)
+  local me = props or {}
+  
+  if props._eventHandlers == nil then
+    me._eventHandlers = {}
+  end
+  
+  me._name = me._name or MuMeM.Prompt.Layout.Manager.nameGen("Widget")
+  
+  me._widthCons = MuMeM.Prompt.Widget.WidthCons:new({})
+  me._widthCons:setFixed(50)
+    
+  setmetatable(me, self)
+  self.__index = self
+ 
+  return me
+end
+
+function MuMeM.Prompt.Widget.Widget:create()
+  self._x = self:panel():offsetLeft()
+
+--  createLabel(self:name(), self:x(), self:y(), self:width(), self:height(), false)
+  --createLabel(self:name(), self:x(), self:y(), self:width(), self:height(), true)
+  --setBackgroundColor(self:name(), Geyser.Color.parse("magenta"))
+end
+
+function MuMeM.Prompt.Widget.Widget:name()
+  return self._name
+end
+
+function MuMeM.Prompt.Widget.Widget:panel()
+  return self._panel
+end
+
+function MuMeM.Prompt.Widget.Widget:widthCons()
+  return self._widthCons
+end
+
+function MuMeM.Prompt.Widget.Widget:x()
+  return self._x
+end
+
+function MuMeM.Prompt.Widget.Widget:y()
+  return self._y
+end
+
+function MuMeM.Prompt.Widget.Widget:width()
+  return self:marginLeft() + self:contentWidth() + self:marginRight()
+end
+
+function MuMeM.Prompt.Widget.Widget:height()
+  return self._height
+end
+
+function MuMeM.Prompt.Widget.Widget:marginLeft()
+  return self._marginLeft
+end
+
+function MuMeM.Prompt.Widget.Widget:marginRight()
+  return self._marginRight
+end
+
+function MuMeM.Prompt.Widget.Widget:contentX()
+  return self:marginLeft()
+end
+
+function MuMeM.Prompt.Widget.Widget:contentY()
+  return 0
+end
+
+function MuMeM.Prompt.Widget.Widget:contentWidth()
+  return self._widthCons:width()
+end
+
+function MuMeM.Prompt.Widget.Widget:contentHeight()
+  return self:height()
+end
+
+function MuMeM.Prompt.Widget.Widget:absX()
+  return self:panel():absX() + self:x()
+end
+
+function MuMeM.Prompt.Widget.Widget:absY()
+  return self:panel():absY() + self:y()
+end
+
+function MuMeM.Prompt.Widget.Widget:absContentX()
+  return self:panel():absX() + self:x() + self:contentX()
+end
+
+function MuMeM.Prompt.Widget.Widget:absContentY()
+  return self:panel():absY() + self:y() + self:contentY()
+end
+
+function MuMeM.Prompt.Widget.Widget:reposition(x)
+  self._x = x
+  
+  if windowType(self._name) then
+    moveWindow(self._name, self:panel():x() + self:x(), self:panel():y() + self:y())
+    resizeWindow(self._name, self:width(), self:height())
+  end
+end
+
+function MuMeM.Prompt.Widget.Widget:overrideStyleSheetData(styleSheet, styleSheetOverrides)
+  local geyserStyleSheet = Geyser.StyleSheet:new(styleSheet)
+
+  for k,v in pairs(styleSheetOverrides) do
+    geyserStyleSheet:set(k, v)
+  end
+    
+  return geyserStyleSheet:getCSS()
+end
+
+function MuMeM.Prompt.Widget.Widget:applyStyleSheetToLabel(labelName, styleSheet, styleSheetOverrides)
+  if styleSheetOverrides then
+    styleSheet = self:overrideStyleSheetData(styleSheet, styleSheetOverrides)
+  end
+  
+  setLabelStyleSheet(labelName, styleSheet)
+end
+
+function MuMeM.Prompt.Widget.Widget:registerEventHandler(event, func, oneShot)
+  table.insert(self._eventHandlers, registerAnonymousEventHandler(event, func, oneShot))
+end
+
+function MuMeM.Prompt.Widget.Widget:update()
+  -- ABSTRACT !!!
+  -- this method must be able to handle situations where NO params are passed (for "init")
+  MuMeM.Log.warning("MuMeM.Prompt.Widget.Widget:update()() not overridden for "..self:name(), "MuMeM.Comm")
+end
+
+function MuMeM.Prompt.Widget.Widget:teardown()
+  for _,ehId in pairs(self._eventHandlers) do
+    killAnonymousEventHandler(ehId)
+  end
+  
+  if windowType(self._name) then
+    hideWindow(self._name)
+    deleteLabel(self._name)
+  end
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Widget.TextWidget</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Widget.TextWidget = MuMeM.Prompt.Widget.TextWidget or {
+  _textLabelName = "undefined",
+
+  _text = "",
+  _textStyleSheet = [[
+    background-color: black;
+    color: white;
+    font-size: 12pt;
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+  ]],
+} 
+
+mumem_inherit("MuMeM.Prompt.Widget.TextWidget", "MuMeM.Prompt.Widget.Widget")
+
+function MuMeM.Prompt.Widget.TextWidget:new(props)
+  local props = props or {}
+  
+  props._name = props._name or MuMeM.Prompt.Layout.Manager.nameGen("TextWidget")
+  
+  props._textLabelName = f"{props._name}:Text"
+    
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  me._widthCons:setFixed(10)
+
+  return me
+end
+  
+function MuMeM.Prompt.Widget.TextWidget:create()
+  MuMeM.Prompt.Widget.TextWidget.parentClass.create(self)
+
+  createLabel(self._textLabelName, 
+              self:absContentX(), self:absContentY(), self:contentWidth(), self:contentHeight(), true)
+    
+  self:setText(self:text(), true)
+  self:applyTextStyleSheet()
+end
+
+function MuMeM.Prompt.Widget.TextWidget:reposition(x)
+  MuMeM.Prompt.Widget.TextWidget.parentClass.reposition(self, x)
+  
+  moveWindow(self._textLabelName, self:absContentX(), self:absContentY())
+  resizeWindow(self._textLabelName, self:contentWidth(), self:contentHeight())
+end
+
+function MuMeM.Prompt.Widget.TextWidget:text()
+  return self._text
+end
+
+function MuMeM.Prompt.Widget.TextWidget:setText(text, force)
+  if self._text ~= text or force then
+    self._text = text
+    echo(self._textLabelName, text)
+  end
+end
+
+function MuMeM.Prompt.Widget.TextWidget:textStyleSheet()
+  return self._textStyleSheet
+end
+
+function MuMeM.Prompt.Widget.TextWidget:setTextStyleSheet(textStyleSheet)
+  self._textStyleSheet = textStyleSheet
+end
+
+function MuMeM.Prompt.Widget.TextWidget:applyTextStyleSheet(textStyleSheetOverrides)
+  self:applyStyleSheetToLabel(self._textLabelName, self:textStyleSheet())
+end
+
+function MuMeM.Prompt.Widget.TextWidget:teardown()
+  hideWindow(self._textLabelName)
+  deleteLabel(self._textLabelName)
+
+  MuMeM.Prompt.Widget.TextWidget.parentClass.teardown(self)
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Widget.IconWidget</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Widget.IconWidget = MuMeM.Prompt.Widget.IconWidget or {
+  _iconDir = false,
+  _icon = "",
+  
+  _iconLabelName = "undefined",
+  
+  _contentStyleSheet = false,
+  
+  _iconStyleSheet = false,
+  _iconStyleSheetBorder = [[
+    border-image: url({iconPath}) 0 0 0 0 stretch stretch;
+    background-color: black;
+  ]],
+  _iconStyleSheetBackground = [[
+    background-image: url({iconPath});
+    background-repeat: no;
+    background-position: center;
+    background-color: darkGray;
+    border: 1px solid white;
+  ]],
+} 
+
+mumem_inherit("MuMeM.Prompt.Widget.IconWidget", "MuMeM.Prompt.Widget.Widget")
+
+function MuMeM.Prompt.Widget.IconWidget:new(props)
+  local props = props or {}
+  
+  props._name = props._name or MuMeM.Prompt.Layout.Manager.nameGen("TextWidget")
+  props._iconOrigin = props._iconOrigin or MuMeM.Prompt.Widget.ICON_ORIGIN_BORDER
+
+  props._iconLabelName = f"{props._name}:Icon"
+    
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  me._widthCons:setFixed(20)
+
+  return me
+end
+  
+function MuMeM.Prompt.Widget.IconWidget:create()
+  MuMeM.Prompt.Widget.IconWidget.parentClass.create(self)
+
+  createLabel(self._iconLabelName, 
+              self:absContentX(), self:absContentY(), self:contentWidth(), self:contentHeight(), true)
+              
+  self:setIcon(self:icon())
+  self:applyIconStyleSheet()
+  
+  setWindow(self._name, self._iconLabelName)
+end
+
+function MuMeM.Prompt.Widget.IconWidget:reposition(x)
+  MuMeM.Prompt.Widget.TextWidget.parentClass.reposition(self, x)
+  
+  moveWindow(self._iconLabelName, self:absContentX(), self:absContentY())
+  resizeWindow(self._iconLabelName, self:contentWidth(), self:contentHeight())
+end
+
+function MuMeM.Prompt.Widget.IconWidget:iconDir()
+  if self._iconDir == false then
+    return nil
+  end
+  
+  return self._iconDir
+end
+
+function MuMeM.Prompt.Widget.IconWidget:icon()
+  return self._icon
+end
+
+function MuMeM.Prompt.Widget.IconWidget:setIcon(icon)
+  if self._icon ~= icon then
+    self._icon = icon
+  end
+end
+
+function MuMeM.Prompt.Widget.IconWidget:iconOrigin()
+  return self._iconOrigin
+end
+
+function MuMeM.Prompt.Widget.IconWidget:setIconOrigin(iconOrigin)
+  self._iconOrigin = iconOrigin
+end
+
+function MuMeM.Prompt.Widget.IconWidget:iconStyleSheet()
+  if self._iconStyleSheet then
+    return self._iconStyleSheet
+  elseif self:iconOrigin() == MuMeM.Prompt.Widget.ICON_ORIGIN_BORDER then
+    return self._iconStyleSheetBorder
+  else
+    return self._iconStyleSheetBackground
+  end
+end
+
+function MuMeM.Prompt.Widget.IconWidget:setIconStyleSheet(iconStyleSheet)
+  self._iconStyleSheet = iconStyleSheet
+end
+
+function MuMeM.Prompt.Widget.IconWidget:getIconPath()
+  if self:iconDir() then
+    return MuMeM.Core.IO.concatPath(MuMeM.Prompt.getResourceDir(), self:iconDir(), self:icon())
+  end
+
+  return MuMeM.Core.IO.concatPath(MuMeM.Prompt.getResourceDir(), self:icon())
+end
+
+function MuMeM.Prompt.Widget.IconWidget:applyIconStyleSheet(iconStyleSheetOverrides)
+  local iconStyleSheet = Geyser.StyleSheet:new(self:iconStyleSheet())
+
+  local iconPath = self:getIconPath()
+  
+  if self:iconOrigin() == MuMeM.Prompt.Widget.ICON_ORIGIN_BORDER then
+    iconStyleSheet:set("border-image", f[[url({iconPath}) 0 0 0 0 stretch stretch]])
+  else
+    iconStyleSheet:set("background-image", f[[url({iconPath})]])
+  end
+  
+  if iconStyleSheetOverrides then
+    for k,v in pairs(iconStyleSheetOverrides) do
+      iconStyleSheet:set(k, v)
+    end
+  end
+  
+  setLabelStyleSheet(self._iconLabelName, iconStyleSheet:getCSS())
+end
+
+function MuMeM.Prompt.Widget.IconWidget:teardown()
+  hideWindow(self._iconLabelName)
+  deleteLabel(self._iconLabelName)
+
+  MuMeM.Prompt.Widget.IconWidget.parentClass.teardown(self)
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Widget.Gauge0</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Widget.Gauge0 = MuMeM.Prompt.Widget.Gauge0 or {
+  _valueMax     = 100,
+  _valueNow     = 100,
+  _backBarName  = "undefined",
+  _frontBarName = "undefined",
+  _isHidden     = false,
+  
+  _scaleIsHidden      = false,
+  _scaleLowLabelName  = "undefined",
+  _scaleHighLabelName = "undefined",
+  _scaleColor         = "black",
+  _boundaries         = nil,
+  
+  _backBarStyleSheet = [[
+    background-color: blue;
+  ]],
+  _frontBarStyleSheet = [[
+    background-color: magenta;
+  ]],
+  
+  _scaleStyleSheet = [[
+    background-color: transparent;
+    border-right: 2px solid black;
+    border-left: 2px solid black;
+  ]],
+} 
+
+mumem_inherit("MuMeM.Prompt.Widget.Gauge0", "MuMeM.Prompt.Widget.Widget")
+
+MuMeM.Prompt.Widget.Gauge0.healthMap = {
+  ["healthy"] = 100,
+  ["fine"] = 99,
+  ["hurt"] = 70,
+  ["wounded"] = 45,
+  ["bad"] = 25,
+  ["awful"] = 10,
+  ["dying"] = 0, 
+}
+
+function MuMeM.Prompt.Widget.Gauge0:new(props)
+  local props = props or {}
+  
+  props._name = props._name or MuMeM.Prompt.Layout.Manager.nameGen("Gauge0")
+
+  props._valueMax = 100
+  props._valueNow = 100
+  
+  props._boundaries = props._boundaries or { 100, 70, 45, 25, 10, 0}
+  
+  props._backBarName = f"{props._name}:BackBar"
+  props._frontBarName = f"{props._name}:FrontBar"
+  
+  props._scaleLowLabelName  = f"{props._name}:ScaleLow"
+  props._scaleHighLabelName = f"{props._name}:ScaleHigh"
+
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  me._widthCons:setFlexible(50,400)
+
+  return me
+end
+
+function MuMeM.Prompt.Widget.Gauge0:create()
+  MuMeM.Prompt.Widget.Gauge0.parentClass.create(self)
+  
+--[[
+    ORDER IS IMPORTANT -&gt; need to find a way how to add middle bar!
+    
+  -- bars
+  createLabel(self._backBarName, 
+              self:absContentX(), self:absContentY(), self:contentWidth(), self:contentHeight(), true)
+  createLabel(self._frontBarName, 
+              self:absContentX(), self:absContentY(), self:contentWidth(), self:contentHeight(), true)
+              
+  self:applyBackBarStyleSheet()
+  self:applyFrontBarStyleSheet()
+  
+  -- scales
+  createLabel(self._scaleLowLabelName, self:absContentX(), self:absContentY(), 0, 0, true)
+  createLabel(self._scaleHighLabelName, self:absContentX(), self:absContentY(), 0, 0, true)
+
+  self:applyStyleSheetToLabel(self._scaleLowLabelName, self:scaleStyleSheet())
+  self:applyStyleSheetToLabel(self._scaleHighLabelName, self:scaleStyleSheet())
+  
+  self:repositionScale()
+--]]
+end
+
+function MuMeM.Prompt.Widget.Gauge0:reposition(x)
+  MuMeM.Prompt.Widget.Gauge0.parentClass.reposition(self, x)
+  
+--[[
+    ORDER IS IMPORTANT -&gt; need to find a way how to add middle bar!
+  
+  moveWindow(self._backBarName, self:absContentX(), self:absContentY())
+  resizeWindow(self._backBarName, self:contentWidth(), self:contentHeight())
+
+  moveWindow(self._frontBarName, self:absContentX(), self:absContentY())
+  resizeWindow(self._frontBarName, self:contentWidth(), self:contentHeight())
+
+  self:repositionScale()
+]]
+end
+
+function MuMeM.Prompt.Widget.Gauge0:setBackBarColor(color)
+  self._backBarStyleSheet = self:overrideStyleSheetData(self._backBarStyleSheet,
+                                                        {["background-color"]=color})
+end
+
+function MuMeM.Prompt.Widget.Gauge0:setFrontBarColor(color)
+  self._frontBarStyleSheet = self:overrideStyleSheetData(self._frontBarStyleSheet,
+                                                        {["background-color"]=color})
+end
+
+function MuMeM.Prompt.Widget.Gauge0:setScaleBorder(color, width, style)
+  color = color or "black"
+  width = width or "2px"
+  style = style or "solid"
+  
+  local overrideData = {
+    ["border-left"]  = f"{width} {style} {color};",
+    ["border-right"] = f"{width} {style} {color};",
+  }
+  
+  self._scaleStyleSheet = self:overrideStyleSheetData(self._scaleStyleSheet, overrideData)
+end
+
+function MuMeM.Prompt.Widget.Gauge0:backBarStyleSheet()
+  return self._backBarStyleSheet
+end
+
+function MuMeM.Prompt.Widget.Gauge0:frontBarStyleSheet()
+  return self._frontBarStyleSheet
+end
+
+function MuMeM.Prompt.Widget.Gauge0:scaleStyleSheet()
+  return self._scaleStyleSheet
+end
+
+function MuMeM.Prompt.Widget.Gauge0:applyBackBarStyleSheet(textStyleSheetOverrides)
+  self:applyStyleSheetToLabel(self._backBarName, self:backBarStyleSheet())
+end
+
+function MuMeM.Prompt.Widget.Gauge0:applyFrontBarStyleSheet(textStyleSheetOverrides)
+  self:applyStyleSheetToLabel(self._frontBarName, self:frontBarStyleSheet())
+end
+
+function MuMeM.Prompt.Widget.Gauge0:show()
+  if self._isHidden then
+    self._isHidden = false
+    showWindow(self._backBarName)
+    showWindow(self._frontBarName)
+    showWindow(self._scaleLowLabelName)
+    showWindow(self._scaleHighLabelName)
+  end
+end
+
+function MuMeM.Prompt.Widget.Gauge0:hide()
+  if not self._isHidden then
+    self._isHidden = true
+    hideWindow(self._scaleLowLabelName)
+    hideWindow(self._scaleHighLabelName)
+    hideWindow(self._frontBarName)
+    hideWindow(self._backBarName)
+  end
+end
+
+function MuMeM.Prompt.Widget.Gauge0:showScale()
+  if self._scaleIsHidden then
+    self._scaleIsHidden = false
+    showWindow(self._scaleLowLabelName)
+    showWindow(self._scaleHighLabelName)
+  end
+end
+
+function MuMeM.Prompt.Widget.Gauge0:hideScale()
+  if not self._scaleIsHidden then
+    self._scaleIsHidden = true
+    hideWindow(self._scaleLowLabelName)
+    hideWindow(self._scaleHighLabelName)
+  end
+end
+
+function MuMeM.Prompt.Widget.Gauge0:resizeBarAbsolute(barName, valueNow, valueMax)
+  local width = math.floor(valueNow * self:contentWidth() / valueMax)
+  local height = self:contentHeight()
+  
+  resizeWindow(barName, width, height)
+end
+
+function MuMeM.Prompt.Widget.Gauge0:resizeBarPercentage(barName, valuePerc)
+  local width = math.floor(valuePerc * self:contentWidth() / 100)
+  local height = self:contentHeight()
+  
+  resizeWindow(barName, width, height)
+end
+
+function MuMeM.Prompt.Widget.Gauge0:repositionScaleBar(scaleLabelName, bLow, bHigh)
+  -- ABSTRACT
+end
+
+function MuMeM.Prompt.Widget.Gauge0:repositionScale()
+  -- ABSTRACT
+end
+
+function MuMeM.Prompt.Widget.Gauge0:setValue(now, max)
+  -- ABSTRACT
+end
+
+function MuMeM.Prompt.Widget.Gauge0:teardown()
+  hideWindow(self._scaleLowLabelName)
+  deleteLabel(self._scaleLowLabelName)
+  hideWindow(self._scaleHighLabelName)
+  deleteLabel(self._scaleHighLabelName)
+
+  hideWindow(self._frontBarName)
+  deleteLabel(self._frontBarName)  
+  hideWindow(self._backBarName)
+  deleteLabel(self._backBarName)
+
+  MuMeM.Prompt.Widget.Gauge0.parentClass.teardown(self)
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Widget.Gauge2</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Widget.Gauge2 = MuMeM.Prompt.Widget.Gauge2 or {
+} 
+
+mumem_inherit("MuMeM.Prompt.Widget.Gauge2", "MuMeM.Prompt.Widget.Gauge0")
+
+MuMeM.Prompt.Widget.Gauge2.healthMap = {
+  ["healthy"] = 100,
+  ["fine"] = 99,
+  ["hurt"] = 70,
+  ["wounded"] = 45,
+  ["bad"] = 25,
+  ["awful"] = 10,
+  ["dying"] = 0, 
+}
+
+function MuMeM.Prompt.Widget.Gauge2:new(props)
+  local me = props or {}
+  
+  props._name = props._name or MuMeM.Prompt.Layout.Manager.nameGen("Gauge2")
+    
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end
+
+function MuMeM.Prompt.Widget.Gauge2:create()
+  MuMeM.Prompt.Widget.Gauge2.parentClass.create(self)
+  
+  -- bars
+  createLabel(self._backBarName, 
+              self:absContentX(), self:absContentY(), self:contentWidth(), self:contentHeight(), true)
+  createLabel(self._frontBarName, 
+              self:absContentX(), self:absContentY(), self:contentWidth(), self:contentHeight(), true)
+              
+  self:applyBackBarStyleSheet()
+  self:applyFrontBarStyleSheet()
+  
+  -- scales
+  createLabel(self._scaleLowLabelName, self:absContentX(), self:absContentY(), 0, 0, true)
+  createLabel(self._scaleHighLabelName, self:absContentX(), self:absContentY(), 0, 0, true)
+
+  self:applyStyleSheetToLabel(self._scaleLowLabelName, self:scaleStyleSheet())
+  self:applyStyleSheetToLabel(self._scaleHighLabelName, self:scaleStyleSheet())
+  
+  self:repositionScale()
+end
+
+function MuMeM.Prompt.Widget.Gauge2:reposition(x)
+  MuMeM.Prompt.Widget.Gauge2.parentClass.reposition(self, x)
+  
+  moveWindow(self._backBarName, self:absContentX(), self:absContentY())
+  resizeWindow(self._backBarName, self:contentWidth(), self:contentHeight())
+
+  moveWindow(self._frontBarName, self:absContentX(), self:absContentY())
+  resizeWindow(self._frontBarName, self:contentWidth(), self:contentHeight())
+
+  self:repositionScale()
+end
+
+function MuMeM.Prompt.Widget.Gauge2:show()
+  if self._isHidden then
+    self._isHidden = false
+    showWindow(self._backBarName)
+    showWindow(self._frontBarName)
+    showWindow(self._scaleLowLabelName)
+    showWindow(self._scaleHighLabelName)
+  end
+end
+
+function MuMeM.Prompt.Widget.Gauge2:hide()
+  if not self._isHidden then
+    self._isHidden = true
+    hideWindow(self._scaleLowLabelName)
+    hideWindow(self._scaleHighLabelName)
+    hideWindow(self._frontBarName)
+    hideWindow(self._backBarName)
+  end
+end
+
+function MuMeM.Prompt.Widget.Gauge2:repositionScaleBar(scaleLabelName, bLow, bHigh)
+  --local scaleX = math.floor(bLow * self:contentWidth() / 100)                     -- 1px border
+  local scaleX = math.floor(bLow * self:contentWidth() / 100) - 1                 -- 2px border
+  local scaleWidth = math.floor(bHigh * self:contentWidth() / 100) - scaleX + 1
+  local scaleHeight = math.floor(self:contentHeight() * 40 / 100)
+  local scaleY = self:contentHeight() - scaleHeight
+    
+  moveWindow(scaleLabelName, self:absContentX() + scaleX, self:absContentY() + scaleY)
+  resizeWindow(scaleLabelName, scaleWidth, scaleHeight)
+end
+
+function MuMeM.Prompt.Widget.Gauge2:repositionScale()
+  self:repositionScaleBar(self._scaleLowLabelName, self._boundaries[5], self._boundaries[4] )
+  self:repositionScaleBar(self._scaleHighLabelName, self._boundaries[3], self._boundaries[2] )
+end
+
+function MuMeM.Prompt.Widget.Gauge2:setValue(now, max)
+  max = max or 100
+  
+  if now == nil then
+    self:hide()
+    return
+  end
+  
+  if type(now) == "string" then
+    if MuMeM.Prompt.Widget.Gauge2.healthMap[now] then
+      now = MuMeM.Prompt.Widget.Gauge2.healthMap[now]
+    else
+      return
+    end
+  end
+
+  self:show()
+
+  if now == self._valueNow and max == self._valueMax then
+    return
+  end
+
+  self._valueNow = math.max(math.min(now,max),0)  
+  self._valueMax = max
+  
+  if self._valueMax &gt; 0 then
+    local frontWidth = self._valueNow * 100 / self._valueMax
+    
+    if frontWidth &gt;= 100 then
+      frontWidth = 100
+    elseif frontWidth &lt;= 0 then
+      frontWidth = 0
+    end
+
+    self:resizeBarPercentage(self._frontBarName, frontWidth)
+  else
+    self:resizeBarPercentage(self._frontBarName, 0)
+  end
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Widget.Gauge3</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Widget.Gauge3 = MuMeM.Prompt.Widget.Gauge3 or {
+  _middleBarName  = nil,
+  
+  _boundaryCalculation = MuMeM.Prompt.Widget.BOUNDARY_CALCULATION_PERCENTAGE,
+
+  _middleBarStyleSheet = [[
+    background-color: yellow;
+  ]],
+} 
+
+mumem_inherit("MuMeM.Prompt.Widget.Gauge3", "MuMeM.Prompt.Widget.Gauge0")
+
+
+function MuMeM.Prompt.Widget.Gauge3:new(props)
+  local props = props or {}
+  
+  props._name = props._name or MuMeM.Prompt.Layout.Manager.nameGen("Gauge3")
+
+  props._boundaries = props._boundaries or { 100, 70, 45, 25, 10, 0}
+
+  props._middleBarName = f"{props._name}:MiddleBar"
+  
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+   
+  return me
+end
+
+function MuMeM.Prompt.Widget.Gauge3:create()
+  MuMeM.Prompt.Widget.Gauge3.parentClass.create(self)
+  
+  -- bars
+  createLabel(self._backBarName, 
+              self:absContentX(), self:absContentY(), self:contentWidth(), self:contentHeight(), true)
+  createLabel(self._middleBarName, 
+              self:absContentX(), self:absContentY(), self:contentWidth(), self:contentHeight(), true)
+  createLabel(self._frontBarName, 
+              self:absContentX(), self:absContentY(), self:contentWidth(), self:contentHeight(), true)
+
+  self:applyBackBarStyleSheet()
+  self:applyMiddleBarStyleSheet()
+  self:applyFrontBarStyleSheet()
+
+  -- scales
+  createLabel(self._scaleLowLabelName, self:absContentX(), self:absContentY(), 0, 0, true)
+  createLabel(self._scaleHighLabelName, self:absContentX(), self:absContentY(), 0, 0, true)
+
+  self:applyStyleSheetToLabel(self._scaleLowLabelName, self:scaleStyleSheet())
+  self:applyStyleSheetToLabel(self._scaleHighLabelName, self:scaleStyleSheet())
+  
+  self:repositionScale()
+end
+
+function MuMeM.Prompt.Widget.Gauge3:reposition(x)
+  MuMeM.Prompt.Widget.Gauge3.parentClass.reposition(self, x)
+  
+  moveWindow(self._backBarName, self:absContentX(), self:absContentY())
+  resizeWindow(self._backBarName, self:contentWidth(), self:contentHeight())
+
+  moveWindow(self._middleBarName, self:absContentX(), self:absContentY())
+  resizeWindow(self._middleBarName, self:contentWidth(), self:contentHeight())
+
+  moveWindow(self._frontBarName, self:absContentX(), self:absContentY())
+  resizeWindow(self._frontBarName, self:contentWidth(), self:contentHeight())
+
+  self:repositionScale()
+
+  self:setValue(self._valueNow, self._valueMax, true)
+end
+
+function MuMeM.Prompt.Widget.Gauge3:setMiddleBarColor(color)
+  self._middleBarStyleSheet = self:overrideStyleSheetData(self._middleBarStyleSheet,
+                                                        {["background-color"]=color})
+end
+
+function MuMeM.Prompt.Widget.Gauge3:middleBarStyleSheet()
+  return self._middleBarStyleSheet
+end
+
+function MuMeM.Prompt.Widget.Gauge3:applyMiddleBarStyleSheet(textStyleSheetOverrides)
+  self:applyStyleSheetToLabel(self._middleBarName, self:middleBarStyleSheet())
+end
+
+function MuMeM.Prompt.Widget.Gauge3:show()
+  if self._isHidden then
+    self._isHidden = false
+    showWindow(self._backBarName)
+    showWindow(self._middleBarName)
+    showWindow(self._frontBarName)
+    showWindow(self._scaleLowLabelName)
+    showWindow(self._scaleHighLabelName)
+  end
+end
+
+function MuMeM.Prompt.Widget.Gauge3:hide()
+  if not self._isHidden then
+    self._isHidden = true
+    hideWindow(self._scaleLowLabelName)
+    hideWindow(self._scaleHighLabelName)
+    hideWindow(self._frontBarName)
+    hideWindow(self._middleBarName)
+    hideWindow(self._backBarName)
+  end
+end
+
+function MuMeM.Prompt.Widget.Gauge3:resizeBarAbsolute(barName, valueNow, valueMax)
+  local width = math.floor(valueNow * self:contentWidth() / valueMax)
+  local height = self:contentHeight()
+  
+  resizeWindow(barName, width, height)
+end
+
+function MuMeM.Prompt.Widget.Gauge3:resizeBarPercentage(barName, valuePerc)
+  local width = math.floor(valuePerc * self:contentWidth() / 100)
+  local height = self:contentHeight()
+  
+  resizeWindow(barName, width, height)
+end
+
+function MuMeM.Prompt.Widget.Gauge3:repositionPercentageScaleBar(scaleLabelName, bLow, bHigh)
+  --local scaleX = math.floor(bLow * self:contentWidth() / 100)                     -- 1px border
+  local scaleX = math.floor(bLow * self:contentWidth() / 100) - 1                 -- 2px border
+  local scaleWidth = math.floor(bHigh * self:contentWidth() / 100) - scaleX + 1
+  local scaleHeight = math.floor(self:contentHeight() * 40 / 100)
+  local scaleY = self:contentHeight() - scaleHeight
+    
+  moveWindow(scaleLabelName, self:absContentX() + scaleX, self:absContentY() + scaleY)
+  resizeWindow(scaleLabelName, scaleWidth, scaleHeight)
+end
+
+function MuMeM.Prompt.Widget.Gauge3:repositionAbsoluteScaleBar(scaleLabelName, bLow, bHigh)
+  --local scaleX = math.floor(bLow * self:contentWidth() / self._valueMax)          -- 1px border
+  local scaleX = math.floor(bLow * self:contentWidth() / self._valueMax) - 1       -- 2px border
+  local scaleWidth = math.floor(bHigh * self:contentWidth() / self._valueMax) - scaleX + 1
+  local scaleHeight = math.floor(self:contentHeight() * 40 / 100)
+  local scaleY = self:contentHeight() - scaleHeight
+    
+  moveWindow(scaleLabelName, self:absContentX() + scaleX, self:absContentY() + scaleY)
+  resizeWindow(scaleLabelName, scaleWidth, scaleHeight)
+end
+
+function MuMeM.Prompt.Widget.Gauge3:repositionScale()
+  if self._boundaryCalculation == MuMeM.Prompt.Widget.BOUNDARY_CALCULATION_PERCENTAGE then
+    self:repositionPercentageScaleBar(self._scaleLowLabelName, self._boundaries[5], self._boundaries[4] )
+    self:repositionPercentageScaleBar(self._scaleHighLabelName, self._boundaries[3], self._boundaries[2] )
+  elseif self._boundaryCalculation == MuMeM.Prompt.Widget.BOUNDARY_CALCULATION_ABSOLUTE then
+    self:repositionAbsoluteScaleBar(self._scaleLowLabelName, self._boundaries[5], self._boundaries[4] )
+    self:repositionAbsoluteScaleBar(self._scaleHighLabelName, self._boundaries[3], self._boundaries[2] )
+  end
+end
+
+function MuMeM.Prompt.Widget.Gauge3:updateScale()
+  --[[
+      TODO / NOTE: Hide scale when MAX is 0 (zero). Show when not. Buffer state!
+  --]]
+
+  if  self._valueMax == 0 then
+    self:hideScale()
+  else
+    self:repositionScale()
+    self:showScale()
+  end
+end
+
+function MuMeM.Prompt.Widget.Gauge3:setValue(now, max, force)
+  if now == nil or max == nil or now == false or max == false then
+    return
+  end
+
+  if (now == self._valueNow and max == self._valueMax) and not force then
+    return
+  end
+  
+  local valueMaxChanged = false
+  if self._valueMax ~= max then
+    valueMaxChanged = true
+  end
+
+  self._valueMax = math.max(max, 0)
+  self._valueNow = math.min(math.max(now, 0), self._valueMax)
+
+  self:resizeBarAbsolute(self._middleBarName, self._valueNow, self._valueMax)
+
+  if self._valueNow == self._valueMax then
+    self:resizeBarAbsolute(self._frontBarName, self._valueNow, self._valueMax)
+  elseif self._valueNow == 0 then
+    self:resizeBarAbsolute(self._frontBarName, self._valueNow, self._valueMax)
+  elseif self._boundaryCalculation == MuMeM.Prompt.Widget.BOUNDARY_CALCULATION_ABSOLUTE then
+    local i,upper = next(self._boundaries)
+    while i and upper &gt; self._valueNow do
+      i,upper = next(self._boundaries,i)
+    end
+    if i then 
+      self:resizeBarAbsolute(self._frontBarName, upper, self._valueMax)
+    else
+      self:resizeBarAbsolute(self._frontBarName, 0, self._valueMax)
+    end
+
+    if valueMaxChanged or self._valueMax == 0 then
+      self:updateScale()
+    end
+  elseif self._boundaryCalculation == MuMeM.Prompt.Widget.BOUNDARY_CALCULATION_PERCENTAGE then
+    local i,upper = next(self._boundaries)
+    while i and math.floor(self._valueMax * upper / 100) &gt; self._valueNow  do
+      i,upper = next(self._boundaries,i)
+    end
+    if i then 
+      self:resizeBarPercentage(self._frontBarName, upper)
+    else
+      self:resizeBarAbsolute(self._frontBarName, 0, self._valueMax)
+    end
+  end
+    
+  if self._valueMax == 0 then
+    self:hideScale()
+  else
+    self:showScale()
+  end
+end
+
+function MuMeM.Prompt.Widget.Gauge3:teardown()
+  hideWindow(self._middleBarName)
+  deleteLabel(self._middleBarName)  
+
+  MuMeM.Prompt.Widget.Gauge3.parentClass.teardown(self)
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Widget.Spacer</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Widget.Spacer = MuMeM.Prompt.Widget.Spacer or {
+  _textStyleSheet = [[
+    background-color: green;
+    color: white;
+    font-size: 10pt;
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+  ]],
+} 
+
+mumem_inherit("MuMeM.Prompt.Widget.Spacer", "MuMeM.Prompt.Widget.TextWidget")
+
+function MuMeM.Prompt.Widget.Spacer:new(props)
+  local props = props or {}
+  
+  props._name = props._name or MuMeM.Prompt.Layout.Manager.nameGen("Spacer")
+    
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  me._widthCons:setFlexible(5, 200)
+
+  return me
+end</script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Prompt.Layout</name>
+				<packageName></packageName>
+				<script>MuMeM.Prompt.Layout = MuMeM.Prompt.Layout or {}
+</script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Layout.Manager</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Layout.Manager = MuMeM.Prompt.Layout.Manager or {} 
+
+function MuMeM.Prompt.Layout.Manager.initialize()
+  MuMeM.Prompt.Layout.Manager._nextId = 1       -- table of Layout.Panel
+
+  MuMeM.Prompt.Layout.Manager._panels = {}      -- table of Layout.Panel
+  
+  MuMeM.Prompt.Layout.Manager._layoutDefintionTable = nil
+ 
+  registerAnonymousEventHandler("sysWindowResizeEvent", "MuMeM.Prompt.Layout.Manager.repositionAll" )
+end
+
+function MuMeM.Prompt.Layout.Manager.nameGen(windowType)
+  local index = MuMeM.Prompt.Layout.Manager._nextId
+  local t = windowType or "window"
+  
+  MuMeM.Prompt.Layout.Manager._nextId = MuMeM.Prompt.Layout.Manager._nextId + 1
+  
+  return "MuMeM.Prompt_" .. t .. "_" .. index
+end
+
+function MuMeM.Prompt.Layout.Manager.setLayout(layoutDefinition)
+  MuMeM.Prompt.Layout.Manager.teardown()
+
+  MuMeM.Prompt.Layout.Manager._layoutDefinitionTable = table.deepcopy(layoutDefinition)
+  if MuMeM.Prompt.Layout.Manager._layoutDefinitionTable then
+    MuMeM.Prompt.Layout.Manager.build()
+  end
+end
+
+function MuMeM.Prompt.Layout.Manager.build()
+  if not MuMeM.Prompt.Layout.Manager._layoutDefinitionTable then
+    return
+  end
+  
+  if MuMeM.Prompt.Layout.Manager._panels and not table.is_empty(MuMeM.Prompt.Layout.Manager._panels) then
+    MuMeM.Log.notice("MuMeM.Prompt.Layout.Manager.build() called where panels are active!", "MuMeM.Prompt")
+    return
+  end
+  
+  if MuMeM.Prompt.Layout.Manager._layoutDefinitionTable.borders then
+    if MuMeM.Prompt.Layout.Manager._layoutDefinitionTable.borders.top then
+      setBorderTop(MuMeM.Prompt.Layout.Manager._layoutDefinitionTable.borders.top)
+    end
+    if MuMeM.Prompt.Layout.Manager._layoutDefinitionTable.borders.bottom then
+      setBorderBottom(MuMeM.Prompt.Layout.Manager._layoutDefinitionTable.borders.bottom)
+    end
+  end
+  
+  for _,panelDefinition in pairs(MuMeM.Prompt.Layout.Manager._layoutDefinitionTable.panels) do
+    MuMeM.Prompt.Layout.Manager.buildPanel(panelDefinition)
+  end
+end
+
+function MuMeM.Prompt.Layout.Manager.buildPanel(panelDefinition)
+  local panelName = MuMeM.Prompt.Layout.Manager.nameGen("Panel")
+  local panel = MuMeM.Prompt.Layout.Panel:new({
+                    _name = panelName,
+                    _anchor = panelDefinition.anchor,
+                    _row = panelDefinition.row,
+                    _x = panelDefinition.x,
+                    _width = panelDefinition.width,
+                  })
+  
+  MuMeM.Prompt.Layout.Manager._panels[panelName] = panel
+  
+  for _,widgetDefinition in pairs(panelDefinition.widgets) do
+    MuMeM.Prompt.Layout.Manager.buildWidget(panel, widgetDefinition)
+  end
+end
+
+function MuMeM.Prompt.Layout.Manager.buildWidget(panel, widgetDefinition)
+  local widgetObj = _G
+  for str in string.gmatch(widgetDefinition.className, "([^\\.]+)") do
+    widgetObj = widgetObj[str]
+  end
+
+  local widget = widgetObj:new({
+    _panel = panel,
+    _marginLeft = widgetDefinition.marginLeft,
+    _marginRight = widgetDefinition.marginRight,
+    _widthHint = widgetDefinition.widthHint,
+  })
+  widget:create()
+  widget:update()
+  
+  panel:appendWidget(widget)
+end
+
+function MuMeM.Prompt.Layout.Manager.repositionAll(...)
+  for _,panel in pairs(MuMeM.Prompt.Layout.Manager._panels) do
+    MuMeM.Prompt.Layout.Manager.repositionPanel(panel)
+  end
+end
+
+function MuMeM.Prompt.Layout.Manager.repositionPanel(panel)
+  MuMeM.Log.debug("MuMeM.Prompt.Layout.Manager.reposition() called", "MuMeM.Prompt")
+  
+  --if not panel then _,panel = next(MuMeM.Prompt.Layout.Manager._panels) end    -- TESTING / DEV !!!!!
+  
+  local needUpdate = false
+  local panelWidth = panel:width()
+  local fixedWidth = 0
+  local flexMinWidth = 0
+  local flexMaxWidth = 0
+  local flexSumRatio = 0
+  local flexWidgets = {}
+    
+  -- get (fixed) sizes and flexible widgets
+  for pos,widget in pairs(panel._widgets) do
+    widgetWidthCons = widget:widthCons()
+    if widgetWidthCons:elasticity() == MuMeM.Prompt.Widget.ELASTICITY_FIXED then
+      fixedWidth = fixedWidth + widgetWidthCons:width() + widget:marginLeft() + widget:marginRight()
+    else
+      local flexMin,flexMax,flexRatio = widgetWidthCons:flexibleWidth()
+      flexMinWidth = flexMinWidth + flexMin + widget:marginLeft() + widget:marginRight()
+      flexMaxWidth = flexMaxWidth + flexMax + widget:marginLeft() + widget:marginRight()
+      flexSumRatio = flexSumRatio + flexRatio
+      table.insert(flexWidgets, widget)
+    end
+  end
+  
+  local availableWidth = panelWidth - fixedWidth
+
+  -- reposition the panel  
+  panel:reposition()
+
+--print("FLEX", panelWidth, availableWidth, flexMinWidth, flexMaxWidth, flexSumRatio, #flexWidgets)
+  -- enough room for all max 
+  if availableWidth &gt;= flexMaxWidth then
+--print("ALL MAX")
+    for _,widget in pairs(flexWidgets) do
+      local minWidth,maxWidth,ratio = widget:widthCons():flexibleWidth()
+      widget:widthCons():setRealWidth(maxWidth)
+    end
+    needUpdate = true
+  -- not even enough room for all min
+  elseif availableWidth &lt;= flexMinWidth then
+--print("ALL MIN")
+    for _,widget in pairs(flexWidgets) do
+      local minWidth,maxWidth,ratio = widget:widthCons():flexibleWidth()
+      widget:widthCons():setRealWidth(minWidth)
+    end
+    needUpdate = true
+  -- apply ratio
+  else
+--print("RATIO")
+    -- pass #1: at least achieve min size
+    local i,widget = next(flexWidgets, nil)
+    while widget do
+      local minWidth,maxWidth,ratio = widget:widthCons():flexibleWidth()
+      local width = math.floor(availableWidth * ratio / flexSumRatio)
+      if width &lt;= minWidth + widget:marginLeft() + widget:marginRight()then
+--print("RATIO-MIN", widget._name, minWidth, maxWidth, ratio, width, availableWidth)
+        widget:widthCons():setRealWidth(minWidth)
+        availableWidth = availableWidth - minWidth - widget:marginLeft() - widget:marginRight()
+        flexSumRatio = flexSumRatio - ratio
+        flexWidgets[i] = nil
+        
+        local oldI = i      
+        i,widget = next(flexWidgets, i)
+        flexWidgets[oldI] = nil
+      else
+        i,widget = next(flexWidgets, i)
+      end
+    end
+    -- pass #2: width bigger than max, "limit" to max
+    local i,widget = next(flexWidgets, nil)
+    while widget do
+      local minWidth,maxWidth,ratio = widget:widthCons():flexibleWidth()
+      local width = math.floor(availableWidth * ratio / flexSumRatio)
+      if width &gt;= maxWidth + widget:marginLeft() + widget:marginRight() then
+--print("RATIO-MAX", widget._name, minWidth, maxWidth, ratio, width, availableWidth)
+        widget:widthCons():setRealWidth(maxWidth)
+        availableWidth = availableWidth - maxWidth - widget:marginLeft() - widget:marginRight()
+        flexSumRatio = flexSumRatio - ratio
+        
+        local oldI = i      
+        i,widget = next(flexWidgets, i)
+        flexWidgets[oldI] = nil
+      else
+        i,widget = next(flexWidgets, i)
+      end
+    end
+    -- pass #3: scale to ratio
+    local i,widget = next(flexWidgets, nil)
+    while widget do
+      local minWidth,maxWidth,ratio = widget:widthCons():flexibleWidth()
+      local width = math.floor(availableWidth * ratio / flexSumRatio)
+--print("RATIO-SCALE", widget._name, minWidth, maxWidth, ratio, width, availableWidth)
+      widget:widthCons():setRealWidth(width - widget:marginLeft() - widget:marginRight())
+      availableWidth = availableWidth - width
+      flexSumRatio = flexSumRatio - ratio
+      
+      local oldI = i      
+      i,widget = next(flexWidgets, i)
+      flexWidgets[oldI] = nil
+    end
+    -- pass #4: add "left-overs" to ...
+    if availableWidth ~= 0 then
+      print("LEFTOVER", availableWidth)       -- TODO -&gt; leftovers
+    end
+    
+    needUpdate = true
+  end
+
+
+  if needUpdate then
+    -- iterate through all widget and setX() and call reposition()
+    local offsetLeft = 0
+    for pos,widget in pairs(panel._widgets) do
+      width = widget:width()
+      widget:reposition(offsetLeft)
+      offsetLeft = offsetLeft + width
+    end
+  end
+end
+
+
+function MuMeM.Prompt.Layout.Manager.teardown()
+  if MuMeM.Prompt.Layout.Manager._layoutDefinitionTable and
+    MuMeM.Prompt.Layout.Manager._layoutDefinitionTable.borders
+  then
+    if MuMeM.Prompt.Layout.Manager._layoutDefinitionTable.borders.top then
+      setBorderTop(0)
+    end
+    if MuMeM.Prompt.Layout.Manager._layoutDefinitionTable.borders.bottom then
+      setBorderBottom(0)
+    end
+  end
+
+  for _,panel in pairs(MuMeM.Prompt.Layout.Manager._panels) do
+    panel:teardown()
+  end
+
+  MuMeM.Prompt.Layout.Manager._panels = {}
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Layout.Panel</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Layout.Panel = MuMeM.Prompt.Layout.Panel or {
+  _name = "undefined",
+  _anchor = "topleft",
+  _row = 1,                         -- starting with 1
+  _x = 0,                           -- relative to anchor
+  _y = 0,                           -- relative to anchor
+  _width = 600,
+  _height = 20,
+  
+  _absX = 0,
+  _absY = 0,
+
+  _widgets = {},                  -- table of MuMeM.Prompt.Widget.Widget
+} 
+
+mumem_inherit("MuMeM.Prompt.Layout.Panel", "MuMeM.Prompt.Layout.Panel")
+
+function MuMeM.Prompt.Layout.Panel:new(props)
+  local me = props or {}
+
+  me._name = me._name or MuMeM.Prompt.Layout.Manager.nameGen("Panel")
+  
+  me._widgets = {}
+  
+  setmetatable(me, self)
+  self.__index = self
+    
+  me:setAbsX(me:x())
+  me:setAbsY(me:y())
+  
+  -- --- rootPane ---
+  --createLabel("main", me._name, me:absX(), me:absY(), me:width(), me:height(), true)  
+  --setBackgroundColor(me._name, Geyser.Color.parse("yellow"))
+  
+  return me
+end
+
+function MuMeM.Prompt.Layout.Panel:anchor()
+  return self._anchor
+end
+
+function MuMeM.Prompt.Layout.Panel:x()
+  return self._x
+end
+
+function MuMeM.Prompt.Layout.Panel:y()
+  return self._y
+end
+
+function MuMeM.Prompt.Layout.Panel:width()
+  local mwW,mwH = getMainWindowSize()
+
+  return math.min(self._width, mwW)
+end
+
+function MuMeM.Prompt.Layout.Panel:height()
+  local mwW,mwH = getMainWindowSize()
+
+  return math.min(self._height, mwH)
+end
+
+function MuMeM.Prompt.Layout.Panel:absX()
+  return self._absX
+end
+
+function MuMeM.Prompt.Layout.Panel:absY()
+  return self._absY
+end
+
+function MuMeM.Prompt.Layout.Panel:setAbsX(x)
+  local mwW,mwH = getMainWindowSize()
+
+  if self:anchor() == "topleft" or self:anchor() == "bottomleft" then
+    self._absX = x
+  elseif self:anchor() == "topright" or self:anchor() == "bottomright" then
+    self._absX = mwW - self:width() + x
+  end
+end
+
+function MuMeM.Prompt.Layout.Panel:setAbsY(y)
+  local mwW,mwH = getMainWindowSize()
+
+  if self:anchor() == "topleft" or self:anchor() == "topright" then
+    self._absY = y
+  elseif self:anchor() == "bottomleft" or self:anchor() == "bottomright" then
+    self._absY = mwH - self:height() + y
+  end
+end
+
+function MuMeM.Prompt.Layout.Panel:reposition()
+  self:setAbsX(self:x())
+  self:setAbsY(self:y())
+  
+  if windowType(self._name) then
+    moveWindow(self._name, self:absX(), self:absY())
+    resizeWindow(self._name, self:width(), self:height())
+  end
+end
+
+function MuMeM.Prompt.Layout.Panel:appendWidget(widget)
+  table.insert(self._widgets, widget)
+  
+  MuMeM.Prompt.Layout.Manager.repositionPanel(self)
+end
+
+function MuMeM.Prompt.Layout.Panel:offsetLeft(widget)
+  local offset = 0
+  
+  local i,c = next(self._widgets, nil)
+  while c and c ~= wiget do
+    offset = offset + c:width()
+    i,c = next(self._widgets, i)
+  end
+  
+  return offset
+end
+
+function MuMeM.Prompt.Layout.Panel:teardown()
+  for _,widget in pairs(self._widgets) do
+    widget:teardown()
+  end
+  
+  self.widgets = false
+
+  if windowType(self._name) then
+    hideWindow(self._name)
+    deleteLabel(self._name)
+  end
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Layout.STANDARD80</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Layout.STANDARD80 = MuMeM.Prompt.Layout.STANDARD80 or
+{
+  borders = {
+    bottom = 20,
+  },
+  panels = {
+    {
+      anchor = "bottomleft",
+      x = 0,
+      y = 0,
+      width = 999,
+      widgets = {
+        {
+          marginLeft = 0,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.PlayerHealthBar",
+        },
+        {
+          marginLeft = 10,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.PlayerManaBar",
+        },
+        {
+          marginLeft = 10,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.PlayerMoveBar",
+        },
+        {
+          marginLeft = 10,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.OpponentHealthBar",
+        },
+        {
+          marginLeft = 10,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.StatusPosition",
+        },
+        {
+          marginLeft = 2,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.StatusRiding",
+        },
+        {
+          marginLeft = 2,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.StatusLight",
+        },
+        {
+          marginLeft = 0,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.StatusTerrain",
+        },
+        {
+          marginLeft = 0,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.StatusWeather",
+        },
+        {
+          marginLeft = 0,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.StatusFog",
+        },
+        {
+          marginLeft = 0,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.StatusClimb",
+        },
+        {
+          marginLeft = 0,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.StatusSwim",
+        },
+        {
+          marginLeft = 0,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.StatusMood",
+        },
+        {
+          marginLeft = 0,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.StatusCarrying",
+        },
+        -- {
+          -- marginLeft = 10,
+          -- marginRight = 0,
+          -- widthHint = { "=" },
+          -- className = "MuMeM.Prompt.Widget.Spacer",
+        -- },
+      },
+    },
+  },
+}
+</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Layout.VITALS_TOP</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Layout.VITALS_TOP = MuMeM.Prompt.Layout.VITALS_TOP or
+{
+  borders = {
+    top = 20,
+  },
+  panels = {
+    {
+      anchor = "topleft",
+      x = 0,
+      y = 0,
+      width = 999,
+      widgets = {
+        {
+          marginLeft = 0,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.PlayerHealthBar",
+        },
+        {
+          marginLeft = 10,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.PlayerManaBar",
+        },
+        {
+          marginLeft = 10,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.PlayerMoveBar",
+        },
+      },
+    },
+  }
+}
+</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Layout.STANDARD_DUAL</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Layout.STANDARD_DUAL = MuMeM.Prompt.Layout.STANDARD_DUAL or
+{
+  borders = {
+    top = 20,
+    bottom = 20,
+  },
+  panels = {
+    {
+      anchor = "topleft",
+      x = 0,
+      y = 0,
+      width = 999,
+      widgets = {
+        {
+          marginLeft = 0,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.PlayerHealthBar",
+        },
+        {
+          marginLeft = 10,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.PlayerManaBar",
+        },
+        {
+          marginLeft = 10,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.PlayerMoveBar",
+        },
+      },
+    },
+    {
+      anchor = "bottomleft",
+      x = 0,
+      y = 0,
+      width = 999,
+      widgets = {
+        {
+          marginLeft = 0,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.OpponentHealthBar",
+        },
+        {
+          marginLeft = 5,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.BufferHealthBar",
+        },        {
+          marginLeft = 10,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.StatusPosition",
+        },
+        {
+          marginLeft = 5,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.StatusRiding",
+        },
+        {
+          marginLeft = 2,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.StatusLight",
+        },
+        {
+          marginLeft = 0,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.StatusTerrain",
+        },
+        {
+          marginLeft = 0,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.StatusWeather",
+        },
+        {
+          marginLeft = 0,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.StatusFog",
+        },
+        {
+          marginLeft = 0,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.StatusClimb",
+        },
+        {
+          marginLeft = 0,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.StatusSwim",
+        },
+        {
+          marginLeft = 0,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.StatusMood",
+        },
+        {
+          marginLeft = 0,
+          marginRight = 0,
+          widthHint = { "=" },
+          className = "MuMeM.Prompt.Widget.StatusCarrying",
+        },
+        -- {
+          -- marginLeft = 10,
+          -- marginRight = 0,
+          -- widthHint = { "=" },
+          -- className = "MuMeM.Prompt.Widget.Spacer",
+        -- },
+      },
+    },
+  }
+}
+</script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Prompt.Statuses</name>
+				<packageName></packageName>
+				<script>-- THIS IS NOT  A NAMESPACE
+-- just a folder/directory to group all the status widgets</script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Widget.StatusCarrying</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Widget.StatusCarrying = MuMeM.Prompt.Widget.StatusCarrying or {
+} 
+
+mumem_inherit("MuMeM.Prompt.Widget.StatusCarrying", "MuMeM.Prompt.Widget.TextWidget")
+
+function MuMeM.Prompt.Widget.StatusCarrying:new(props)
+  local props = props or {}
+  
+  props._name = props._name or MuMeM.Prompt.Layout.Manager.nameGen("StatusCarrying")
+  props._text = "Carrying"
+  
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  me._widthCons:setFlexible(50, 100, 100)
+  
+  return me
+end
+
+function MuMeM.Prompt.Widget.StatusCarrying:create()
+  MuMeM.Prompt.Widget.StatusCarrying.parentClass.create(self)
+
+  self:registerEventHandler("MuMeM.Player.Carrying", function() self:update() end)
+end
+
+function MuMeM.Prompt.Widget.StatusCarrying:update(carrying)
+  carrying = carrying or MuMeM.Player.carrying() or ""
+  
+  self:setText(carrying)
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Widget.StatusClimb</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Widget.StatusClimb = MuMeM.Prompt.Widget.StatusClimb or {
+} 
+
+mumem_inherit("MuMeM.Prompt.Widget.StatusClimb", "MuMeM.Prompt.Widget.TextWidget")
+
+function MuMeM.Prompt.Widget.StatusClimb:new(props)
+  local props = props or {}
+  
+  props._name = props._name or MuMeM.Prompt.Layout.Manager.nameGen("StatusClimb")
+  props._text = "?"
+  
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end
+
+function MuMeM.Prompt.Widget.StatusClimb:create()
+  MuMeM.Prompt.Widget.StatusClimb.parentClass.create(self)
+
+  self:registerEventHandler("MuMeM.Player.Climb", function() self:update() end)
+end
+
+function MuMeM.Prompt.Widget.StatusClimb:update(climb)
+  climb = climb or MuMeM.Player.climb() or ""
+  
+  self:setText(climb)
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Widget.StatusFog</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Widget.StatusFog = MuMeM.Prompt.Widget.StatusFog or {
+  FOG_ICON = {
+    [""]  = "fog-none-white.svg",
+    ["-"] = "fog-light-white-20.png",
+    ["="] = "fog-heavy-white-20.png",
+    
+    ["UNKNOWN"] = "fog-unknown-white.svg",
+  },
+} 
+
+mumem_inherit("MuMeM.Prompt.Widget.StatusFog", "MuMeM.Prompt.Widget.IconWidget")
+
+function MuMeM.Prompt.Widget.StatusFog:new(props)
+  local props = props or {}
+  
+  props._name = props._name or MuMeM.Prompt.Layout.Manager.nameGen("StatusFog")
+  props._iconDir = "fog"
+  props._iconOrigin = MuMeM.Prompt.Widget.ICON_ORIGIN_BORDER
+  props._icon = self.FOG_ICON["UNKNOWN"]
+  
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end
+
+function MuMeM.Prompt.Widget.StatusFog:create()
+  MuMeM.Prompt.Widget.StatusFog.parentClass.create(self)
+
+  self:registerEventHandler("MuMeM.Player.Fog", function() self:update() end)
+end
+
+function MuMeM.Prompt.Widget.StatusFog:update(fog)
+  fog = fog or MuMeM.Player.fog() or ""
+  local icon = self.FOG_ICON[fog] or self.FOG_ICON["UNKNOWN"]
+
+  self:setIcon(icon)
+  self:applyIconStyleSheet()
+end
+</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Widget.StatusLight</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Widget.StatusLight = MuMeM.Prompt.Widget.StatusLight or {
+  LIGHT_ICON = {
+    ["*"] = "light-sun-white-20.png",
+    ["!"] = "light-artificial-white-20.png",
+    [")"] = "light-moon-white-20.png",
+    ["o"] = "light-darkness-white-20.png",
+    
+    ["UNKNOWN"] = "light-unknown-white.svg",
+  },
+} 
+
+mumem_inherit("MuMeM.Prompt.Widget.StatusLight", "MuMeM.Prompt.Widget.IconWidget")
+
+function MuMeM.Prompt.Widget.StatusLight:new(props)
+  local props = props or {}
+  
+  props._name = props._name or MuMeM.Prompt.Layout.Manager.nameGen("StatusLight")
+  props._iconDir = "light"
+  props._iconOrigin = MuMeM.Prompt.Widget.ICON_ORIGIN_BORDER
+  props._icon = self.LIGHT_ICON["UNKNOWN"]
+  
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end
+
+function MuMeM.Prompt.Widget.StatusLight:create()
+  MuMeM.Prompt.Widget.StatusLight.parentClass.create(self)
+
+  self:registerEventHandler("MuMeM.Player.Light", function() self:update() end)
+end
+
+function MuMeM.Prompt.Widget.StatusLight:update(light)
+  light = light or MuMeM.Player.light()
+  local icon = self.LIGHT_ICON[light] or self.LIGHT_ICON["UNKNOWN"]
+
+  self:setIcon(icon)
+  self:applyIconStyleSheet()
+end
+</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Widget.StatusMood</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Widget.StatusMood = MuMeM.Prompt.Widget.StatusMood or {
+} 
+
+mumem_inherit("MuMeM.Prompt.Widget.StatusMood", "MuMeM.Prompt.Widget.TextWidget")
+
+function MuMeM.Prompt.Widget.StatusMood:new(props)
+  local props = props or {}
+  
+  props._name = props._name or MuMeM.Prompt.Layout.Manager.nameGen("StatusMood")
+  props._text = "?"
+  
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  me._widthCons:setFixed(20)
+  
+  return me
+end
+
+function MuMeM.Prompt.Widget.StatusMood:create()
+  MuMeM.Prompt.Widget.StatusMood.parentClass.create(self)
+
+  self:registerEventHandler("MuMeM.Player.Mood", function() self:update() end)
+end
+
+function MuMeM.Prompt.Widget.StatusMood:update(mood)
+  mood = mood or MuMeM.Player.mood()
+  local moodAbbr = "m?"
+  
+  if mood == "wimpy" then
+    moodAbbr = "mW"
+  elseif mood == "prudent" then
+    moodAbbr = "mP"
+  elseif mood == "normal" then
+    moodAbbr = "mN"
+  elseif mood == "brave" then
+    moodAbbr = "mB"
+  elseif mood == "aggressive" then
+    moodAbbr = "mA"
+  elseif mood == "berzerk" then
+    moodAbbr = "mZ"
+  end
+  
+  self:setText(moodAbbr)
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Widget.StatusPosition</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Widget.StatusPosition = MuMeM.Prompt.Widget.StatusPosition or {
+} 
+
+mumem_inherit("MuMeM.Prompt.Widget.StatusPosition", "MuMeM.Prompt.Widget.IconWidget")
+
+function MuMeM.Prompt.Widget.StatusPosition:new(props)
+  local props = props or {}
+  
+  props._name = props._name or MuMeM.Prompt.Layout.Manager.nameGen("StatusPosition")
+  props._iconDir = "position"
+  props._iconOrigin = MuMeM.Prompt.Widget.ICON_ORIGIN_BACKGROUND
+  props._icon = "position-unknown-18.png"
+  
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end
+
+function MuMeM.Prompt.Widget.StatusPosition:create()
+  MuMeM.Prompt.Widget.StatusPosition.parentClass.create(self)
+
+  self:registerEventHandler("MuMeM.Player.Position", function() self:update() end)
+end
+
+function MuMeM.Prompt.Widget.StatusPosition:update(position)
+  position = position or MuMeM.Player.position()
+  local styleSheetOverrides = nil
+
+  if position == "standing" then
+    self:setIcon("position-standing-18.png")
+  elseif position == "sitting" then
+    self:setIcon("position-sitting-18.png")
+  elseif position == "resting" then
+    self:setIcon("position-resting-18.png")
+  elseif position == "sleeping" then
+    self:setIcon("position-sleeping-18.png")
+  elseif position == "incapacitated" then
+    self:setIcon("position-incapacitated-18.png")
+    styleSheetOverrides = {["background-color"]="red"}
+  elseif position == "dying" then
+    self:setIcon("position-dying-18.png")
+    styleSheetOverrides = {["background-color"]="red"}
+  elseif position == "fighting" then
+    self:setIcon("position-fighting-18.png")
+  elseif position == "stunned" then
+    self:setIcon("position-stunned-18.png")
+    styleSheetOverrides = {["background-color"]="yellow"}
+  else
+    self:setIcon("position-unknown-18.png")
+  end
+  
+  self:applyIconStyleSheet(styleSheetOverrides)
+end
+</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Widget.StatusRiding</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Widget.StatusRiding = MuMeM.Prompt.Widget.StatusRiding or {
+} 
+
+mumem_inherit("MuMeM.Prompt.Widget.StatusRiding", "MuMeM.Prompt.Widget.IconWidget")
+
+function MuMeM.Prompt.Widget.StatusRiding:new(props)
+  local props = props or {}
+  
+  props._name = props._name or MuMeM.Prompt.Layout.Manager.nameGen("StatusRiding")
+  --props._iconDir = "XXX"
+  props._iconOrigin = MuMeM.Prompt.Widget.ICON_ORIGIN_BACKGROUND
+  props._icon = "affect-riding-18.png"
+  
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end
+
+function MuMeM.Prompt.Widget.StatusRiding:create()
+  MuMeM.Prompt.Widget.StatusRiding.parentClass.create(self)
+
+  self:registerEventHandler("MuMeM.Player.Ride", function() self:update() end)
+end
+
+function MuMeM.Prompt.Widget.StatusRiding:update(riding)
+  riding = riding or MuMeM.Player.ride()
+  local styleSheetOverrides = nil
+
+--[[
+  if riding == true then
+    self:setIcon("position-standing-18.png")
+    styleSheetOverrides = {["background-color"]="green"}
+  else
+    self:setIcon("affect-riding-18.png")
+  end
+--]]
+
+  if riding == true then
+    styleSheetOverrides = {["background-color"]="green"}
+  end
+    
+  self:applyIconStyleSheet(styleSheetOverrides)
+end
+</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Widget.StatusSwim</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Widget.StatusSwim = MuMeM.Prompt.Widget.StatusSwim or {
+} 
+
+mumem_inherit("MuMeM.Prompt.Widget.StatusSwim", "MuMeM.Prompt.Widget.TextWidget")
+
+function MuMeM.Prompt.Widget.StatusSwim:new(props)
+  local props = props or {}
+  
+  props._name = props._name or MuMeM.Prompt.Layout.Manager.nameGen("StatusSwim")
+  props._text = "?"
+  
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end
+
+function MuMeM.Prompt.Widget.StatusSwim:create()
+  MuMeM.Prompt.Widget.StatusSwim.parentClass.create(self)
+
+  self:registerEventHandler("MuMeM.Player.Swim", function() self:update() end)
+end
+
+function MuMeM.Prompt.Widget.StatusSwim:update(swim)
+  swim = swim or MuMeM.Player.swim()
+  
+  if swim == false or swim == nil then
+    self:setText("")
+  else
+    self:setText("W")
+  end
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Widget.StatusTerrain</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Widget.StatusTerrain = MuMeM.Prompt.Widget.Terrain or {
+  TERRAIN_ICON = {
+    ["building"]   = "terrain-building-white.svg",
+    ["city"]       = "terrain-city-white.svg",
+    ["field"]      = "terrain-field-white.svg",
+    ["forest"]     = "terrain-forest-white.svg",
+    ["hills"]      = "terrain-hills-white.svg",
+    ["mountains"]  = "terrain-mountains-white.svg",
+    ["shallows"]   = "terrain-shallows-white.svg",
+    ["water"]      = "terrain-water-white.svg",     
+    ["road"]       = "terrain-road-white.svg",   
+    ["path"]       = "terrain-path-white.svg", 
+    ["rapids"]     = "terrain-rapids-white.svg", 
+    ["underwater"] = "terrain-underwater-white.svg", 
+    ["brush"]      = "terrain-brush-white.svg",
+    ["tunnel"]     = "terrain-tunnel-white.svg", 
+    ["cavern"]     = "terrain-cavern-white.svg", 
+    ["UNKNOWN"]    = "terrain-unknown-white.svg",
+  }
+} 
+
+mumem_inherit("MuMeM.Prompt.Widget.StatusTerrain", "MuMeM.Prompt.Widget.IconWidget")
+
+function MuMeM.Prompt.Widget.StatusTerrain:new(props)
+  local props = props or {}
+  
+  props._name = props._name or MuMeM.Prompt.Layout.Manager.nameGen("StatusTerrain")
+  props._iconDir = "terrain"
+  props._iconOrigin = MuMeM.Prompt.Widget.ICON_ORIGIN_BORDER
+  props._icon = self.TERRAIN_ICON["UNKNOWN"]
+  
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end
+
+function MuMeM.Prompt.Widget.StatusTerrain:create()
+  MuMeM.Prompt.Widget.StatusTerrain.parentClass.create(self)
+
+  self:registerEventHandler("MuMeM.Room.Info.Environment", function() self:update() end)
+end
+
+function MuMeM.Prompt.Widget.StatusTerrain:update(terrain)
+  terrain = terrain or MuMeM.Room.environment()
+  local icon = self.TERRAIN_ICON[terrain] or self.TERRAIN_ICON["UNKNOWN"]
+
+  self:setIcon(icon)
+  self:applyIconStyleSheet()
+end
+</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Widget.StatusWeather</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Widget.StatusWeather = MuMeM.Prompt.Widget.StatusWeather or {
+  WEATHER_ICON = {
+    [""]  = "weather-normal-white-20.png",
+    ["~"] = "weather-clouds-white-20.png",
+    ["'"] = "weather-rain-white-20.png",
+    ['"'] = "weather-heavyrain-white-20.png",
+    ["*"] = "weather-snow-white-20.png",
+            
+    ["UNKNOWN"] = "weather-unknown-white.svg",
+  },
+} 
+
+mumem_inherit("MuMeM.Prompt.Widget.StatusWeather", "MuMeM.Prompt.Widget.IconWidget")
+
+function MuMeM.Prompt.Widget.StatusWeather:new(props)
+  local props = props or {}
+  
+  props._name = props._name or MuMeM.Prompt.Layout.Manager.nameGen("StatusWeather")
+  props._iconDir = "weather"
+  props._iconOrigin = MuMeM.Prompt.Widget.ICON_ORIGIN_BORDER
+  props._icon = self.WEATHER_ICON["UNKNOWN"]
+  
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  return me
+end
+
+function MuMeM.Prompt.Widget.StatusWeather:create()
+  MuMeM.Prompt.Widget.StatusWeather.parentClass.create(self)
+
+  self:registerEventHandler("MuMeM.Player.Weather", function() self:update() end)
+end
+
+function MuMeM.Prompt.Widget.StatusWeather:update(weather)
+  weather = weather or MuMeM.Player.weather()
+  local icon = self.WEATHER_ICON[weather] or self.WEATHER_ICON["UNKNOWN"]
+
+  self:setIcon(icon)
+  self:applyIconStyleSheet()
+end
+</script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Prompt.Gauges</name>
+				<packageName></packageName>
+				<script>-- THIS IS NOT  A NAMESPACE
+-- just a folder/directory to group all the gauge widgets</script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Widget.PlayerHealthBar</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Widget.PlayerHealthBar = MuMeM.Prompt.Widget.PlayerHealthBar or {
+} 
+
+mumem_inherit("MuMeM.Prompt.Widget.PlayerHealthBar", "MuMeM.Prompt.Widget.Gauge3")
+
+function MuMeM.Prompt.Widget.PlayerHealthBar:new(props)
+  local props = props or {}
+  
+  props._name = props._name or MuMeM.Prompt.Layout.Manager.nameGen("PlayerHealthBar")
+  
+  props._boundaries = { 100, 70, 45, 25, 10, 0}
+
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  me:setBackBarColor("#FF0000")
+  me:setMiddleBarColor("#C00000")
+  me:setFrontBarColor("#800000")
+
+  return me
+end
+
+function MuMeM.Prompt.Widget.PlayerHealthBar:create()
+  MuMeM.Prompt.Widget.PlayerHealthBar.parentClass.create(self)
+
+  self:registerEventHandler("MuMeM.Player.Hp", function() self:update() end)
+  self:registerEventHandler("MuMeM.Player.MaxHp", function() self:update() end)
+end
+
+function MuMeM.Prompt.Widget.PlayerHealthBar:update()
+  self:setValue(MuMeM.Player.hp(), MuMeM.Player.maxHp())
+end    
+   </script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Widget.PlayerManaBar</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Widget.PlayerManaBar = MuMeM.Prompt.Widget.PlayerManaBar or {
+} 
+
+mumem_inherit("MuMeM.Prompt.Widget.PlayerManaBar", "MuMeM.Prompt.Widget.Gauge3")
+
+function MuMeM.Prompt.Widget.PlayerManaBar:new(props)
+  local props = props or {}
+
+  props._name = props._name or MuMeM.Prompt.Layout.Manager.nameGen("PlayerManaBar")
+
+  props._boundaries = { 100, 75, 45, 25, 10, 0}
+  --props._scaleColor = "gray"  
+
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  me:setBackBarColor("#000080")
+  me:setMiddleBarColor("#0000C0")
+  me:setFrontBarColor("#0000FF")
+  me:setScaleBorder("gray")
+  
+  return me
+end
+
+function MuMeM.Prompt.Widget.PlayerManaBar:create()
+  MuMeM.Prompt.Widget.PlayerManaBar.parentClass.create(self)
+
+  self:registerEventHandler("MuMeM.Player.Sp", function() self:update() end)
+  self:registerEventHandler("MuMeM.Player.MaxSp", function() self:update() end)
+end
+
+function MuMeM.Prompt.Widget.PlayerManaBar:update()
+  self:setValue(MuMeM.Player.sp(), MuMeM.Player.maxSp())
+end </script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Widget.PlayerMoveBar</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Widget.PlayerMoveBar = MuMeM.Prompt.Widget.PlayerMoveBar or {
+} 
+
+mumem_inherit("MuMeM.Prompt.Widget.PlayerMoveBar", "MuMeM.Prompt.Widget.Gauge3")
+
+function MuMeM.Prompt.Widget.PlayerMoveBar:new(props)
+  local props = props or {}
+
+  props._name = props._name or MuMeM.Prompt.Layout.Manager.nameGen("PlayerManaBar")
+
+  props._boundaries = { 999, 50, 30, 15, 5, 0}
+  props._boundaryCalculation = MuMeM.Prompt.Widget.BOUNDARY_CALCULATION_ABSOLUTE
+
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+  
+  me:setBackBarColor("#00FF00")
+  me:setMiddleBarColor("#00C000")
+  me:setFrontBarColor("#008000")
+  
+  return me
+end
+
+function MuMeM.Prompt.Widget.PlayerMoveBar:create()
+  MuMeM.Prompt.Widget.PlayerMoveBar.parentClass.create(self)
+
+  self:registerEventHandler("MuMeM.Player.Mp", function() self:update() end)
+  self:registerEventHandler("MuMeM.Player.MaxMp", function() self:update() end)
+end
+
+function MuMeM.Prompt.Widget.PlayerMoveBar:update()
+  self:setValue(MuMeM.Player.mp(), MuMeM.Player.maxMp())
+end  </script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Widget.OpponentHealthBar</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Widget.OpponentHealthBar = MuMeM.Prompt.Widget.OpponentHealthBar or {
+} 
+
+mumem_inherit("MuMeM.Prompt.Widget.OpponentHealthBar", "MuMeM.Prompt.Widget.Gauge2")
+
+function MuMeM.Prompt.Widget.OpponentHealthBar:new(props)
+  local props = props or {}
+  
+  props._name = props._name or MuMeM.Prompt.Layout.Manager.nameGen("OpponentHealthBar")
+
+  --props._boundaries = { 100, 70, 45, 25, 10, 0}
+
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+
+--  me.back:setColor(204,119,34)     OLD
+--  me.front:setColor(255,170,51)    OLD
+
+--  me._back:setColor(160, 82, 45)    ORANGE
+--  me._front:setColor(255,68,51)
+  me:setBackBarColor("#A0522D")
+  me:setFrontBarColor("#FF4433")
+  
+  return me
+end
+
+
+function MuMeM.Prompt.Widget.OpponentHealthBar:create()
+  MuMeM.Prompt.Widget.OpponentHealthBar.parentClass.create(self)
+
+  self:registerEventHandler("MuMeM.Player.Opponent.Health", function() self:update() end)
+end
+
+function MuMeM.Prompt.Widget.OpponentHealthBar:update()
+  self:setValue(MuMeM.Player.Opponent.health())
+end  </script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Prompt.Widget.BufferHealthBar</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Widget.BufferHealthBar = MuMeM.Prompt.Widget.BufferHealthBar or {
+} 
+
+mumem_inherit("MuMeM.Prompt.Widget.BufferHealthBar", "MuMeM.Prompt.Widget.Gauge2")
+
+function MuMeM.Prompt.Widget.BufferHealthBar:new(props)
+  local props = props or {}
+  
+  props._name = props._name or MuMeM.Prompt.Layout.Manager.nameGen("BufferHealthBar")
+
+  --props._boundaries = { 100, 70, 45, 25, 10, 0}
+
+  local me = self.parentClass:new(props)
+
+  setmetatable(me, self)
+  self.__index = self
+
+--  me.back:setColor(204,119,34)     OLD
+--  me.front:setColor(255,170,51)    OLD
+
+--  me._back:setColor(160, 82, 45)    ORANGE
+--  me._front:setColor(255,68,51)
+  me:setBackBarColor("#A0522D")
+  me:setFrontBarColor("#FF4433")
+  
+  return me
+end
+
+
+function MuMeM.Prompt.Widget.BufferHealthBar:create()
+  MuMeM.Prompt.Widget.BufferHealthBar.parentClass.create(self)
+
+  self:registerEventHandler("MuMeM.Player.Buffer.Health", function() self:update() end)
+end
+
+function MuMeM.Prompt.Widget.BufferHealthBar:update()
+  self:setValue(MuMeM.Player.Buffer.health())
+end  </script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Prompt.Preferences</name>
+				<packageName></packageName>
+				<script>MuMeM.Prompt.Preferences = MuMeM.Prompt.Preferences or {}</script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Comm.Preferences.Dialog</name>
+					<packageName></packageName>
+					<script>MuMeM.Prompt.Preferences.Dialog = MuMeM.Prompt.Preferences.Dialog or {
+  MAX_LAYOUTS = 5,
+  
+  _isHidden = true,
+  
+  _dialogWidth = 400,
+  _dialogHeight = 260,
+  
+  _visuals = nil,
+  
+  _styleSheetPane = Geyser.StyleSheet:new([[
+    background-color: #D3D3D3;
+    border: 5px solid magenta;
+  ]]),
+}
+
+function MuMeM.Prompt.Preferences.Dialog.create()
+
+  MuMeM.Prompt.Preferences.Dialog._visuals = {}
+  
+  -- --- root pane ---
+  MuMeM.Prompt.Preferences.Dialog._visuals.rootPane = Geyser.Label:new({
+    _name = "MuMeM.Prompt.Preferences.Dialog._visuals.rootPane",
+    x = "50%-"..(MuMeM.Prompt.Preferences.Dialog._dialogWidth/2),
+    y = "50%-"..(MuMeM.Prompt.Preferences.Dialog._dialogHeight/2),
+    width = MuMeM.Prompt.Preferences.Dialog._dialogWidth,
+    height = MuMeM.Prompt.Preferences.Dialog._dialogHeight,
+    stylesheet = MuMeM.Prompt.Preferences.Dialog._styleSheetPane:getCSS(),
+  })
+
+  -- --- Layout presets ---
+  MuMeM.Prompt.Preferences.Dialog._visuals.layoutList = MuMeM.Widget.ItemList:new({
+    _name = "MuMeM.Prompt.Preferences.Dialog._visuals.layoutList",
+    _x = 10,_y = 10,
+    _width = "100%-20", _height = 200,
+    _numRows = MuMeM.Prompt.Preferences.Dialog.MAX_LAYOUTS, _rowHeight = 20,
+    _columnLayout = {
+      {title="Layout",x="0%",width="30%",columnKey="layoutId"},
+      {title="Description",x="30%",width="70%",columnKey="layoutDesc"},
+    },
+  },MuMeM.Prompt.Preferences.Dialog._visuals.rootPane)
+
+
+  -- --- Layout presets buttons ---
+  MuMeM.Prompt.Preferences.Dialog._visuals.buttonApply = MuMeM.Widget.Button:new({
+    _text = "apply",
+    _x = "100%-115",
+    _y = 220,
+    _width = 100,
+    _height = 30,
+    _clickCallback = function (event) MuMeM.Prompt.Preferences.Dialog.applyPromptLayout(event) end,
+  }, MuMeM.Prompt.Preferences.Dialog._visuals.rootPane)
+
+  -- --- Revert button ---  
+  MuMeM.Prompt.Preferences.Dialog._visuals.buttonRevert = MuMeM.Widget.Button:new({
+    _text = "revert",
+    _x = "50%-50",
+    _y = 220,
+    _width = 100,
+    _height = 30,
+    _clickCallback = function (event) MuMeM.Prompt.Preferences.Dialog.revertPromptLayout(event) end,
+  }, MuMeM.Prompt.Preferences.Dialog._visuals.rootPane)
+  
+  -- --- Close button ---  
+  MuMeM.Prompt.Preferences.Dialog._visuals.buttonClose = MuMeM.Widget.Button:new({
+    _text = "close",
+    _x = "15",
+    _y = 220,
+    _width = 100,
+    _height = 30,
+    _clickCallback = function (event) MuMeM.Prompt.Preferences.Dialog.hide() end,
+  }, MuMeM.Prompt.Preferences.Dialog._visuals.rootPane)
+
+end
+
+function MuMeM.Prompt.Preferences.Dialog.updateWindowList()
+  local dataTable = 
+    {
+      { layoutId = "STANDARD80",    layoutDesc = "Bottom, 80 chars",          _value = "STANDARD80",   },
+      { layoutId = "VITALS-TOP",    layoutDesc = "Player vitals on top",      _value = "VITALS_TOP"    },
+      { layoutId = "STANDARD-DUAL", layoutDesc = "Vitals top, status bottom", _value = "STANDARD_DUAL" },
+    }
+
+  MuMeM.Prompt.Preferences.Dialog._visuals.layoutList:setDataTable(dataTable)
+end
+
+function MuMeM.Prompt.Preferences.Dialog.applyPromptLayout(event)
+  local layoutId = MuMeM.Prompt.Preferences.Dialog._visuals.layoutList:selectedValue()
+  if layoutId then
+    MuMeM.Prompt.Layout.Manager.setLayout(MuMeM.Prompt.Layout[layoutId])
+  end
+end
+
+function MuMeM.Prompt.Preferences.Dialog.revertPromptLayout(event)
+  MuMeM.Prompt.Layout.Manager.setLayout(nil)
+end
+
+function MuMeM.Prompt.Preferences.Dialog.show()
+  if not MuMeM.Prompt.Preferences.Dialog._visuals then
+    MuMeM.Prompt.Preferences.Dialog.create()
+  end
+  
+  if MuMeM.Prompt.Preferences.Dialog._isHidden then
+    MuMeM.Prompt.Preferences.Dialog._isHidden = false
+    MuMeM.Prompt.Preferences.Dialog.updateWindowList()
+    MuMeM.Prompt.Preferences.Dialog._visuals.rootPane:show()
+  end
+end
+
+function MuMeM.Prompt.Preferences.Dialog.hide()
+  if not MuMeM.Prompt.Preferences.Dialog._isHidden then
+    MuMeM.Prompt.Preferences.Dialog._isHidden = true
+    MuMeM.Prompt.Preferences.Dialog._visuals.rootPane:hide()
+  end
+end</script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+		</ScriptGroup>
+	</ScriptPackage>
+</MudletPackage>
