@@ -1,3 +1,8 @@
+### 20230308
+
+  * Fixed window-resize at window showing
+  * Increased package display to 12 packages
+
 ### 20230307
 
   * Removed autodocking
