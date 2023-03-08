@@ -1,3 +1,7 @@
+### 20230308
+
+  * Quick (and dirty) fix for Package Manager window restore
+
 ### 20230302
 
   * Restores window layout per profile

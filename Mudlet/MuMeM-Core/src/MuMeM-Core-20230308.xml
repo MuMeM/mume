@@ -1,0 +1,1141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE MudletPackage>
+<MudletPackage version="1.001">
+	<ScriptPackage>
+		<ScriptGroup isActive="yes" isFolder="yes">
+			<name>MuMeM.Core</name>
+			<packageName></packageName>
+			<script>MuMeM = MuMeM or {}
+MuMeM.Core = MuMeM.Core or {}
+
+MuMeM.modules = MuMeM.modules or {}
+
+
+-- --- Module setup ----------------------------------------------
+
+MuMeM.Core.module_name = "MuMeM.Core"
+MuMeM.Core.module_dependencies = {}
+MuMeM.modules = MuMeM.modules or {}
+MuMeM.modules[MuMeM.Core.module_name] = MuMeM.modules[MuMeM.Core.module_name] or {module=MuMeM.Core}
+
+-- now using sysLoadEvent (remove after confirmed this works)
+--tempTimer( 0.01, function () raiseEvent( "MuMeM_RegisterModule" ) end )</script>
+			<eventHandlerList />
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Core.Library</name>
+				<packageName></packageName>
+				<script>function MuMeM.Core.initialize()
+  return
+end
+
+function MuMeM.Core.registerModule()
+  print("NOT IMPLEMENTED")
+  -- This method must ONLY be called after the module is FULLY LOADED!!! (use the LOAD EVENT)
+  --MuMeM.Core.Module.load()
+end</script>
+				<eventHandlerList />
+			</Script>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMem.Core.Module</name>
+				<packageName></packageName>
+				<script>MuMeM.Core.Module = MuMeM.Core.Module or {}</script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Core.Module.Library</name>
+					<packageName></packageName>
+					<script>function MuMeM.Core.Module.loadOne(mName)
+  local moduleObj = MuMeM.modules[mName].module
+  local shouldInitialize = true
+  
+  if moduleObj.module_dependencies then
+    for _,mDep in pairs(moduleObj.module_dependencies) do
+      if not MuMeM.modules[mDep] then
+        shouldInitialize = false
+        -- print(f"MuMeM module {mName} missing dependency {mDep}") 
+        break
+      elseif not MuMeM.modules[mDep].isInitialized then
+        MuMeM.Core.Module.loadOne(mDep, MuMeM.modules[mDep])
+        shouldInitialize = MuMeM.modules[mDep].isInitialized
+        break
+      end
+    end
+  end
+
+  if shouldInitialize then
+    moduleObj.initialize()
+    --print(f"MuMeM module {mName} initialized")
+    MuMeM.modules[mName].isInitialized = true
+  end
+end
+
+function MuMeM.Core.Module.loadAll()
+  for mName,_ in pairs(MuMeM.modules) do
+    if not MuMeM.modules[mName].isInitialized then
+      MuMeM.Core.Module.loadOne(mName)
+    end
+  end
+end
+
+function MuMeM.Core.Module.configureOne(mName)
+  local moduleObj = MuMeM.modules[mName].module
+  local shouldConfigure = true
+  
+  if moduleObj.module_dependencies then
+    for _,mDep in pairs(moduleObj.module_dependencies) do
+      if not MuMeM.modules[mDep] then
+        shouldConfigure = false
+        -- print(f"MuMeM module {mName} missing dependency {mDep}") 
+        break
+      elseif not MuMeM.modules[mDep].isConfigured then
+        MuMeM.Core.Module.configureOne(mDep, MuMeM.modules[mDep])
+        shouldConfigure = MuMeM.modules[mDep].isConfigured
+        break
+      end
+    end
+  end
+
+  if shouldConfigure then
+    if moduleObj.configure then
+      pcall(function () moduleObj.configure() end)
+    end
+    --print(f"MuMeM module {mName} configured")
+    MuMeM.modules[mName].isConfigured = true
+  end
+end
+
+function MuMeM.Core.Module.configureAll()
+  for mName,_ in pairs(MuMeM.modules) do
+    if not MuMeM.modules[mName].isConfigured then
+      MuMeM.Core.Module.configureOne(mName)
+    end
+  end
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Core.Module.LoadEvent</name>
+					<packageName></packageName>
+					<script>function MuMeM.Core.Module.LoadEvent()
+  MuMeM.Core.Module.loadAll()
+  MuMeM.Core.Module.configureAll()
+end</script>
+					<eventHandlerList>
+						<string>MuMeM_RegisterModule</string>
+						<string>sysLoadEvent</string>
+					</eventHandlerList>
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Core.IO</name>
+				<packageName></packageName>
+				<script>MuMeM.Core.IO = MuMeM.Core.IO or {}</script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Core.IO.Library</name>
+					<packageName></packageName>
+					<script>
+-- SEE https://wiki.mudlet.org/w/Manual:Lua_Functions#File_System_Functions
+--
+-- !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+function MuMeM.Core.IO.concatPath(...)
+  local path
+  
+  if arg.n == 0 then
+    path = nil
+  else
+    path = arg[1]
+    for i=2,arg.n do
+      if not path:ends("/") then
+        path = path .. "/"
+      end
+      path = path .. arg[i]
+    end
+  end
+  
+  return path
+end
+
+function MuMeM.Core.IO.fileExists(path)   -- DEPRECATED
+  return io.exists(path)
+end
+
+function MuMeM.Core.IO.nodeExists(path)
+  return io.exists(path)
+end
+
+function MuMeM.Core.IO.isDir(path)
+  if not io.exists(path) then
+    return false
+  end
+  
+  if path:ends("/") then
+    path = path:sub(1,-2)
+  end
+
+  local ok, err, code = lfs.attributes(path, "mode")
+  if ok then
+    if ok == "directory" then
+      return true
+    else
+      return false
+    end
+  end
+  
+  return ok, err, code
+end
+
+function MuMeM.Core.IO.removeNode(path)
+  if not io.exists(path) then
+    return false
+  end
+
+  local ok, err, code = os.remove(path)
+  
+  return ok, err, code
+end
+
+function MuMeM.Core.IO.copyFile(srcFile, dstFile)
+  local srcFileIO = io.open(srcFile)
+  if not srcFileIO then
+    return false
+  end
+  
+  local dstFileIO = io.open(dstFile, "w")
+  if not dstFileIO then
+    srcFileIO:close()
+    return false
+  end
+  
+  while true do
+    local block = srcFileIO:read(2^13)
+    if not block then break end
+    dstFileIO:write(block)
+  end
+  
+  srcFileIO:close()
+  dstFileIO:close()
+  
+  return true
+end
+
+function MuMeM.Core.IO.createDir(path)
+  local rtc = lfs.mkdir(path)
+  return rtc
+end
+
+function MuMeM.Core.IO.saveTable(path, table)
+  if not path or not table then
+    return false
+  end
+  
+  local fileIO = io.open(path, "w")
+  if not fileIO then
+    MuMeM.Log.warning("Could not open file for writing : "..path, "MuMeM.Core")
+    return false
+  end
+  
+  fileIO:write(yajl.to_string(table))
+  fileIO:close()
+  
+  return true
+end
+
+function MuMeM.Core.IO.loadTable(path)
+  if not path or not table then
+    return nil
+  end
+  
+  local fileIO = io.open(path, "r")
+  if not fileIO then
+    MuMeM.Log.warning("Could not open file for reading : "..path, "MuMeM.Core")
+    return nil
+  end
+  
+  local contents = fileIO:read(2^13)
+  
+  return yajl.to_value(contents)
+end
+</script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Core.Util</name>
+				<packageName></packageName>
+				<script>MuMeM.Core.Util = MuMeM.Core.Util or {}</script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Core.Util.Library</name>
+					<packageName></packageName>
+					<script>function MuMeM.Core.Util.copyProperty(property, default)
+  if property then
+    return MuMeM.Core.Util.copyData(property)
+  else
+    return MuMeM.Core.Util.copyData(default)
+  end
+end
+
+function MuMeM.Core.Util.copyData(data)
+  if type(data) == 'table' then
+    local copy = {}
+
+    for k,v in pairs(data) do
+      if k == "__index" then                                -- NOT COPY the __index (make this a func-param?)
+        copy[k] = v
+      elseif type(v) == "table" then
+        copy[k] = MuMeM.Core.Util.copyData(v)
+      else
+        copy[k] = v
+      end
+    end
+  
+    return copy
+  else
+    return data
+  end
+end
+
+function MuMeM.Core.Util.mergeTable(masterTable, slaveTable)
+  if masterTable and slaveTable then
+    for k,v in pairs(slaveTable) do
+      if k == "__index" then
+        masterTable[k] = v
+      elseif type(v) == "table" then
+        masterTable[k] = masterTable[k] or {}
+        MuMeM.Core.Util.mergeTable(masterTable[k], slaveTable[k])
+      else
+        masterTable[k] = v
+      end
+    end
+  end
+end
+
+function MuMeM.Core.Util.splitString (inputstr, sep)
+  if sep == nil then
+    sep = "%s"
+  end
+  
+  local t={}
+  for str in string.gmatch(inputstr, "([^"..sep.."]+)") do
+    table.insert(t, str)
+  end
+  
+  return t
+end</script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Core.Hash</name>
+				<packageName></packageName>
+				<script>MuMeM.Core.Hash = MuMeM.Core.Hash or {}</script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Core.Hash.md5</name>
+					<packageName></packageName>
+					<script>--[[---------------
+LuaBit v0.4
+-------------------
+a bitwise operation lib for lua.
+
+http://luaforge.net/projects/bit/
+
+How to use:
+-------------------
+ bit.bnot(n) -- bitwise not (~n)
+ bit.band(m, n) -- bitwise and (m &amp; n)
+ bit.bor(m, n) -- bitwise or (m | n)
+ bit.bxor(m, n) -- bitwise xor (m ^ n)
+ bit.brshift(n, bits) -- right shift (n &gt;&gt; bits)
+ bit.blshift(n, bits) -- left shift (n &lt;&lt; bits)
+ bit.blogic_rshift(n, bits) -- logic right shift(zero fill &gt;&gt;&gt;)
+
+Please note that bit.brshift and bit.blshift only support number within
+32 bits.
+
+2 utility functions are provided too:
+ bit.tobits(n) -- convert n into a bit table(which is a 1/0 sequence)
+               -- high bits first
+ bit.tonumb(bit_tbl) -- convert a bit table into a number 
+-------------------
+
+Under the MIT license.
+
+copyright(c) 2006~2007 hanzhao (abrash_han@hotmail.com)
+--]]---------------
+
+--do
+
+------------------------
+-- bit lib implementions
+
+local function check_int(n)
+ -- checking not float
+ if(n - math.floor(n) &gt; 0) then
+  error("trying to use bitwise operation on non-integer!")
+ end
+end
+
+local function tbl_to_number(tbl)
+ local n = #tbl
+
+ local rslt = 0
+ local power = 1
+ for i = 1, n do
+  rslt = rslt + tbl[i]*power
+  power = power*2
+ end
+
+ return rslt
+end
+
+local function expand(tbl_m, tbl_n)
+ local big = {}
+ local small = {}
+ if(#tbl_m &gt; #tbl_n) then
+  big = tbl_m
+  small = tbl_n
+ else
+  big = tbl_n
+  small = tbl_m
+ end
+ -- expand small
+ for i = #small + 1, #big do
+  small[i] = 0
+ end
+
+end
+
+local to_bits = function () end
+
+local function bit_not(n)
+ local tbl = to_bits(n)
+ local size = math.max(#tbl, 32)
+ for i = 1, size do
+  if(tbl[i] == 1) then
+   tbl[i] = 0
+  else
+   tbl[i] = 1
+  end
+ end
+ return tbl_to_number(tbl)
+end
+
+
+to_bits = function (n)
+ check_int(n)
+ if(n &lt; 0) then
+  -- negative
+  return to_bits(bit_not(math.abs(n)) + 1)
+ end
+ -- to bits table
+ local tbl = {}
+ local cnt = 1
+ while (n &gt; 0) do
+  local last = math.mod(n,2)
+  if(last == 1) then
+   tbl[cnt] = 1
+  else
+   tbl[cnt] = 0
+  end
+  n = (n-last)/2
+  cnt = cnt + 1
+ end
+
+ return tbl
+end
+
+
+local function bit_or(m, n)
+ local tbl_m = to_bits(m)
+ local tbl_n = to_bits(n)
+ expand(tbl_m, tbl_n)
+
+ local tbl = {}
+ local rslt = math.max(#tbl_m, #tbl_n)
+ for i = 1, rslt do
+  if(tbl_m[i]== 0 and tbl_n[i] == 0) then
+   tbl[i] = 0
+  else
+   tbl[i] = 1
+  end
+ end
+
+ return tbl_to_number(tbl)
+end
+
+local function bit_and(m, n)
+ local tbl_m = to_bits(m)
+ local tbl_n = to_bits(n)
+ expand(tbl_m, tbl_n) 
+
+ local tbl = {}
+ local rslt = math.max(#tbl_m, #tbl_n)
+ for i = 1, rslt do
+  if(tbl_m[i]== 0 or tbl_n[i] == 0) then
+   tbl[i] = 0
+  else
+   tbl[i] = 1
+  end
+ end
+
+ return tbl_to_number(tbl)
+end
+
+local function bit_xor(m, n)
+ local tbl_m = to_bits(m)
+ local tbl_n = to_bits(n)
+ expand(tbl_m, tbl_n) 
+
+ local tbl = {}
+ local rslt = math.max(#tbl_m, #tbl_n)
+ for i = 1, rslt do
+  if(tbl_m[i] ~= tbl_n[i]) then
+   tbl[i] = 1
+  else
+   tbl[i] = 0
+  end
+ end
+
+ --table.foreach(tbl, print)
+
+ return tbl_to_number(tbl)
+end
+
+local function bit_rshift(n, bits)
+ check_int(n)
+
+ local high_bit = 0
+ if(n &lt; 0) then
+  -- negative
+  n = bit_not(math.abs(n)) + 1
+  high_bit = 2147483648 -- 0x80000000
+ end
+
+ for i=1, bits do
+  n = n/2
+  n = bit_or(math.floor(n), high_bit)
+ end
+ return math.floor(n)
+end
+
+-- logic rightshift assures zero filling shift
+local function bit_logic_rshift(n, bits)
+ check_int(n)
+ if(n &lt; 0) then
+  -- negative
+  n = bit_not(math.abs(n)) + 1
+ end
+ for i=1, bits do
+  n = n/2
+ end
+ return math.floor(n)
+end
+
+local function bit_lshift(n, bits)
+ check_int(n)
+
+ if(n &lt; 0) then
+  -- negative
+  n = bit_not(math.abs(n)) + 1
+ end
+
+ for i=1, bits do
+  n = n*2
+ end
+ return bit_and(n, 4294967295) -- 0xFFFFFFFF
+end
+
+local function bit_xor2(m, n)
+ local rhs = bit_or(bit_not(m), bit_not(n))
+ local lhs = bit_or(m, n)
+ local rslt = bit_and(lhs, rhs)
+ return rslt
+end
+
+-- An MD5 mplementation in Lua, requires bitlib (hacked to use LuaBit from above, ugh)
+-- 10/02/2001 jcw@equi4.com
+
+local md5={ff=tonumber('ffffffff',16),consts={}}
+
+string.gsub([[ d76aa478 e8c7b756 242070db c1bdceee
+    f57c0faf 4787c62a a8304613 fd469501
+    698098d8 8b44f7af ffff5bb1 895cd7be
+    6b901122 fd987193 a679438e 49b40821
+    f61e2562 c040b340 265e5a51 e9b6c7aa
+    d62f105d 02441453 d8a1e681 e7d3fbc8
+    21e1cde6 c33707d6 f4d50d87 455a14ed
+    a9e3e905 fcefa3f8 676f02d9 8d2a4c8a
+    fffa3942 8771f681 6d9d6122 fde5380c
+    a4beea44 4bdecfa9 f6bb4b60 bebfbc70
+    289b7ec6 eaa127fa d4ef3085 04881d05
+    d9d4d039 e6db99e5 1fa27cf8 c4ac5665
+    f4292244 432aff97 ab9423a7 fc93a039
+    655b59c3 8f0ccc92 ffeff47d 85845dd1
+    6fa87e4f fe2ce6e0 a3014314 4e0811a1
+    f7537e82 bd3af235 2ad7d2bb eb86d391
+    67452301 efcdab89 98badcfe 10325476 ]],"(%w+)", function (s) table.insert(md5.consts, tonumber(s,16)) end)
+    --67452301 efcdab89 98badcfe 10325476 ]],"(%w+)", function (s) tinsert(md5.consts,tonumber(s,16)) end)
+
+function md5.transform(A,B,C,D,X)
+  local f=function (x,y,z) return bit_or(bit_and(x,y),bit_and(-x-1,z)) end
+  local g=function (x,y,z) return bit_or(bit_and(x,z),bit_and(y,-z-1)) end
+  local h=function (x,y,z) return bit_xor(x,bit_xor(y,z)) end
+  local i=function (x,y,z) return bit_xor(y,bit_or(x,-z-1)) end
+  local z=function (f,a,b,c,d,x,s,ac)
+        a=bit_and(a+f(b,c,d)+x+ac,md5.ff)
+        -- be *very* careful that left shift does not cause rounding!
+        return bit_or(bit_lshift(bit_and(a,bit_rshift(md5.ff,s)),s),bit_rshift(a,32-s))+b
+      end
+  local a,b,c,d=A,B,C,D
+  local t=md5.consts
+
+  a=z(f,a,b,c,d,X[ 0], 7,t[ 1])
+  d=z(f,d,a,b,c,X[ 1],12,t[ 2])
+  c=z(f,c,d,a,b,X[ 2],17,t[ 3])
+  b=z(f,b,c,d,a,X[ 3],22,t[ 4])
+  a=z(f,a,b,c,d,X[ 4], 7,t[ 5])
+  d=z(f,d,a,b,c,X[ 5],12,t[ 6])
+  c=z(f,c,d,a,b,X[ 6],17,t[ 7])
+  b=z(f,b,c,d,a,X[ 7],22,t[ 8])
+  a=z(f,a,b,c,d,X[ 8], 7,t[ 9])
+  d=z(f,d,a,b,c,X[ 9],12,t[10])
+  c=z(f,c,d,a,b,X[10],17,t[11])
+  b=z(f,b,c,d,a,X[11],22,t[12])
+  a=z(f,a,b,c,d,X[12], 7,t[13])
+  d=z(f,d,a,b,c,X[13],12,t[14])
+  c=z(f,c,d,a,b,X[14],17,t[15])
+  b=z(f,b,c,d,a,X[15],22,t[16])
+
+  a=z(g,a,b,c,d,X[ 1], 5,t[17])
+  d=z(g,d,a,b,c,X[ 6], 9,t[18])
+  c=z(g,c,d,a,b,X[11],14,t[19])
+  b=z(g,b,c,d,a,X[ 0],20,t[20])
+  a=z(g,a,b,c,d,X[ 5], 5,t[21])
+  d=z(g,d,a,b,c,X[10], 9,t[22])
+  c=z(g,c,d,a,b,X[15],14,t[23])
+  b=z(g,b,c,d,a,X[ 4],20,t[24])
+  a=z(g,a,b,c,d,X[ 9], 5,t[25])
+  d=z(g,d,a,b,c,X[14], 9,t[26])
+  c=z(g,c,d,a,b,X[ 3],14,t[27])
+  b=z(g,b,c,d,a,X[ 8],20,t[28])
+  a=z(g,a,b,c,d,X[13], 5,t[29])
+  d=z(g,d,a,b,c,X[ 2], 9,t[30])
+  c=z(g,c,d,a,b,X[ 7],14,t[31])
+  b=z(g,b,c,d,a,X[12],20,t[32])
+
+  a=z(h,a,b,c,d,X[ 5], 4,t[33])
+  d=z(h,d,a,b,c,X[ 8],11,t[34])
+  c=z(h,c,d,a,b,X[11],16,t[35])
+  b=z(h,b,c,d,a,X[14],23,t[36])
+  a=z(h,a,b,c,d,X[ 1], 4,t[37])
+  d=z(h,d,a,b,c,X[ 4],11,t[38])
+  c=z(h,c,d,a,b,X[ 7],16,t[39])
+  b=z(h,b,c,d,a,X[10],23,t[40])
+  a=z(h,a,b,c,d,X[13], 4,t[41])
+  d=z(h,d,a,b,c,X[ 0],11,t[42])
+  c=z(h,c,d,a,b,X[ 3],16,t[43])
+  b=z(h,b,c,d,a,X[ 6],23,t[44])
+  a=z(h,a,b,c,d,X[ 9], 4,t[45])
+  d=z(h,d,a,b,c,X[12],11,t[46])
+  c=z(h,c,d,a,b,X[15],16,t[47])
+  b=z(h,b,c,d,a,X[ 2],23,t[48])
+
+  a=z(i,a,b,c,d,X[ 0], 6,t[49])
+  d=z(i,d,a,b,c,X[ 7],10,t[50])
+  c=z(i,c,d,a,b,X[14],15,t[51])
+  b=z(i,b,c,d,a,X[ 5],21,t[52])
+  a=z(i,a,b,c,d,X[12], 6,t[53])
+  d=z(i,d,a,b,c,X[ 3],10,t[54])
+  c=z(i,c,d,a,b,X[10],15,t[55])
+  b=z(i,b,c,d,a,X[ 1],21,t[56])
+  a=z(i,a,b,c,d,X[ 8], 6,t[57])
+  d=z(i,d,a,b,c,X[15],10,t[58])
+  c=z(i,c,d,a,b,X[ 6],15,t[59])
+  b=z(i,b,c,d,a,X[13],21,t[60])
+  a=z(i,a,b,c,d,X[ 4], 6,t[61])
+  d=z(i,d,a,b,c,X[11],10,t[62])
+  c=z(i,c,d,a,b,X[ 2],15,t[63])
+  b=z(i,b,c,d,a,X[ 9],21,t[64])
+
+  return A+a,B+b,C+c,D+d
+end
+
+-- convert little-endian 32-bit int to a 4-char string
+local function leIstr(i)
+  local f=function (s) return string.char(bit_and(bit_rshift(i,s),255)) end
+  return f(0)..f(8)..f(16)..f(24)
+end
+
+  -- convert raw string to big-endian int
+  local function beInt(s)
+    local v=0
+    for i=1,string.len(s) do v=v*256+string.byte(s,i) end
+    return v
+  end
+  -- convert raw string to little-endian int
+  local function leInt(s)
+    local v=0
+    for i=string.len(s),1,-1 do v=v*256+string.byte(s,i) end
+    return v
+  end
+  -- cut up a string in little-endian ints of given size
+  local function leStrCuts(s,...)
+    local o,r=1,{}
+    for i=1,#arg do
+      table.insert(r,leInt(string.sub(s,o,o+arg[i]-1)))
+      o=o+arg[i]
+    end
+    return r
+  end
+
+function md5.Calc(s)
+  local msgLen=string.len(s)
+  local padLen=56- msgLen % 64
+  if msgLen % 64 &gt; 56 then padLen=padLen+64 end
+  if padLen==0 then padLen=64 end
+  s=s..string.char(128)..string.rep(string.char(0),padLen-1)
+  s=s..leIstr(8*msgLen)..leIstr(0)
+  assert(string.len(s) % 64 ==0)
+  local t=md5.consts
+  local a,b,c,d=t[65],t[66],t[67],t[68]
+  for i=1,string.len(s),64 do
+    local X=leStrCuts(string.sub(s,i,i+63),4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4)
+    assert(#X==16)
+    X[0]=table.remove(X,1) -- zero based!
+    a,b,c,d=md5.transform(a,b,c,d,X)
+  end
+  local swap=function (w) return beInt(leIstr(w)) end
+  return string.format("%08x%08x%08x%08x",swap(a),swap(b),swap(c),swap(d))
+end
+
+-- return md5.Calc("asdf"); -- 912ec803b2ce49e4a541068d495ab570
+
+MuMeM.Core.Hash.md5 = md5</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Core.Hash.sha1</name>
+					<packageName></packageName>
+					<script>-- $Revision: 1.5 $
+-- $Date: 2014-09-10 16:54:25 $
+ 
+-- This module was originally taken from http://cube3d.de/uploads/Main/sha1.txt.
+ 
+-------------------------------------------------------------------------------
+-- SHA-1 secure hash computation, and HMAC-SHA1 signature computation,
+-- in pure Lua (tested on Lua 5.1)
+-- License: MIT
+--
+-- Usage:
+-- local hashAsHex = sha1.hex(message) -- returns a hex string
+-- local hashAsData = sha1.bin(message) -- returns raw bytes
+--
+-- local hmacAsHex = sha1.hmacHex(key, message) -- hex string
+-- local hmacAsData = sha1.hmacBin(key, message) -- raw bytes
+--
+--
+-- Pass sha1.hex() a string, and it returns a hash as a 40-character hex string.
+-- For example, the call
+--
+-- local hash = sha1.hex("iNTERFACEWARE")
+--
+-- puts the 40-character string
+--
+-- "e76705ffb88a291a0d2f9710a5471936791b4819"
+--
+-- into the variable 'hash'
+--
+-- Pass sha1.hmacHex() a key and a message, and it returns the signature as a
+-- 40-byte hex string.
+--
+--
+-- The two "bin" versions do the same, but return the 20-byte string of raw
+-- data that the 40-byte hex strings represent.
+--
+-------------------------------------------------------------------------------
+--
+-- Description
+-- Due to the lack of bitwise operations in 5.1, this version uses numbers to
+-- represents the 32bit words that we combine with binary operations. The basic
+-- operations of byte based "xor", "or", "and" are all cached in a combination
+-- table (several 64k large tables are built on startup, which
+-- consumes some memory and time). The caching can be switched off through
+-- setting the local cfg_caching variable to false.
+-- For all binary operations, the 32 bit numbers are split into 8 bit values
+-- that are combined and then merged again.
+--
+-- Algorithm: http://www.itl.nist.gov/fipspubs/fip180-1.htm
+--
+-------------------------------------------------------------------------------
+ 
+local sha1 = {}
+ 
+-- set this to false if you don't want to build several 64k sized tables when
+-- loading this file (takes a while but grants a boost of factor 13)
+local cfg_caching = true --not iguana.isTest()
+ 
+-- local storing of global functions (minor speedup)
+local floor,modf = math.floor,math.modf
+local char,format,rep = string.char,string.format,string.rep
+ 
+-- merge 4 bytes to an 32 bit word
+local function bytes_to_w32 (a,b,c,d) return a*0x1000000+b*0x10000+c*0x100+d end
+-- split a 32 bit word into four 8 bit numbers
+local function w32_to_bytes (i)
+   return floor(i/0x1000000)%0x100,floor(i/0x10000)%0x100,floor(i/0x100)%0x100,i%0x100
+end
+ 
+-- shift the bits of a 32 bit word. Don't use negative values for "bits"
+local function w32_rot (bits,a)
+   local b2 = 2^(32-bits)
+   local a,b = modf(a/b2)
+   return a+b*b2*(2^(bits))
+end
+ 
+-- caching function for functions that accept 2 arguments, both of values between
+-- 0 and 255. The function to be cached is passed, all values are calculated
+-- during loading and a function is returned that returns the cached values (only)
+local function cache2arg (fn)
+   if not cfg_caching then return fn end
+   local lut = {}
+   for i=0,0xffff do
+      local a,b = floor(i/0x100),i%0x100
+      lut[i] = fn(a,b)
+   end
+   return function (a,b)
+      return lut[a*0x100+b]
+   end
+end
+ 
+-- splits an 8-bit number into 8 bits, returning all 8 bits as booleans
+local function byte_to_bits (b)
+   local b = function (n)
+      local b = floor(b/n)
+      return b%2==1
+   end
+   return b(1),b(2),b(4),b(8),b(16),b(32),b(64),b(128)
+end
+ 
+-- builds an 8bit number from 8 booleans
+local function bits_to_byte (a,b,c,d,e,f,g,h)
+   local function n(b,x) return b and x or 0 end
+   return n(a,1)+n(b,2)+n(c,4)+n(d,8)+n(e,16)+n(f,32)+n(g,64)+n(h,128)
+end
+ 
+-- debug function for visualizing bits in a string
+local function bits_to_string (a,b,c,d,e,f,g,h)
+   local function x(b) return b and "1" or "0" end
+   return ("%s%s%s%s %s%s%s%s"):format(x(a),x(b),x(c),x(d),x(e),x(f),x(g),x(h))
+end
+ 
+-- debug function for converting a 8-bit number as bit string
+local function byte_to_bit_string (b)
+   return bits_to_string(byte_to_bits(b))
+end
+ 
+-- debug function for converting a 32 bit number as bit string
+local function w32_to_bit_string(a)
+   if type(a) == "string" then return a end
+   local aa,ab,ac,ad = w32_to_bytes(a)
+   local s = byte_to_bit_string
+   return ("%s %s %s %s"):format(s(aa):reverse(),s(ab):reverse(),s(ac):reverse(),s(ad):reverse()):reverse()
+end
+ 
+-- bitwise "and" function for 2 8bit number
+local band = cache2arg (function(a,b)
+      local A,B,C,D,E,F,G,H = byte_to_bits(b)
+      local a,b,c,d,e,f,g,h = byte_to_bits(a)
+      return bits_to_byte(
+         A and a, B and b, C and c, D and d,
+         E and e, F and f, G and g, H and h)
+   end)
+ 
+-- bitwise "or" function for 2 8bit numbers
+local bor = cache2arg(function(a,b)
+      local A,B,C,D,E,F,G,H = byte_to_bits(b)
+      local a,b,c,d,e,f,g,h = byte_to_bits(a)
+      return bits_to_byte(
+         A or a, B or b, C or c, D or d,
+         E or e, F or f, G or g, H or h)
+   end)
+ 
+-- bitwise "xor" function for 2 8bit numbers
+local bxor = cache2arg(function(a,b)
+      local A,B,C,D,E,F,G,H = byte_to_bits(b)
+      local a,b,c,d,e,f,g,h = byte_to_bits(a)
+      return bits_to_byte(
+         A ~= a, B ~= b, C ~= c, D ~= d,
+         E ~= e, F ~= f, G ~= g, H ~= h)
+   end)
+ 
+-- bitwise complement for one 8bit number
+local function bnot (x)
+   return 255-(x % 256)
+end
+ 
+-- creates a function to combine to 32bit numbers using an 8bit combination function
+local function w32_comb(fn)
+   return function (a,b)
+      local aa,ab,ac,ad = w32_to_bytes(a)
+      local ba,bb,bc,bd = w32_to_bytes(b)
+      return bytes_to_w32(fn(aa,ba),fn(ab,bb),fn(ac,bc),fn(ad,bd))
+   end
+end
+ 
+-- create functions for and, xor and or, all for 2 32bit numbers
+local w32_and = w32_comb(band)
+local w32_xor = w32_comb(bxor)
+local w32_or = w32_comb(bor)
+ 
+-- xor function that may receive a variable number of arguments
+local function w32_xor_n (a,...)
+   local aa,ab,ac,ad = w32_to_bytes(a)
+   for i=1,select('#',...) do
+      local ba,bb,bc,bd = w32_to_bytes(select(i,...))
+      aa,ab,ac,ad = bxor(aa,ba),bxor(ab,bb),bxor(ac,bc),bxor(ad,bd)
+   end
+   return bytes_to_w32(aa,ab,ac,ad)
+end
+ 
+-- combining 3 32bit numbers through binary "or" operation
+local function w32_or3 (a,b,c)
+   local aa,ab,ac,ad = w32_to_bytes(a)
+   local ba,bb,bc,bd = w32_to_bytes(b)
+   local ca,cb,cc,cd = w32_to_bytes(c)
+   return bytes_to_w32(
+      bor(aa,bor(ba,ca)), bor(ab,bor(bb,cb)), bor(ac,bor(bc,cc)), bor(ad,bor(bd,cd))
+   )
+end
+ 
+-- binary complement for 32bit numbers
+local function w32_not (a)
+   return 4294967295-(a % 4294967296)
+end
+ 
+-- adding 2 32bit numbers, cutting off the remainder on 33th bit
+local function w32_add (a,b) return (a+b) % 4294967296 end
+ 
+-- adding n 32bit numbers, cutting off the remainder (again)
+local function w32_add_n (a,...)
+   for i=1,select('#',...) do
+      a = (a+select(i,...)) % 4294967296
+   end
+   return a
+end
+-- converting the number to a hexadecimal string
+local function w32_to_hexstring (w) return format("%08x",w) end
+ 
+-- calculating the SHA1 for some text
+function sha1.hex(msg)
+   local H0,H1,H2,H3,H4 = 0x67452301,0xEFCDAB89,0x98BADCFE,0x10325476,0xC3D2E1F0
+   local msg_len_in_bits = #msg * 8
+   
+   local first_append = char(0x80) -- append a '1' bit plus seven '0' bits
+   
+   local non_zero_message_bytes = #msg +1 +8 -- the +1 is the appended bit 1, the +8 are for the final appended length
+   local current_mod = non_zero_message_bytes % 64
+   local second_append = current_mod&gt;0 and rep(char(0), 64 - current_mod) or ""
+   
+   -- now to append the length as a 64-bit number.
+   local B1, R1 = modf(msg_len_in_bits / 0x01000000)
+   local B2, R2 = modf( 0x01000000 * R1 / 0x00010000)
+   local B3, R3 = modf( 0x00010000 * R2 / 0x00000100)
+   local B4 = 0x00000100 * R3
+   
+   local L64 = char( 0) .. char( 0) .. char( 0) .. char( 0) -- high 32 bits
+   .. char(B1) .. char(B2) .. char(B3) .. char(B4) -- low 32 bits
+   
+   msg = msg .. first_append .. second_append .. L64
+   
+   assert(#msg % 64 == 0)
+   
+   local chunks = #msg / 64
+   
+   local W = { }
+   local start, A, B, C, D, E, f, K, TEMP
+   local chunk = 0
+   
+   while chunk &lt; chunks do
+      --
+      -- break chunk up into W[0] through W[15]
+      --
+      start,chunk = chunk * 64 + 1,chunk + 1
+      
+      for t = 0, 15 do
+         W[t] = bytes_to_w32(msg:byte(start, start + 3))
+         start = start + 4
+      end
+      
+      --
+      -- build W[16] through W[79]
+      --
+      for t = 16, 79 do
+         -- For t = 16 to 79 let Wt = S1(Wt-3 XOR Wt-8 XOR Wt-14 XOR Wt-16).
+         W[t] = w32_rot(1, w32_xor_n(W[t-3], W[t-8], W[t-14], W[t-16]))
+      end
+      
+      A,B,C,D,E = H0,H1,H2,H3,H4
+      
+      for t = 0, 79 do
+         if t &lt;= 19 then
+            -- (B AND C) OR ((NOT B) AND D)
+            f = w32_or(w32_and(B, C), w32_and(w32_not(B), D))
+            K = 0x5A827999
+         elseif t &lt;= 39 then
+            -- B XOR C XOR D
+            f = w32_xor_n(B, C, D)
+            K = 0x6ED9EBA1
+         elseif t &lt;= 59 then
+            -- (B AND C) OR (B AND D) OR (C AND D
+            f = w32_or3(w32_and(B, C), w32_and(B, D), w32_and(C, D))
+            K = 0x8F1BBCDC
+         else
+            -- B XOR C XOR D
+            f = w32_xor_n(B, C, D)
+            K = 0xCA62C1D6
+         end
+         
+         -- TEMP = S5(A) + ft(B,C,D) + E + Wt + Kt;
+         A,B,C,D,E = w32_add_n(w32_rot(5, A), f, E, W[t], K),
+         A, w32_rot(30, B), C, D
+      end
+      -- Let H0 = H0 + A, H1 = H1 + B, H2 = H2 + C, H3 = H3 + D, H4 = H4 + E.
+      H0,H1,H2,H3,H4 = w32_add(H0, A),w32_add(H1, B),w32_add(H2, C),w32_add(H3, D),w32_add(H4, E)
+   end
+   local f = w32_to_hexstring
+   return f(H0) .. f(H1) .. f(H2) .. f(H3) .. f(H4)
+end
+ 
+local function hex_to_binary(hex)
+   return hex:gsub('..', function(hexval)
+         return string.char(tonumber(hexval, 16))
+      end)
+end
+ 
+function sha1.bin(msg)
+   return hex_to_binary(sha1.hex(msg))
+end
+ 
+local xor_with_0x5c = {}
+local xor_with_0x36 = {}
+-- building the lookuptables ahead of time (instead of littering the source code
+-- with precalculated values)
+for i=0,0xff do
+   xor_with_0x5c[char(i)] = char(bxor(i,0x5c))
+   xor_with_0x36[char(i)] = char(bxor(i,0x36))
+end
+ 
+local blocksize = 64 -- 512 bits
+ 
+function sha1.hmacHex(key, text)
+   assert(type(key) == 'string', "key passed to hmacHex should be a string")
+   assert(type(text) == 'string', "text passed to hmacHex should be a string")
+   
+   if #key &gt; blocksize then
+      key = sha1.bin(key)
+   end
+   
+   local key_xord_with_0x36 = key:gsub('.', xor_with_0x36) .. string.rep(string.char(0x36), blocksize - #key)
+   local key_xord_with_0x5c = key:gsub('.', xor_with_0x5c) .. string.rep(string.char(0x5c), blocksize - #key)
+   
+   return sha1.hex(key_xord_with_0x5c .. sha1.bin(key_xord_with_0x36 .. text))
+end
+ 
+function sha1.hmacBin(key, text)
+   return hex_to_binary(sha1.hmacHex(key, text))
+end
+ 
+MuMeM.Core.Hash.sha1 = sha1</script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Core.Profile</name>
+				<packageName></packageName>
+				<script>MuMeM.Core.Profile = MuMeM.Core.Profile or {}
+</script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Core.Profile.Library</name>
+					<packageName></packageName>
+					<script>function MuMeM.Core.Profile.getMudletDir()
+  local mudletHomeDir = getMudletHomeDir()
+  local mudletDir = string.sub(mudletHomeDir,1,string.find(mudletHomeDir,'/profiles/'))
+  
+  if not mudletDir or string.len(mudletDir) &lt; 5 then -- do at least "SOME" sanity checks
+    return nil
+  end
+  
+  return mudletDir
+
+end
+
+function MuMeM.Core.Profile.backupWindowLayout()
+  local mudletDir = MuMeM.Core.Profile.getMudletDir()
+  local mudletHomeDir = getMudletHomeDir()
+  local mumemConfigDir = MuMeM.Core.IO.concatPath(mudletHomeDir, "mumem-config")
+  if not mudletDir then
+    return
+  end
+  
+  MuMeM.Core.IO.createDir(mumemConfigDir)
+  
+  MuMeM.Core.IO.copyFile(MuMeM.Core.IO.concatPath(mudletDir,"windowLayout.dat"),
+                         MuMeM.Core.IO.concatPath(mumemConfigDir,"windowLayout.dat")
+                         )
+end
+
+function MuMeM.Core.Profile.restoreWindowLayout()
+  local mudletDir = MuMeM.Core.Profile.getMudletDir()
+  local mudletHomeDir = getMudletHomeDir()
+  local mumemConfigDir = MuMeM.Core.IO.concatPath(mudletHomeDir, "mumem-config")
+  if not mudletDir then
+    return
+  end
+  
+  if MuMeM.Core.IO.nodeExists(MuMeM.Core.IO.concatPath(mumemConfigDir, "windowLayout.dat")) then
+    MuMeM.Core.IO.copyFile(MuMeM.Core.IO.concatPath(mumemConfigDir,"windowLayout.dat"),
+                           MuMeM.Core.IO.concatPath(mudletDir,"windowLayout.dat")
+                           )
+  end
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Core.Profile.SysLoadEvent</name>
+					<packageName></packageName>
+					<script>function MuMeM.Core.Profile.SysLoadEvent()
+  MuMeM.Core.Profile.restoreWindowLayout()
+  loadWindowLayout()
+
+  tempTimer( 0.01, function () loadWindowLayout() end )
+end
+</script>
+					<eventHandlerList>
+						<string>sysLoadEvent</string>
+					</eventHandlerList>
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Core.Profile.SysExitEvent</name>
+					<packageName></packageName>
+					<script>function MuMeM.Core.Profile.SysExitEvent()
+
+  -- hack for he package manager window
+  if windowType("MuMeM.PkgMgr.GUI.visuals.mainWindow") then
+    hideWindow("MuMeM.PkgMgr.GUI.visuals.mainWindow")
+  end
+  
+  saveWindowLayout()
+  MuMeM.Core.Profile.backupWindowLayout()
+end
+</script>
+					<eventHandlerList>
+						<string>sysExitEvent</string>
+					</eventHandlerList>
+				</Script>
+			</ScriptGroup>
+		</ScriptGroup>
+	</ScriptPackage>
+</MudletPackage>
