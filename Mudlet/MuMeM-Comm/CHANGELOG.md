@@ -1,3 +1,9 @@
+### 20230308
+
+  * Added missing channels ask and whisper
+  * Recoginition of own group tells
+  * Removed m-aliases (mtell, msay, ...)
+
 ### 20230307
 
   * Adding own chat messages from gmcp
