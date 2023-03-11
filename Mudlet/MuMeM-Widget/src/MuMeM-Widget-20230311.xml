@@ -78,7 +78,8 @@ end
 			<Script isActive="yes" isFolder="no">
 				<name>MuMeM.Widget.Widget</name>
 				<packageName></packageName>
-				<script>MuMeM.Widget.Widget = {
+				<script>MuMeM.Widget.Widget = MuMeM.Widget.Widget or
+{
   _name = "undefined",
   _parentWindow = nil,
     
@@ -126,7 +127,8 @@ end</script>
 			<Script isActive="yes" isFolder="no">
 				<name>MuMeM.Widget.ItemList</name>
 				<packageName></packageName>
-				<script>MuMeM.Widget.ItemList = {
+				<script>MuMeM.Widget.ItemList = MuMeM.Widget.ItemList or
+{
   _name = "undefined",
   _parentWindow = nil,
   
@@ -366,7 +368,8 @@ end</script>
 			<Script isActive="yes" isFolder="no">
 				<name>MuMeM.Widget.Label</name>
 				<packageName></packageName>
-				<script>MuMeM.Widget.Label = {
+				<script>MuMeM.Widget.Label = MuMeM.Widget.Label or
+{
   _text = "",
 
   _x = 0,
@@ -425,7 +428,8 @@ end</script>
 			<Script isActive="yes" isFolder="no">
 				<name>MuMeM.Widget.TextInput</name>
 				<packageName></packageName>
-				<script>MuMeM.Widget.TextInput = {
+				<script>MuMeM.Widget.TextInput = MuMeM.Widget.TextInput or
+{
   _text = "",
 
   _x = 0,
@@ -483,22 +487,14 @@ end
 			<Script isActive="yes" isFolder="no">
 				<name>MuMeM.Widget.Button</name>
 				<packageName></packageName>
-				<script>MuMeM.Widget.Button = {
+				<script>MuMeM.Widget.Button = MuMeM.Widget.Button or 
+{
   _x = 0,
   _y = 0,
   _width = 50,
   _height = 20,
   
   _clickCallback = false,
-
-  _buttonStyleSheet = Geyser.StyleSheet:new([[
-    background-color: darkGray;
-    color: white;
-    font-size: 10pt;
-    border: 2px solid black;
-    border-radius: 5px;
-    qproperty-alignment: 'AlignHCenter | AlignVCenter';
-  ]]),
 }
 
 mumem_inherit("MuMeM.Widget.Button", "MuMeM.Widget.Widget")
@@ -515,7 +511,6 @@ function MuMeM.Widget.Button:new(props, parentWindow)
     name = me._name,
     x = me._x, y = me._y,
     width = me._width, height = me._height,
-    stylesheet = me._buttonStyleSheet:getCSS(),
   },me._parentWindow)
   
   if me._clickCallback then
@@ -543,7 +538,7 @@ end
   
   _clickCallback = false,
 
-  _buttonStyleSheet = Geyser.StyleSheet:new([[
+  _textButtonStyleSheet = Geyser.StyleSheet:new([[
     background-color: darkGray;
     color: white;
     font-size: 10pt;
@@ -563,8 +558,9 @@ function MuMeM.Widget.TextButton:new(props, parentWindow)
   setmetatable(me, self)
   self.__index = self
 
+  me._visuals.button:setStyleSheet(me._textButtonStyleSheet:getCSS())
   me._visuals.button:rawEcho(me._text)
-  
+
   return me
 end
 </script>
@@ -573,12 +569,32 @@ end
 			<Script isActive="yes" isFolder="no">
 				<name>MuMeM.Widget.ImageButton</name>
 				<packageName></packageName>
-				<script>MuMeM.Widget.ImageButton = MuMeM.Widget.ImageButton or {
+				<script>MuMeM.Widget.ImageButton = MuMeM.Widget.ImageButton or 
+{
   IMAGE_LAYER_BORDER = 1,
   IMAGE_LAYER_BACKGROUND = 2,
   
   _image = "undefined",
   _image_layer = 1,
+  
+  _imageButtonStyleSheet = false,
+  _imageButtonBorderLayerStyleSheet = [[
+    border-image: url(%s) 0 0 0 0 stretch stretch;
+  ]],
+  _imageButtonBackgroundLayerStyleSheet = [[
+    background-image: url(%s);
+    background-repeat: no;
+    background-position: center;
+  ]],
+  
+--  _imageButtonBorderLayerStyleSheet = Geyser.StyleSheet:new([[
+--    background-color: darkGray;
+--    color: white;
+--    font-size: 10pt;
+--    border: 2px solid black;
+--    border-radius: 5px;
+--    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+--  ]]),
 }
 
 mumem_inherit("MuMeM.Widget.ImageButton", "MuMeM.Widget.Button")
@@ -590,18 +606,39 @@ function MuMeM.Widget.ImageButton:new(props, parentWindow)
   
   setmetatable(me, self)
   self.__index = self
-
-  -- SET ICON VIA STYLESHEET
-   
+  
+  local styleSheet = nil
+  if me:imageLayer() == MuMeM.Widget.ImageButton.IMAGE_LAYER_BORDER then
+    styleSheet = string.format(me._imageButtonBorderLayerStyleSheet, me:image())
+  elseif me:imageLayer() == MuMeM.Widget.ImageButton.IMAGE_LAYER_BACKGROUND then
+    styleSheet = string.format(me._imageButtonBackgroundLayerStyleSheet, me:image())
+  end
+  
+  print(styleSheet)
+  
+  if me._imageButtonStyleSheet then
+    me._imageButtonStyleSheet = Geyser.StyleSheet:new(me._imageButtonStyleSheet:getCSS(), styleSheet)
+  else
+    me._imageButtonStyleSheet = Geyser.StyleSheet:new(styleSheet)
+  end
+  
   return me
 end
-</script>
+
+function MuMeM.Widget.ImageButton:image()
+  return self._image
+end
+
+function MuMeM.Widget.ImageButton:imageLayer()
+  return self._imageLayer
+end</script>
 				<eventHandlerList />
 			</Script>
 			<Script isActive="yes" isFolder="no">
 				<name>MuMeM.Widget.CheckButton</name>
 				<packageName></packageName>
-				<script>MuMeM.Widget.CheckButton = {
+				<script>MuMeM.Widget.CheckButton = MuMeM.Widget.CheckButton or
+{
   _text = "Check Button",
   
   _x = 0,
@@ -716,7 +753,8 @@ end
 			<Script isActive="yes" isFolder="no">
 				<name>MuMeM.Widget.RadioButton</name>
 				<packageName></packageName>
-				<script>MuMeM.Widget.RadioButton = {
+				<script>MuMeM.Widget.RadioButton = MuMeM.Widget.RadioButton or
+{
   _radioGroup = false,
   _value = "none",
 
@@ -768,7 +806,8 @@ end
 			<Script isActive="yes" isFolder="no">
 				<name>MuMeM.Widget.RadioGroup</name>
 				<packageName></packageName>
-				<script>MuMeM.Widget.RadioGroup = {
+				<script>MuMeM.Widget.RadioGroup = MuMeM.Widget.RadioGroup or
+{
   _text = "Radio Group",
   
   _x = 0,
