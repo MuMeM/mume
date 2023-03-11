@@ -1,0 +1,1521 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE MudletPackage>
+<MudletPackage version="1.001">
+	<ScriptPackage>
+		<ScriptGroup isActive="yes" isFolder="yes">
+			<name>MuMeM.Visio</name>
+			<packageName></packageName>
+			<script>
+mumem_inherit = mumem_inherit or function (className, baseName)
+  local classObj = _G
+  for str in string.gmatch(className, "([^\\.]+)") do
+    classObj = classObj[str]
+  end
+  
+  local baseObj = _G
+  for str in string.gmatch(baseName, "([^\\.]+)") do
+    baseObj = baseObj[str]
+  end
+
+  setmetatable(classObj, baseObj)
+  classObj.__index = classObj
+  
+  if className == baseName then
+    classObj.parentClass = "BASE"
+  else
+    classObj.parentClass = baseObj
+  end
+  classObj.className = className
+end
+
+mumem_isa = mumem_isa or function (classObj, className)
+  if classObj == nil or classObj.parentClass == nil then
+    return false
+  elseif classObj == "BASE" then
+    return false
+  elseif classObj.className == className then
+    return true
+  end
+  return mumem_isa(classObj.parentClass, className)
+end
+
+-- --- Module setup ----------------------------------------------
+
+MuMeM = MuMeM or {}
+MuMeM.Visio = MuMeM.Visio or {}
+MuMeM.Visio.Alias = MuMeM.Visio.Alias or {}
+MuMeM.Visio.EventHandler = MuMeM.Visio.EventHandler or {}
+MuMeM.Visio.Visual = MuMeM.Visio.Visual or {}
+
+MuMeM.Visio.IMAGE_PACK_URL = [[https://github.com/MuMeM/mume/raw/main/Mudlet/MuMeM-Visio/image-pack.zip]]
+
+MuMeM.Visio.Alias.visere = MuMeM.Visio.Alias.visere or
+                            tempAlias("^visere$", function () MuMeM.Visio.activate() end)
+                            
+-- --- Module registration -----------------------------------------
+
+MuMeM.Visio.module_name = "MuMeM.Visio"
+MuMeM.Visio.module_dependencies = {"MuMeM.Core","MuMeM.Log","MuMeM.GMCP","MuMeM.Room","MuMeM.Player","MuMeM.Compass"}
+MuMeM.modules = MuMeM.modules or {}
+MuMeM.modules[MuMeM.Visio.module_name] = MuMeM.modules[MuMeM.Visio.module_name] or {module=MuMeM.Visio}</script>
+			<eventHandlerList />
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Visio.Library</name>
+				<packageName></packageName>
+				<script>-- ########################################################################################################
+-- # INITIALIZATION AND HELPERS
+-- ########################################################################################################
+
+function MuMeM.Visio.initialize()
+  MuMeM.Visio.dataDir = getMudletHomeDir().."/MuMeM-Visio"
+  MuMeM.Visio.resourceDir = MuMeM.Visio.dataDir.."/Resources"
+  MuMeM.Visio.roomImageDir = MuMeM.Visio.dataDir.."/RoomImages"
+  MuMeM.Visio.mobileImageDir = MuMeM.Visio.dataDir.."/MobileImages"
+
+  MuMeM.Visio.isRooming = false
+  MuMeM.Visio.isDownloading = false
+  MuMeM.Visio.isUnzipping = false
+  
+  MuMeM.Visio.MAX_MOBILES = 12      -- will be two rows, so must be even
+  
+  MuMeM.Visio.createDataDir()
+  
+  MuMeM.Visio.setupGUI(false)             -- this also calls the GUI setup for the sub-modules
+  
+  MuMeM.Visio.Mobiles.initialize()        -- initializes the "code" of the sub-modules
+  MuMeM.Visio.Background.initialize()
+  
+  MuMeM.Visio.log("MuMeM.Visio initialized")
+end
+
+function MuMeM.Visio.getDataDir(...)
+  return MuMeM.Core.IO.concatPath(MuMeM.Visio.dataDir, unpack(arg))
+end
+
+function MuMeM.Visio.getResourceDir(...)
+  if MuMeM.Core.IO.nodeExists(getMudletHomeDir().."/MuMeM.Visio") then
+    return MuMeM.Core.IO.concatPath(getMudletHomeDir().."/MuMeM.Visio/Resources", unpack(arg))
+  end
+  
+  return MuMeM.Core.IO.concatPath(MuMeM.Visio.resourceDir, unpack(arg))
+end
+
+function MuMeM.Visio.getRoomImageDir(...)
+  return MuMeM.Core.IO.concatPath(MuMeM.Visio.roomImageDir, unpack(arg))
+end
+
+function MuMeM.Visio.getMobileImageDir(...)
+  return MuMeM.Core.IO.concatPath(MuMeM.Visio.mobileImageDir, unpack(arg))
+end
+
+function MuMeM.Visio.createDataDir()
+  MuMeM.Core.IO.createDir(MuMeM.Visio.getDataDir())
+end
+
+-- ########################################################################################################
+-- # UNZIP
+-- ########################################################################################################
+
+function MuMeM.Visio.unzipImagePackDone(event, ...)
+  MuMeM.Visio.log("[UNZIP] Image pack sucessfully unzipped.")
+
+  MuMeM.Core.IO.removeNode(MuMeM.Visio.getDataDir("/image-pack.zip")) 
+  
+  MuMeM.Visio.isUnzipping = false
+end
+  
+function MuMeM.Visio.unzipImagePackError(event, zipFile, destination)
+  MuMeM.Visio.log("[UNZIP] Error while unzipping file!") 
+  MuMeM.Visio.log("[UNZIP] zip-file: "..zipFile) 
+  MuMeM.Visio.log("[UNZIP] destination: "..destination) 
+
+  MuMeM.Core.IO.removeNode(MuMeM.Visio.getDataDir("/image-pack.zip")) 
+
+  MuMeM.Visio.isUnzipping = false
+end
+
+function MuMeM.Visio.unzipImagePack(event, zipFile, destination)
+  if not MuMeM.Core.IO.fileExists(MuMeM.Visio.getDataDir("/image-pack.zip")) then
+    MuMeM.Visio.log("[UNZIP] Image pack does not exist.")
+    return
+  end
+  
+  if MuMeM.Visio.isUnzipping then
+    MuMeM.Visio.log("[UNZIP] An unzip operation is already in progress")
+    return
+  end
+  
+  MuMeM.Visio.isUnzipping = true
+  registerAnonymousEventHandler("sysUnzipDone", "MuMeM.Visio.unzipImagePackDone")
+  registerAnonymousEventHandler("sysUnzipError", "MuMeM.Visio.unzipImagePackError")
+  unzipAsync(MuMeM.Visio.getDataDir("/image-pack.zip"), MuMeM.Visio.getDataDir("/"))
+
+  MuMeM.Visio.log("[UNZIP] Unzip of image pack started in the background.")
+end
+
+-- ########################################################################################################
+-- # DOWNLOAD
+-- ########################################################################################################
+
+function MuMeM.Visio.downloadImagePackDone(event, fileName)
+  if fileName ~= MuMeM.Visio.getDataDir("/image-pack.zip") then        -- not my download
+    MuMeM.Visio.log("[DOWNLOAD] sysDownloadDone event received, but not my download, keep waiting...")
+    return
+  end
+
+  MuMeM.Visio.log("[DOWNLOAD] Image pack successfully downloaded")  
+  
+  MuMeM.Visio.isDownloading = false
+  
+  MuMeM.Visio.unzipImagePack()
+end
+
+function MuMeM.Visio.downloadImagePackError(event, message)
+  if not string.find(message, MuMeM.Visio.IMAGE_PACK_URL,nil,true) then  -- not my download
+    MuMeM.Visio.log("[DOWNLOAD] sysDownloadError received, but not my download, keep waiting...")  
+    return
+  end
+  
+  MuMeM.Visio.log("[DOWNLOAD] Error while downlaoding file!") 
+  MuMeM.Visio.log("[DOWNLOAD] "..message)   
+
+  MuMeM.Visio.isDownloading = false
+end
+
+function MuMeM.Visio.downloadImagePack()
+  if MuMeM.Visio.isDownloading or MuMeM.Visio.isUnzipping then
+    MuMeM.Visio.log("[DOWNLOAD] File download already in progress, aborting")
+    return
+  end
+
+  MuMeM.Visio.isDownloading = true
+  registerAnonymousEventHandler("sysDownloadDone", "MuMeM.Visio.downloadImagePackDone")
+  registerAnonymousEventHandler("sysDownloadError", "MuMeM.Visio.downloadImagePackError")
+  downloadFile(MuMeM.Visio.getDataDir("/image-pack.zip"), MuMeM.Visio.IMAGE_PACK_URL)
+
+  MuMeM.Visio.log("[DOWNLOAD] File download started in the background, please wait")    
+end
+
+-- ########################################################################################################
+-- # CALLBACKS
+-- ########################################################################################################
+
+function MuMeM.Visio.enableRooming()
+  MuMeM.Visio.isRooming = true
+  
+  MuMeM.Visio.RoomDesc.enable()
+  MuMeM.Visio.RoomImage.enable()
+  MuMeM.Visio.Mobiles.enable()
+  MuMeM.Visio.Background.enable()
+  MuMeM.Visio.Compass.enable()
+end
+
+function MuMeM.Visio.disableRooming()
+  MuMeM.Visio.isRooming = false
+  
+  MuMeM.Visio.Mobiles.disable()
+  MuMeM.Visio.RoomImage.disable()
+  MuMeM.Visio.RoomDesc.disable()
+  MuMeM.Visio.Background.disable()
+  MuMeM.Visio.Compass.disable()
+end
+
+function MuMeM.Visio.toggleRooming()
+  if MuMeM.Visio.isRooming then
+    MuMeM.Visio.disableRooming()
+  else
+    MuMeM.Visio.enableRooming()
+  end
+end
+
+function MuMeM.Visio.getRoomHash()
+  return MuMeM.Room.hash() or "unknown"
+end
+
+-- ########################################################################################################
+-- # SIMPLE LOGGING
+-- ########################################################################################################
+
+function MuMeM.Visio.log(msg)
+  if MuMeM.Visio.Visual.loggingConsole then
+    MuMeM.Visio.Visual.loggingConsole:echo("["..getTime(true,"hh:mm:ss").."] "..msg.."\n")
+  end
+end
+
+-- ########################################################################################################
+-- # ACTION "visere"
+-- ########################################################################################################
+
+function MuMeM.Visio.activate()
+  if not MuMeM.Visio.Visual.mainWindow then
+    MuMeM.Visio.initialize()
+    MuMeM.Visio.disableRooming()
+  end
+  
+  MuMeM.Visio.Visual.mainWindow:show()
+end</script>
+				<eventHandlerList />
+			</Script>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Visio.GUI</name>
+				<packageName></packageName>
+				<script>MuMeM.Visio.GUI = MuMeM.Visio.GUI or {}
+</script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Visio.GUI</name>
+					<packageName></packageName>
+					<script>function MuMeM.Visio.setupGUI(force)
+  if MuMeM.Visio.Visual.mainWindow and not force then
+    return
+  end
+  
+  -- --- Main Window ---
+  MuMeM.Visio.Visual.mainWindow = Geyser.UserWindow:new({
+    name = "MuMeM.Visio.Visual.mainWindow",
+    titleText = "MuMeM - Visio",
+    x = 25, y = 25,
+    width = 1400, height = 700,
+    color = "black",
+    restoreLayout = true,
+    docked = false, autoDock = true, dockPosition = "f",
+  })
+  
+  MuMeM.Visio.Menu.GUI.setup(force, 0, 0, "100%", 40)  
+  MuMeM.Visio.RoomDesc.GUI.setup(force, 5, 45, "100%-"..(400-5), 250-5)
+  MuMeM.Visio.RoomImage.GUI.setup(force, -600, 40, 600, 400)
+  MuMeM.Visio.Mobiles.GUI.setup(force, 10, 280, "100%-640", 160)
+  MuMeM.Visio.Compass.GUI.setup(force, -600-250-10, 400+40-250-10, 250, 250)
+  MuMeM.Visio.ActionBar.GUI.setup(force, 0, 450)
+  
+  MuMeM.Visio.Extras.GUI.setup(force)
+  MuMeM.Visio.Extras.GUI.hide()
+  
+  -- --- Divider (TODO: THIS MUST BE IN ITS OWN MODULE/CLASS ---
+  MuMeM.Visio.GUI.divider = Geyser.Label:new({
+    name = "MuMeM.Visio.GUI.divider",
+    x = 0, y = 440,
+    width = "100%", height = 10,
+
+  },MuMeM.Visio.Visual.mainWindow)
+  local styleSheet = [[
+          background-image: url("]]..MuMeM.Visio.getResourceDir("borders","divider-slash-gray.png")..[[");
+        ]]
+        --local styleSheet = [[
+        --  border-image: url(]]..fileName..[[) 0 0 0 0 repeat stretch;
+        --]]
+  MuMeM.Visio.GUI.divider:setStyleSheet(styleSheet)
+
+  -- --- logging (bottom) ---
+  MuMeM.Visio.Visual.loggingPane = Geyser.Container:new({
+    name = "MuMeM.Visio.Visual.loggingPane",
+    x = 0, y = 510,
+    width = "100%", height = "100%-490", --"100%-400-40-50",
+    },MuMeM.Visio.Visual.mainWindow)
+    
+  MuMeM.Visio.loggingLabel = Geyser.Label:new({
+    name = "MuMeM.Visio.loggingLabel",
+    x = "0", y = "0",
+    width = "100%", height = "20",
+    color = "red", fgColor = "white", fontSize = 12,
+    message="&lt;b&gt;&amp;nbsp;Logging&lt;b&gt;"
+    },MuMeM.Visio.Visual.loggingPane)
+    
+  MuMeM.Visio.Visual.loggingConsole = Geyser.MiniConsole:new({
+    name="MuMeM.Visio.Visual.loggingConsole",
+    x="0", y="20",
+    width="100%", height="100%-20",
+    autoWrap = true,
+    color = "black",
+    scrollBar = true,
+    fontSize = 8,
+  },MuMeM.Visio.Visual.loggingPane)
+  MuMeM.Visio.Visual.loggingConsole:setBufferSize(1000,100)
+    
+  MuMeM.Visio.log("MuMeM.Visio.setupGUI() done")
+end</script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Visio.EventHandler</name>
+				<packageName></packageName>
+				<script></script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Visio.EventHandler.RoomInfo</name>
+					<packageName></packageName>
+					<script>function MuMeM.Visio.EventHandler.RoomInfo()
+  --MuMeM.Visio.redraw()
+end</script>
+					<eventHandlerList>
+						<string>gmcp.Room.Info</string>
+					</eventHandlerList>
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Visio.RoomDesc</name>
+				<packageName></packageName>
+				<script>MuMeM.Visio.RoomDesc = MuMeM.Visio.RoomDesc or {}
+MuMeM.Visio.RoomDesc.GUI = MuMeM.Visio.RoomDesc.GUI or {}
+MuMeM.Visio.RoomDesc.EventHandler = MuMeM.Visio.RoomDesc.EventHandler or {}
+</script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Visio.RoomDesc.Library</name>
+					<packageName></packageName>
+					<script>function MuMeM.Visio.RoomDesc.enable()
+  MuMeM.Visio.RoomDesc.redraw()
+end
+
+function MuMeM.Visio.RoomDesc.disable()
+  MuMeM.Visio.RoomDesc.GUI.roomDesc:clear()
+  MuMeM.Visio.RoomDesc.GUI.roomDesc:decho("Deactivated")
+end
+
+function MuMeM.Visio.RoomDesc.redraw()
+  if not MuMeM.Visio.isRooming then
+    return
+  end
+  
+  local roomDescVisual = MuMeM.Visio.RoomDesc.GUI.roomDesc
+  local roomName = MuMeM.Room.name() or "Unknown room (pitch black?)"
+  local roomDesc = MuMeM.Room.desc() or "Unknown or pitch black"
+
+  roomDescVisual:clear()
+  
+  roomDescVisual:decho("&lt;b&gt;&lt;0,128,0&gt;"..roomName.."&lt;/b&gt;&lt;200,200,200&gt;\n"..roomDesc)
+  
+  roomDescVisual:decho"\n&lt;b&gt;Exits:&lt;/b&gt;\n"
+  if MuMeM.Room.Exits.isEmpty() then
+    roomDescVisual:echo("- None\n")
+  else
+    local exitDir,roomExit = MuMeM.Room.Exits.getNext()
+    while exitDir do
+      local exitName = roomExit:name()
+      
+      roomDescVisual:echo("- ")
+      roomDescVisual:echoLink(roomExit:longDirection(), [[send("]]..exitDir..[[")]], "", true)
+      
+      local exitInfo = nil
+      local isActionable = false
+      if exitName then
+        if roomExit:isClosed() then
+          exitInfo = exitName.." [closed]"
+        else
+          exitInfo = exitName.." (open)"
+        end
+        isActionable = true
+      elseif roomExit:isRoad() then
+        exitInfo = "=road="
+      elseif roomExit:isTrail() then
+        exitInfo = "-trail-"
+      elseif roomExit:isWater() then
+        exitInfo = "~water~"
+      elseif roomExit:isClimbUp() then
+        exitInfo = "/up\\"
+      elseif roomExit:isClimbDown() then
+        exitInfo = "\\down/"
+      end
+
+      if exitInfo then
+        roomDescVisual:echo(" : "..exitInfo)
+        if isActionable then
+          moveCursorEnd(roomDescVisual.name)
+          if selectString(roomDescVisual.name,exitInfo, 1) &gt; -1 then
+            setPopup(roomDescVisual.name, 
+                      {function() send("open "..exitName) end, 
+                       function() send("close "..exitName) end,
+                       function() send("unlock "..exitName) end,
+                       function() send("lock "..exitName) end,
+                       function() send("pick "..exitName) end,
+                      }, 
+                      {"open", "close", "unlock", "lock", "pick"}
+                    )
+          end
+        end
+      end
+  
+      roomDescVisual:echo("\n")
+    
+      exitDir,roomExit = MuMeM.Room.Exits.getNext(exitDir)
+    end
+  end
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Visio.RoomDesc.GUI</name>
+					<packageName></packageName>
+					<script>function MuMeM.Visio.RoomDesc.GUI.setup(force, baseX, baseY, baseWidth, baseHeight)
+  if MuMeM.Visio.RoomDesc.GUI.isInitialized and not force then
+    return
+  end
+  
+  MuMeM.Visio.RoomDesc.GUI.isInitialized = true
+  
+  -- --- roomText (top left) ---
+  --MuMeM.Visio.Visual.roomText = Geyser.Label:new({
+  --  name = "MuMeM.Visio.Visual.roomText",
+  --  x = 0, y = 0,
+  --  width = "100%-400", height = "400",
+  --  --color = "black", fgcolor = "white",
+  --  fontSize = 10,
+  --  },MuMeM.Visio.Visual.mainWindow)
+--  MuMeM.Visio.Visual.roomText:setStyleSheet([[
+--    background-color: black;
+--    border-width: 15px;
+--    border-style: solid;
+--    qproperty-alignment: 'AlignLeft | AlignTop'
+--  ]])
+
+  MuMeM.Visio.RoomDesc.GUI.roomDesc = Geyser.MiniConsole:new({
+    name="MuMeM.Visio.RoomDesc.GUI.roomDesc",
+    x = baseX, y = baseY,
+    width = baseWidth, height = baseHeight,
+    autoWrap = false,
+    color = "black", fgcolor = white,
+    scrollBar = false,
+    fontSize = 10,
+  },MuMeM.Visio.Visual.mainWindow)
+  MuMeM.Visio.RoomDesc.GUI.roomDesc:echo("Deactivated")
+
+  MuMeM.Visio.log("MuMeM.Visio.GUI.RoomDesc.setup() done")
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Visio.RoomDesc.EventHandler.RoomInfo</name>
+					<packageName></packageName>
+					<script>function MuMeM.Visio.RoomDesc.EventHandler.RoomInfo()
+  MuMeM.Visio.RoomDesc.redraw()
+end</script>
+					<eventHandlerList>
+						<string>MuMeM.Room.Info</string>
+					</eventHandlerList>
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Visio.RoomDesc.EventHandler.RoomExits</name>
+					<packageName></packageName>
+					<script>function MuMeM.Visio.RoomDesc.EventHandler.RoomExits()
+  MuMeM.Visio.RoomDesc.redraw()
+end</script>
+					<eventHandlerList>
+						<string>MuMeM.Room.Exits</string>
+					</eventHandlerList>
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Visio.RoomImage</name>
+				<packageName></packageName>
+				<script>MuMeM.Visio.RoomImage = MuMeM.Visio.RoomImage or {}
+MuMeM.Visio.RoomImage.GUI = MuMeM.Visio.RoomImage.GUI or {}
+MuMeM.Visio.RoomImage.EventHandler = MuMeM.Visio.RoomImage.EventHandler or {}</script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Visio.RoomImage.Library</name>
+					<packageName></packageName>
+					<script>function MuMeM.Visio.RoomImage.enable()
+  MuMeM.Visio.RoomImage.redraw()
+end
+
+function MuMeM.Visio.RoomImage.disable()
+  MuMeM.Visio.RoomImage.GUI.image:setBackgroundImage(MuMeM.Visio.getResourceDir("RoomImageDeactivated"))
+end
+
+function MuMeM.Visio.RoomImage.redraw()
+  if not MuMeM.Visio.isRooming then
+    return
+  end
+  
+  local roomHash = MuMeM.Visio.getRoomHash()
+  local fileName = MuMeM.Visio.getRoomImageDir(roomHash)
+  
+--  if not MuMeM.Core.IO.fileExists(fileName) then
+--    local roomHashMD5 = MuMeM.Room.md5()
+--    local fileNameMD5 = MuMeM.Visio.getRoomImageDir(roomHashMD5)
+--    if MuMeM.Core.IO.fileExists(fileNameMD5) then
+--      print("RENAMED")
+--      os.rename(fileNameMD5, fileName)
+--    end
+--  end
+
+  if not MuMeM.Core.IO.fileExists(fileName) then
+    MuMeM.Visio.log("Image for room does not exist in Image Directory")
+    fileName = MuMeM.Visio.getResourceDir("RoomImageNotFound")
+  end
+    
+  MuMeM.Visio.RoomImage.GUI.image:setBackgroundImage(fileName)
+end
+</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Visio.RoomImage.GUI</name>
+					<packageName></packageName>
+					<script>function MuMeM.Visio.RoomImage.GUI.setup(force, baseX, baseY, baseWidth, baseHeight)
+  if MuMeM.Visio.RoomImage.GUI.isInitialized and not force then
+    return
+  end
+  
+  MuMeM.Visio.RoomImage.GUI.isInitialized = true
+  
+  -- --- the room image ---
+  MuMeM.Visio.RoomImage.GUI.image = Geyser.Label:new({
+    name = "MuMeM.Visio.RoomImage.GUI.image",
+    x = baseX, y = baseY,
+    width = baseWidth, height = baseHeight,
+    color = "black", fontSize = 20,
+    },MuMeM.Visio.Visual.mainWindow)
+  --MuMeM.Visio.Visual.roomImage:setStyleSheet([[
+  --  background-image: url(]]..MuMeM.Visio.getDataDir("/RoomImages/deactivated")..[[);
+  --  background-repeat: no-repeat;
+  --  background-position: top right;
+  --  background-origin: margin;
+  --]])
+  MuMeM.Visio.RoomImage.GUI.image:setBackgroundImage(MuMeM.Visio.getResourceDir("RoomImageDeactivated"))
+    
+  MuMeM.Visio.log("MuMeM.Visio.RoomImage.GUI.setup() done")
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Visio.RoomImage.EventHandler.RoomInfo</name>
+					<packageName></packageName>
+					<script>function MuMeM.Visio.RoomImage.EventHandler.RoomInfo()
+  MuMeM.Visio.RoomImage.redraw()
+end</script>
+					<eventHandlerList>
+						<string>MuMeM.Room.Info</string>
+					</eventHandlerList>
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Visio.Mobiles</name>
+				<packageName></packageName>
+				<script>MuMeM.Visio.Mobiles = MuMeM.Visio.Mobiles or {}
+MuMeM.Visio.Mobiles.GUI = MuMeM.Visio.Mobiles.GUI or {}
+MuMeM.Visio.Mobiles.EventHandler = MuMeM.Visio.Mobiles.EventHandler or {}
+</script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Visio.Mobiles.Library</name>
+					<packageName></packageName>
+					<script>function MuMeM.Visio.Mobiles.initialize()
+  MuMeM.Visio.Mobiles._selectedMobile = {key=false, frame=false, name=false}
+end
+
+function MuMeM.Visio.Mobiles.enable()
+  MuMeM.Visio.Mobiles.redraw()
+end
+
+function MuMeM.Visio.Mobiles.disable()
+  MuMeM.Visio.Mobiles.hideAll()
+end
+
+function MuMeM.Visio.Mobiles.redraw()
+  if not MuMeM.Visio.isRooming then 
+    return
+  end
+  
+  local redrawDuration = getEpoch()
+  local idx = 1
+  local sortedMobileKeys = MuMeM.Room.Mobiles.sortedKeys()
+  
+  for _,mobileKey in pairs(sortedMobileKeys) do
+    local mobile = MuMeM.Room.Mobiles.get(mobileKey)                    -- COULD fail (on async)!!!
+    local mobileImageFile = MuMeM.Visio.getMobileImageDir(mobile:fileName())
+    
+    if not MuMeM.Core.IO.fileExists(mobileImageFile) then
+      mobileImageFile = MuMeM.Visio.getResourceDir("MobileNotFound")
+    end
+    
+    MuMeM.Visio.Mobiles.GUI.roomMobile[idx]:setBackgroundImage(mobileImageFile)
+    --MuMeM.Visio.Mobiles.GUI.roomMobile[idx]:setStyleSheet([[
+    --  border: 2px solid blue;
+    --  border-image: url(]]..mobileImageFile..[[);
+    --]])
+    MuMeM.Visio.Mobiles.GUI.roomMobileLabel[idx]:echo(mobile:name())
+    MuMeM.Visio.Mobiles.GUI.roomMobile[idx]:show()
+    
+    MuMeM.Visio.Mobiles.GUI.roomMobile[idx]._mumem_mobileKey = mobileKey
+    
+    idx = idx + 1
+  end
+  
+  while idx &lt;= MuMeM.Visio.MAX_MOBILES do
+    MuMeM.Visio.Mobiles.GUI.roomMobile[idx]:hide()
+    MuMeM.Visio.Mobiles.GUI.roomMobile[idx]._mumem_mobileKey = false
+    if MuMeM.Visio.Mobiles._selectedMobile.frame == idx then
+      MuMeM.Visio.Mobiles.GUI.deselectMobileFrame(idx)
+    end
+    idx = idx + 1
+  end
+  
+  redrawDuration = math.ceil((getEpoch()-redrawDuration)*10000)/10000
+  MuMeM.Log.debug("MuMeM.Vision", f"Redraw of mobiles done, took {redrawDuration} seconds.")
+end
+
+function MuMeM.Visio.Mobiles.hideAll()
+  for idx=1,MuMeM.Visio.MAX_MOBILES do
+    MuMeM.Visio.Mobiles.GUI.roomMobile[idx]:hide()
+  end
+end
+
+function MuMeM.Visio.Mobiles.selectedMobile()
+  if MuMeM.Visio.Mobiles._selectedMobile.key == false then
+    return nil
+  else
+    return MuMeM.Visio.Mobiles._selectedMobile
+  end
+end
+
+function MuMeM.Visio.Mobiles.isMobileSelected()
+  return MuMeM.Visio.Mobiles.selectedMobile ~= nil
+end
+
+function MuMeM.Visio.Mobiles.selectMobileByFrame(frameIndex)
+  MuMeM.Visio.Mobiles.deselectMobile()
+  MuMeM.Visio.Mobiles._selectedMobile = {
+    frame = frameIndex,
+    key = MuMeM.Visio.Mobiles.GUI.getMobileKey(frameIndex),
+    name = MuMeM.Visio.Mobiles.GUI.getMobileName(frameIndex),
+  }
+  MuMeM.Visio.Mobiles.GUI.selectMobileFrame(frameIndex)
+--  display(MuMeM.Room.Mobiles.get(MuMeM.Visio.Mobiles._selectedMobile):name())
+end
+
+function MuMeM.Visio.Mobiles.selectMobileByKey(mobileKey)
+  -- correct one already selected, no update needed
+  if MuMeM.Visio.Mobiles._selectedMobile.key == 
+                        MuMeM.Visio.Mobiles.GUI.getMobileKey(MuMeM.Visio.Mobiles._selectedMobile.frame)
+  then
+    return
+  end
+      
+  MuMeM.Visio.Mobiles.deselectMobile()
+  
+  local idx = 1  
+  while idx &lt; MuMeM.Visio.MAX_MOBILES do
+    if mobileKey == MuMeM.Visio.Mobiles.GUI.roomMobile[idx]._mumem_mobileKey then
+      MuMeM.Visio.Mobiles.selectMobileByFrame(idx)
+      break
+    end
+    
+    idx = idx + 1
+  end
+end
+
+function MuMeM.Visio.Mobiles.deselectMobile()
+  if MuMeM.Visio.Mobiles._selectedMobile.key ~= false then
+    MuMeM.Visio.Mobiles.GUI.deselectMobileFrame(MuMeM.Visio.Mobiles._selectedMobile.frame)
+    MuMeM.Visio.Mobiles._selectedMobile = {frame=false, key=false, name=false}
+  end
+end
+
+function MuMeM.Visio.Mobiles.redrawSelection(action, mobileKey)
+  if MuMeM.Visio.Mobiles._selectedMobile.key == false then      -- nothing selected
+    return
+  end
+
+  if action == "set" then
+    MuMeM.Visio.Mobiles.deselectMobile()
+  elseif action == "add" then                                 -- order could have changed
+    if MuMeM.Visio.Mobiles._selectedMobile.key ~= 
+                        MuMeM.Visio.Mobiles.GUI.getMobileKey(MuMeM.Visio.Mobiles._selectedMobile.frame)
+    then
+      MuMeM.Visio.Mobiles.selectMobileByKey(MuMeM.Visio.Mobiles._selectedMobile.key)
+    end
+  elseif action == "remove" then                                -- order could have changed
+    if MuMeM.Visio.Mobiles._selectedMobile.key == mobileKey then
+      MuMeM.Visio.Mobiles.deselectMobile()    
+    elseif MuMeM.Visio.Mobiles._selectedMobile.key ~= 
+                        MuMeM.Visio.Mobiles.GUI.getMobileKey(MuMeM.Visio.Mobiles._selectedMobile.frame)
+    then
+      MuMeM.Visio.Mobiles.selectMobileByKey(MuMeM.Visio.Mobiles._selectedMobile.key)
+    end
+  elseif action == "update" then
+    -- nop
+  end
+end
+
+function MuMeM.Visio.Mobiles.mobileClicked(frameIndex, event)
+  --print("FN", frameIndex)
+  --display(event)
+  
+  if MuMeM.Visio.Mobiles._selectedMobile.frame == frameIndex then
+    MuMeM.Visio.Mobiles.deselectMobile()
+  else
+    MuMeM.Visio.Mobiles.selectMobileByFrame(frameIndex)
+  end
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Visio.Mobiles.GUI</name>
+					<packageName></packageName>
+					<script>function MuMeM.Visio.Mobiles.GUI.setup(force, baseX, baseY, baseWidth, baseHeight)
+  if MuMeM.Visio.Mobiles.GUI.isInitialized and not force then
+    return
+  end
+  
+  MuMeM.Visio.Mobiles.GUI.isInitialized = true
+  
+  local frameWidth = 79                 -- including border
+  local frameHeight = 79                -- including border
+  local frameBorderThickness = 2        -- thickness of border (width &amp; height)
+  local frameRowGap = 2                 -- gap between rows
+  local frameColGap = 1                 -- gap between columns
+  
+  -- --- roomMobiles (top left, below roomText) ---
+  MuMeM.Visio.Mobiles.GUI.roomMobiles = Geyser.Container:new({
+    name="MuMeM.Visio.Mobiles.GUI.roomMobiles",
+    x = baseX, y = baseY,
+    width = baseWidth, height = baseHeight,
+  },MuMeM.Visio.Visual.mainWindow)
+  
+  MuMeM.Visio.Mobiles.GUI.roomMobile = {}
+  MuMeM.Visio.Mobiles.GUI.roomMobileLabel = {}
+  local lx = 0
+  local ly = 0
+  for n=1,MuMeM.Visio.MAX_MOBILES do
+    if n &lt;= MuMeM.Visio.MAX_MOBILES/2 then
+      lx = (n-1)*(frameWidth + frameColGap)
+      ly = 0
+    else
+      lx = (n-MuMeM.Visio.MAX_MOBILES/2-1)*(frameWidth+frameColGap)
+      ly = frameHeight + frameRowGap
+    end
+    
+    MuMeM.Visio.Mobiles.GUI.roomMobile[n] = Geyser.Label:new({
+      name = f"MuMeM.Visio.Mobiles.GUI.roomMobile{n}",
+      x = lx, y = ly,
+      width = frameWidth, height = frameHeight,
+      color = "black",
+    },MuMeM.Visio.Mobiles.GUI.roomMobiles)
+    MuMeM.Visio.Mobiles.GUI.roomMobile[n]:setStyleSheet(f[[
+      border: {frameBorderThickness}px solid black;
+      color: black;
+    ]])
+        
+    MuMeM.Visio.Mobiles.GUI.roomMobileLabel[n] = Geyser.Label:new({
+      name = f"MuMeM.Visio.Mobiles.GUI.roomMobileLabel{n}",
+      x = 0, y = 0,
+      width = frameWidth-frameBorderThickness, height = frameHeight-frameBorderThickness,
+      fgColor = "white",
+    },MuMeM.Visio.Mobiles.GUI.roomMobile[n])
+    MuMeM.Visio.Mobiles.GUI.roomMobileLabel[n]:setStyleSheet([[
+      background-color: transparent;
+      qproperty-alignment: 'AlignHCenter | AlignBottom';
+      font: bold 14px;
+      color: black;
+    ]])
+    
+    MuMeM.Visio.Mobiles.GUI.roomMobile[n]._mumem_mobileKey = false
+    
+    MuMeM.Visio.Mobiles.GUI.roomMobile[n]:setCursor("PointingHand")
+    MuMeM.Visio.Mobiles.GUI.roomMobileLabel[n]:enableClickthrough()
+    MuMeM.Visio.Mobiles.GUI.roomMobile[n]:setClickCallback( function (event) MuMeM.Visio.Mobiles.mobileClicked(n, event) end )
+  end
+    
+  MuMeM.Visio.log("MuMeM.Visio.GUI.Mobiles.setup() done")
+end
+
+function MuMeM.Visio.Mobiles.GUI.getMobileKey(frameIndex)
+  return MuMeM.Visio.Mobiles.GUI.roomMobile[frameIndex]._mumem_mobileKey
+end
+
+function MuMeM.Visio.Mobiles.GUI.getMobileName(frameIndex)
+  local mobile = MuMeM.Room.Mobiles.get(MuMeM.Visio.Mobiles.GUI.roomMobile[frameIndex]._mumem_mobileKey)
+  return mobile:name()
+end
+
+function MuMeM.Visio.Mobiles.GUI.selectMobileFrame(frameIndex)
+  MuMeM.Visio.Mobiles.GUI.roomMobile[frameIndex]:setStyleSheet(f[[
+    border: 2px solid green;
+    color: green;
+  ]])
+end
+
+function MuMeM.Visio.Mobiles.GUI.deselectMobileFrame(frameIndex)
+  MuMeM.Visio.Mobiles.GUI.roomMobile[frameIndex]:setStyleSheet(f[[
+    border: 2px solid black;
+    color: black;
+  ]])
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Visio.Mobiles.EventHandler.RoomMobiles</name>
+					<packageName></packageName>
+					<script>function MuMeM.Visio.Mobiles.EventHandler.RoomMobiles(event, action, mobId)
+  MuMeM.Visio.Mobiles.redraw()
+  MuMeM.Visio.Mobiles.redrawSelection(action, mobId)
+end</script>
+					<eventHandlerList>
+						<string>MuMeM.Room.Mobiles</string>
+					</eventHandlerList>
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Visio.Compass</name>
+				<packageName></packageName>
+				<script>MuMeM.Visio.Compass = MuMeM.Visio.Compass or {}
+MuMeM.Visio.Compass.GUI = MuMeM.Visio.Compass.GUI or {}</script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Visio.Compass.Library</name>
+					<packageName></packageName>
+					<script>function MuMeM.Visio.Compass.enable()
+  MuMeM.Visio.Compass.GUI.compassWidget:activate()
+end
+
+function MuMeM.Visio.Compass.disable()
+  MuMeM.Visio.Compass.GUI.compassWidget:deactivate()
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Visio.Compass.GUI</name>
+					<packageName></packageName>
+					<script>function MuMeM.Visio.Compass.GUI.setup(force, baseX, baseY, baseWidth, baseHeight)
+  if MuMeM.Visio.Compass.GUI.isInitialized and not force then
+    return
+  end
+  
+  MuMeM.Visio.Compass.GUI.isInitialized = true
+  
+--  MuMeM.Visio.Compass.GUI.test = Geyser.Label:new({
+--    name = "MuMeM.Visio.Compass.GUI.test",
+--    x = baseX, y = baseY,
+--    width = baseWidth, height = baseHeight,
+--    color = "magenta", fontSize = 20,
+--    },MuMeM.Visio.Visual.mainWindow)
+  
+  -- --- compass
+  MuMeM.Visio.Compass.GUI.compassWidget = MuMeM.Compass.Pane250:new()
+  MuMeM.Visio.Compass.GUI.compassWidget:create(MuMeM.Visio.Visual.mainWindow, baseX, baseY)
+  
+  MuMeM.Visio.log("MuMeM.Visio.Compass.GUI.setup() done")
+end</script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.VIsio.Menu</name>
+				<packageName></packageName>
+				<script>MuMeM.Visio.Menu = MuMeM.Visio.Menu or {}
+MuMeM.Visio.Menu.GUI = MuMeM.Visio.Menu.GUI or {}</script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Visio.Menu.Library</name>
+					<packageName></packageName>
+					<script>function MuMeM.Visio.Menu.enableRooming()
+  MuMeM.Visio.enableRooming()
+  
+  MuMeM.Visio.Menu.GUI.statusToggle:echo("de-activate")
+  MuMeM.Visio.Menu.GUI.statusIndicatorRed:hide()
+  MuMeM.Visio.Menu.GUI.statusIndicatorGreen:show()
+end
+
+function MuMeM.Visio.Menu.disableRooming()
+  MuMeM.Visio.disableRooming()
+
+  MuMeM.Visio.Menu.GUI.statusToggle:echo("activate")
+  MuMeM.Visio.Menu.GUI.statusIndicatorRed:show()
+  MuMeM.Visio.Menu.GUI.statusIndicatorGreen:hide()
+end
+
+function MuMeM.Visio.Menu.toggleRooming()
+  if MuMeM.Visio.isRooming then
+    MuMeM.Visio.Menu.disableRooming()
+  else
+    MuMeM.Visio.Menu.enableRooming()
+  end
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Visio.Menu.GUI</name>
+					<packageName></packageName>
+					<script>function MuMeM.Visio.Menu.GUI.setup(force, baseX, baseY, baseWidth, baseHeight)
+  if MuMeM.Visio.Menu.GUI.isInitialized and not force then
+    return
+  end
+  
+  MuMeM.Visio.Menu.GUI.isInitialized = true
+  
+  -- --- menuItemStylesheet
+  local menuItemStyleSheet = Geyser.StyleSheet:new([[
+    background-color: grey;
+    border-width: 2px;
+    border-style: solid;
+    border-color: white;
+    border-radius: 5px;
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+  ]])
+  
+  -- --- menuBar ---
+  MuMeM.Visio.Menu.GUI.menuBar = Geyser.Label:new({
+    name = "MuMeM.Visio.Menu.GUI.menuBar",
+    x = baseX, y = baseY,
+    width = baseWidth, height = baseHeight,
+    color = "#191970",
+    },MuMeM.Visio.Visual.mainWindow)
+
+  -- --- menuItems ---    
+  MuMeM.Visio.Menu.GUI.menuItemCharacter = Geyser.Label:new({
+    name = "MuMeM.Visio.Menu.GUI.menuItemCharacter",
+    x = 10, y = 5,
+    width = 100, height = 30,
+    fontSize = 12,
+    message = "character",
+    stylesheet = menuItemStyleSheet:getCSS(),
+    },MuMeM.Visio.Menu.GUI.menuBar)
+  --MuMeM.Visio.Menu.GUI.menuItemCharacter:setClickCallback(function () MuMeM.Visio.redraw() end )
+
+  MuMeM.Visio.Menu.GUI.menuItemEquipment = Geyser.Label:new({
+    name = "MuMeM.Visio.Menu.GUI.menuItemEquipment",
+    x = 120, y = 5,
+    width = 100, height = 30,
+    fontSize = 12,
+    message = "equipment",
+    stylesheet = menuItemStyleSheet:getCSS(),
+    },MuMeM.Visio.Menu.GUI.menuBar)
+  --MuMeM.Visio.Menu.GUI.menuItemEquipment:setClickCallback(function () MuMeM.Visio.redraw() end )
+
+  MuMeM.Visio.Menu.GUI.menuItemInventory = Geyser.Label:new({
+    name = "MuMeM.Visio.Menu.GUI.menuItemInventory",
+    x = 230, y = 5,
+    width = 100, height = 30,
+    fontSize = 12,
+    message = "inventory",
+    stylesheet = menuItemStyleSheet:getCSS(),
+    },MuMeM.Visio.Menu.GUI.menuBar)
+  --MuMeM.Visio.Menu.GUI.menuItemInventory:setClickCallback(function () MuMeM.Visio.redraw() end )
+
+  MuMeM.Visio.Menu.GUI.downloadImages = Geyser.Label:new({
+    name = "MuMeM.Visio.Menu.GUI.downloadImages",
+    x = "50%-80", y = 5,
+    width = 160, height = 30,
+    fontSize = 12,
+    message = "download images",
+    stylesheet = menuItemStyleSheet:getCSS(),
+    },MuMeM.Visio.Menu.GUI.menuBar)
+  MuMeM.Visio.Menu.GUI.downloadImages:setClickCallback(function () MuMeM.Visio.downloadImagePack() end )
+  
+  MuMeM.Visio.Menu.GUI.menuItemMore = Geyser.Label:new({
+    name = "MuMeM.Visio.Menu.GUI.menuItemMore",
+    x = -300, y = 5,
+    width = 90, height = 30,
+    fontSize = 12,
+    message = "more...",
+    stylesheet = menuItemStyleSheet:getCSS(),
+    },MuMeM.Visio.Menu.GUI.menuBar)
+  MuMeM.Visio.Menu.GUI.menuItemMore:setClickCallback(function () MuMeM.Visio.Extras.showGUI() end )  
+
+  MuMeM.Visio.Menu.GUI.statusToggle = Geyser.Label:new({
+    name = "MuMeM.Visio.Menu.GUI.statusToggle",
+    x = -180, y = 5,
+    width = 120, height = 30,
+    fontSize = 12,
+    message = "activate",
+    stylesheet = menuItemStyleSheet:getCSS(),
+    },MuMeM.Visio.Menu.GUI.menuBar)
+  MuMeM.Visio.Menu.GUI.statusToggle:setClickCallback(function () MuMeM.Visio.Menu.toggleRooming() end )
+
+  MuMeM.Visio.Menu.GUI.statusIndicatorGreen = Geyser.Label:new({
+    name = "MuMeM.Visio.Menu.GUI.statusIndicatorGreen",
+    x = -40, y = 5,
+    width = 30, height = 30,
+    },MuMeM.Visio.Menu.GUI.menuBar)
+  MuMeM.Visio.Menu.GUI.statusIndicatorGreen:setStyleSheet([[
+    background-color: green;
+    border-width: 3px;
+    border-style: solid;
+    border-color: white;
+    border-radius: 15px;
+  ]])
+  MuMeM.Visio.Menu.GUI.statusIndicatorGreen:hide()
+  
+  MuMeM.Visio.Menu.GUI.statusIndicatorRed = Geyser.Label:new({
+    name = "MuMeM.Visio.Menu.GUI.statusIndicatorRed",
+    x = -40, y = 5,
+    width = 30, height = 30,
+    },MuMeM.Visio.Menu.GUI.menuBar)
+  MuMeM.Visio.Menu.GUI.statusIndicatorRed:setStyleSheet([[
+    background-color: red;
+    border-width: 3px;
+    border-style: solid;
+    border-color: white;
+    border-radius: 15px;
+  ]])
+    
+  MuMeM.Visio.log("MuMeM.Visio.GUI.MenuBar.setup() done")
+end</script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.VIsio.ActionBar</name>
+				<packageName></packageName>
+				<script>MuMeM.Visio.ActionBar = MuMeM.Visio.ActionBar or {}
+MuMeM.Visio.ActionBar.GUI = MuMeM.Visio.ActionBar.GUI or {}</script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Visio.ActionBar.Library</name>
+					<packageName></packageName>
+					<script></script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Visio.ActionBar.GUI</name>
+					<packageName></packageName>
+					<script>function MuMeM.Visio.ActionBar.GUI.setup(force, baseX, baseY, baseWidth, baseHeight)
+  if MuMeM.Visio.ActionBar.GUI.isInitialized and not force then
+    return
+  end
+  
+  MuMeM.Visio.ActionBar.GUI.isInitialized = true
+  
+  MuMeM.Visio.ActionBar.mainBar = 
+    MuMeM.Visio.ActionBar.Bar:new({
+      _barId = "MainBar",
+      _barParentWindow = MuMeM.Visio.Visual.mainWindow,
+      _barX = baseX,
+      _barY = baseY,
+      _barWidth = baseWidth or "100%",
+      _barHeight = baseHeight or 54,
+    })
+  
+--  MuMeM.Visio.ActionBar.mainBar:attachSlot( 
+--    MuMeM.Visio.ActionBar.Slot:new({
+--      _slotId = "Bash",
+--      _bar = MuMeM.Visio.ActionBar.mainBar,
+--      _slotX = 10,
+--      _slotY = 0,
+--      _slotWidth = 54,
+--      _slotHeight = 54,
+--      _slotIcon = "bash.png",
+--    })
+--  )
+  
+  MuMeM.Visio.ActionBar.mainBar:createSlot("Bash", "bash.png", 1)
+  MuMeM.Visio.ActionBar.mainBar:createSlot("Kick", "kick.png", 2)
+
+  MuMeM.Visio.ActionBar.mainBar:createSlot("Eat", "eat.png", -7)
+  MuMeM.Visio.ActionBar.mainBar:createSlot("Drink", "drink.png", -6)
+
+  MuMeM.Visio.ActionBar.mainBar:createSlot("Stand", "stand.png", -4)
+  MuMeM.Visio.ActionBar.mainBar:createSlot("Sit", "sit.png", -3)
+  MuMeM.Visio.ActionBar.mainBar:createSlot("Rest", "rest.png", -2)
+  MuMeM.Visio.ActionBar.mainBar:createSlot("Sleep", "sleep.png", -1)
+
+  MuMeM.Visio.log("MuMeM.Visio.Action.GUI.setup() done")
+end</script>
+					<eventHandlerList />
+				</Script>
+				<ScriptGroup isActive="yes" isFolder="yes">
+					<name>Widgets</name>
+					<packageName></packageName>
+					<script></script>
+					<eventHandlerList />
+					<Script isActive="yes" isFolder="no">
+						<name>MuMeM.Visio.ActionBar.Bar</name>
+						<packageName></packageName>
+						<script>MuMeM.Visio.ActionBar.Bar = {
+  _barId = nil,
+  _barParentWindow = nil,
+  _barX = 0,
+  _barY = 0,
+  _barWidth = "100%",
+  _barHeight = 54,
+  
+  _barWindow = nil,
+  _slots = nil,
+} 
+
+mumem_inherit("MuMeM.Visio.ActionBar.Bar", "MuMeM.Visio.ActionBar.Bar")
+
+function MuMeM.Visio.ActionBar.Bar:new(props)
+  local me = props or {}
+  
+  me._barId = props._barId or "Bar"..math.random(1,9999)
+  
+  setmetatable(me, self)
+  self.__index = self
+  
+  me._slots = {}
+  
+  me._barWindow = Geyser.Label:new({
+    name = f"MuMeM.Visio.ActionBar.Bar:{me._barId}",
+    x = me._barX, y = me._barY,
+    width = me._barWidth, height = me._barHeight,
+    color = "black",
+  }, me._barParentWindow)
+  
+  return me
+end
+
+function MuMeM.Visio.ActionBar.Bar:id()
+  return self._barId
+end
+
+function MuMeM.Visio.ActionBar.Bar:window()
+  return self._barWindow
+end
+
+function MuMeM.Visio.ActionBar.Bar:parentWindow()
+  return self._barParentWindow
+end
+
+-- =================================================================================
+
+function MuMeM.Visio.ActionBar.Bar:attachSlot(slot)
+  self._slots[slot:id()] = slot
+end
+
+function MuMeM.Visio.ActionBar.Bar:createSlot(slotId, slotIcon, slotPos)
+  local slotX = 0
+  
+  if slotPos &lt; 0 then
+    slotX = -10 + slotPos * self._barHeight
+  else
+    slotX = 10 + (slotPos-1) * self._barHeight
+  end
+
+  self:attachSlot( 
+    MuMeM.Visio.ActionBar.Slot:new({
+      _slotId = slotId,
+      _bar = self,
+      _slotX = slotX,
+      _slotY = 0,
+      _slotWidth = slotWidth or self._barHeight,
+      _slotHeight = slotHeight or self._barHeight,
+      _slotIcon = slotIcon,
+    })
+  )
+end
+</script>
+						<eventHandlerList />
+					</Script>
+					<Script isActive="yes" isFolder="no">
+						<name>MuMeM.Visio.ActionBar.Item</name>
+						<packageName></packageName>
+						<script>MuMeM.Visio.ActionBar.Slot = {
+  _slotId = nil,
+  _bar = nil,               -- the "widget"
+  _slotX = 0,
+  _slotY = 0,
+  _slotWidth = 54,
+  _slotHeight = 54,
+  _slotBorderTickness = 2,
+  _slotIcon = "unknown.png",
+  
+  _slotWindow = nil,
+} 
+
+mumem_inherit("MuMeM.Visio.ActionBar.Slot", "MuMeM.Visio.ActionBar.Slot")
+
+function MuMeM.Visio.ActionBar.Slot:new(props)
+  local me = props or {}
+  
+  me._slotId = props._slotId or "Slot"..math.random(1,9999)
+  
+  setmetatable(me, self)
+  self.__index = self
+  
+  me._slotWindow = Geyser.Label:new({
+    name = f"MuMeM.Visio.ActionBar.Slot:{me._bar:id()}:{me._slotId}",
+    x = me._slotX, y = me._slotY,
+    width = me._slotWidth, height = me._slotHeight,
+  }, me._bar:window())
+  
+  local iconImage = MuMeM.Visio.getResourceDir("actions", me._slotIcon)
+
+  me._slotWindow:setStyleSheet([[
+    QLabel {
+      background-image: url("]]..iconImage..[[");
+      border:           ]]..me._slotBorderTickness..[[px solid white;
+    }
+    QLabel::hover {
+      border:           ]]..me._slotBorderTickness..[[px solid #008000;
+    }
+  ]])
+  
+  return me
+end
+
+function MuMeM.Visio.ActionBar.Slot:id()
+  return self._slotId
+end</script>
+						<eventHandlerList />
+					</Script>
+				</ScriptGroup>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Visio.Extras</name>
+				<packageName></packageName>
+				<script>MuMeM.Visio.Extras = MuMeM.Visio.Extras or {}
+MuMeM.Visio.Extras.GUI = MuMeM.Visio.Extras.GUI or {}</script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Visio.Extras.Library</name>
+					<packageName></packageName>
+					<script>function MuMeM.Visio.Extras.showGUI()
+  MuMeM.Visio.Extras.GUI.show()
+end
+
+function MuMeM.Visio.Extras.hideGUI()
+  MuMeM.Visio.Extras.GUI.hide()
+end 
+
+function MuMeM.Visio.Extras.printRoomHash()
+  local roomHash = MuMeM.Room.hash() or "unknown"
+
+  print("----------------------------------------")
+  print(f"Room Hash: {roomHash}")
+  print("----------------------------------------")
+end
+
+function MuMeM.Visio.Extras.printDataDir()
+  print("----------------------------------------")
+  print("Data:        "..MuMeM.Visio.getDataDir())
+  print("Resource:    "..MuMeM.Visio.getResourceDir())
+  print("RoomImage:   "..MuMeM.Visio.getRoomImageDir())
+  print("MobileImage: "..MuMeM.Visio.getMobileImageDir())
+  print("----------------------------------------")
+end
+
+-- ########################################################################################################
+-- # Import Image
+-- ########################################################################################################
+
+function MuMeM.Visio.Extras.importImage()
+  local path = invokeFileDialog(true, "Choose room image to import")
+  if path and path ~= "" then
+    local roomHash = MuMeM.Visio.getRoomHash()
+    if roomHash and roomHash ~= "unknown" then
+      if MuMeM.Core.IO.copyFile(path, MuMeM.Visio.getRoomImageDir(roomHash)) then
+        MuMeM.Visio.RoomImage.redraw()
+        MuMeM.Visio.log("[IMPORT] Image imported successfully")
+      else
+        MuMeM.Visio.log("[IMPORT] Import failed, error during copy")
+      end
+    else
+      MuMeM.Visio.log("[IMPORT] Import failed, cannot calculate room hash")
+    end
+  end
+end
+
+-- ########################################################################################################
+-- # Import Mobile
+-- ########################################################################################################
+
+function MuMeM.Visio.Extras.importMobile()
+  local selectedMobile = MuMeM.Visio.Mobiles.selectedMobile()
+  local selectedMobileName
+  
+  if selectedMobile then
+    selectedMobileName = selectedMobile.name
+  else
+    MuMeM.Visio.log("[IMPORT] No mob selected")
+    return
+  end
+  
+  selectedMobileName = selectedMobileName:gsub(" ", "_")
+
+  if not selectedMobileName or string.len(selectedMobileName) &lt;= 2 then
+    MuMeM.Visio.log("[IMPORT] Mobile selected, but this does not seem to be a valid mobile name")
+    return
+  end
+  
+  local path = invokeFileDialog(true, "Choose mobile image to import")
+  if path and path ~= "" then
+    if MuMeM.Core.IO.copyFile(path, MuMeM.Visio.getMobileImageDir(selectedMobileName)) then
+      MuMeM.Visio.Mobiles.redraw()
+      MuMeM.Visio.log("[IMPORT] Image imported successfully")
+    else
+      MuMeM.Visio.log("[IMPORT] Import failed, error during copy")
+    end
+  end
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Visio.Extras.GUI</name>
+					<packageName></packageName>
+					<script>function MuMeM.Visio.Extras.GUI.setup(force)
+  if MuMeM.Visio.Extras.GUI.isInitialized and not force then
+    return
+  end
+  
+  MuMeM.Visio.Extras.GUI.isInitialized = true
+  
+  -- --- buttonStyleSheet ---
+  local buttonStyleSheet = Geyser.StyleSheet:new([[
+    background-color: grey;
+    border-width: 2px;
+    border-style: solid;
+    border-color: white;
+    border-radius: 5px;
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+  ]])
+
+  -- --- Main Window ---
+  MuMeM.Visio.Extras.GUI.mainWindow = Geyser.UserWindow:new({
+    name = "MuMeM.Visio.Extras.GUI.mainWindow",
+    titleText = "MuMeM - Visio - Extras",
+    x = 0, y = 0,
+    width = 220, height = 230,
+    color = "black",
+    autodock = false,
+  },MuMeM.Visio.Visual.mainWindow)
+  
+  -- --- Import Image ---
+  MuMeM.Visio.Extras.GUI.buttonImportImage = Geyser.Label:new({
+    name = "MuMeM.Visio.Extras.GUI.buttonImportImage",
+    x = 10, y = 10,
+    width = 200, height = 30,
+    fontSize = 12,
+    message = "import image",
+    stylesheet = buttonStyleSheet:getCSS(),
+    },MuMeM.Visio.Extras.GUI.mainWindow)
+  MuMeM.Visio.Extras.GUI.buttonImportImage:setClickCallback(function () MuMeM.Visio.Extras.importImage() end )
+
+  -- --- Import Mobile ---
+  MuMeM.Visio.Extras.GUI.buttonImportMobile = Geyser.Label:new({
+    name = "MuMeM.Visio.Extras.GUI.buttonImportMobile",
+    x = 10, y = 50,
+    width = 200, height = 30,
+    fontSize = 12,
+    message = "import mobile",
+    stylesheet = buttonStyleSheet:getCSS(),
+    },MuMeM.Visio.Extras.GUI.mainWindow)
+  MuMeM.Visio.Extras.GUI.buttonImportMobile:setClickCallback(function () MuMeM.Visio.Extras.importMobile() end )
+
+  -- --- Background ---
+  MuMeM.Visio.Extras.GUI.buttonBackground = Geyser.Label:new({
+    name = "MuMeM.Visio.Extras.GUI.buttonBackground",
+    x = 10, y = 90,
+    width = 200, height = 30,
+    fontSize = 12,
+    message = "background",
+    stylesheet = buttonStyleSheet:getCSS(),
+    },MuMeM.Visio.Extras.GUI.mainWindow)
+  MuMeM.Visio.Extras.GUI.buttonBackground:setClickCallback(function () MuMeM.Visio.Background.setMainConsoleBackground() end )
+
+  -- --- Room Hash ---
+  MuMeM.Visio.Extras.GUI.buttonRoomHash = Geyser.Label:new({
+    name = "MuMeM.Visio.Extras.GUI.buttonRoomHash",
+    x = 10, y = 130,
+    width = 200, height = 30,
+    fontSize = 12,
+    message = "print room-hash",
+    stylesheet = buttonStyleSheet:getCSS(),
+    },MuMeM.Visio.Extras.GUI.mainWindow)
+  MuMeM.Visio.Extras.GUI.buttonRoomHash:setClickCallback(function () MuMeM.Visio.Extras.printRoomHash() end )
+
+  -- --- Data Dir ---
+  MuMeM.Visio.Extras.GUI.buttonDataDir = Geyser.Label:new({
+    name = "MuMeM.Visio.Extras.GUI.buttonDataDir",
+    x = 10, y = 170,
+    width = 200, height = 30,
+    fontSize = 12,
+    message = "print data-dir",
+    stylesheet = buttonStyleSheet:getCSS(),
+    },MuMeM.Visio.Extras.GUI.mainWindow)
+  MuMeM.Visio.Extras.GUI.buttonDataDir:setClickCallback(function () MuMeM.Visio.Extras.printDataDir() end )
+end
+
+function MuMeM.Visio.Extras.GUI.show()
+  MuMeM.Visio.Extras.GUI.mainWindow:show()
+
+  MuMeM.Visio.Extras.GUI.mainWindow:move(0, 0)
+  MuMeM.Visio.Extras.GUI.mainWindow:resize(220, 230)
+end
+
+function MuMeM.Visio.Extras.GUI.hide()
+  MuMeM.Visio.Extras.GUI.mainWindow:hide()
+end </script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Visio.Background</name>
+				<packageName></packageName>
+				<script>MuMeM.Visio.Background = MuMeM.Visio.Background or {}
+MuMeM.Visio.Background.EventHandler = MuMeM.Visio.Background.EventHandler or {}
+</script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Visio.Background.Library</name>
+					<packageName></packageName>
+					<script>function MuMeM.Visio.Background.initialize() 
+  MuMeM.Visio.Background.MainConsoleBackground = "OFF"   -- OFF | CENTER | BORDER | TILED
+end
+
+function MuMeM.Visio.Background.enable() 
+  MuMeM.Visio.Background.redrawMainConsoleBackground()
+end
+
+function MuMeM.Visio.Background.disable()
+  resetBackgroundImage("main")
+end
+
+function MuMeM.Visio.Background.setMainConsoleBackground()
+  if MuMeM.Visio.Background.MainConsoleBackground == "OFF" then
+    MuMeM.Visio.Background.MainConsoleBackground = "BORDER"
+  elseif MuMeM.Visio.Background.MainConsoleBackground == "BORDER" then
+    MuMeM.Visio.Background.MainConsoleBackground = "CENTER"
+  elseif MuMeM.Visio.Background.MainConsoleBackground == "CENTER" then
+    MuMeM.Visio.Background.MainConsoleBackground = "TILED"
+  else
+    MuMeM.Visio.Background.MainConsoleBackground = "OFF"
+  end
+  MuMeM.Visio.Background.redrawMainConsoleBackground()
+end
+
+function MuMeM.Visio.Background.redrawMainConsoleBackground()
+  if not MuMeM.Visio.isRooming then
+    return
+  end
+  
+  if MuMeM.Visio.Background.MainConsoleBackground == "OFF" then
+    resetBackgroundImage("main")
+  else
+    local fileName = MuMeM.Visio.getDataDir("/RoomImages/"..MuMeM.Visio.getRoomHash())
+
+    if MuMeM.Core.IO.fileExists(fileName) then
+      if MuMeM.Visio.Background.MainConsoleBackground == "TILED" then
+        local styleSheet = [[
+          background-image: url(]]..fileName..[[);
+        ]]
+        --local styleSheet = [[
+        --  border-image: url(]]..fileName..[[) 0 0 0 0 repeat stretch;
+        --]]
+        setBackgroundImage("main", styleSheet, "style")
+      else
+        setBackgroundImage("main", fileName, string.lower(MuMeM.Visio.Background.MainConsoleBackground))
+      end
+    else
+      resetBackgroundImage("main")
+    end
+  end
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Visio.Background.EventHandler.RoomInfo</name>
+					<packageName></packageName>
+					<script>function MuMeM.Visio.Background.EventHandler.RoomInfo()
+  MuMeM.Visio.Background.redrawMainConsoleBackground()
+end</script>
+					<eventHandlerList>
+						<string>MuMeM.Room.Info</string>
+					</eventHandlerList>
+				</Script>
+			</ScriptGroup>
+		</ScriptGroup>
+	</ScriptPackage>
+</MudletPackage>

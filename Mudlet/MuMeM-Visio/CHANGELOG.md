@@ -1,21 +1,26 @@
-### 20230328
+### 20230311
+
+  * Fixed main window params
+  * Fixed CHANGELOG version numbering
+
+### 20230228
 
   * Sneak-Preview: action bar
   * global inheritances changes
 
-### 20230323
+### 20230223
 
   * Mobiles are now "sorted" (kind of)
   * Bugfixes
 
-### 20230319
+### 20230219
 
   * Import of mobiles added
   * Mobiles can now be selected (currently only used for import)
   * Main console background fixed
   * Housekeeping and minor refactoring
 
-### 20230318
+### 20230218
 
   * Added a compass (and again, awesome art by Freyja!)
   * Replaced stock images (kudos again to Freyja!)
@@ -25,14 +30,14 @@
   * Enlarged the image
   * [internal] Complete overhaul and refactoring
 
-### 20230311
+### 20230211
 
   * Cleaning up image-pack.zip after download
   * Room image import fixed
   * Startup message removed
   * replaced showWindow(obj) by obj:show() (MacOS 13 bugfix)
 
-### 20230303
+### 20230203
 
   * Clickable exists: When clicking on the exit, you move to that direction
   * Clickable doors: Clicking will open the door, right click brings door-manipulation window
