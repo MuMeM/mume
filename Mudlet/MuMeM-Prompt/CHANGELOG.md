@@ -1,3 +1,7 @@
+### 20230312
+
+  * Rework of the Player prompts
+
 ### 20230308
 
   * Complete internal rewrite (from functions to classes)
