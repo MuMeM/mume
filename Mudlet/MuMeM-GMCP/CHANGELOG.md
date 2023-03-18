@@ -1,3 +1,7 @@
+### 20230318
+
+  * Global class functions updated
+
 ### 20230307
 
   * Add Comm echo messages
