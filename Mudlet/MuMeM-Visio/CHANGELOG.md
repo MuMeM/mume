@@ -1,3 +1,7 @@
+### 20230318
+
+  * Global class function update
+
 ### 20230311
 
   * Fixed main window params
