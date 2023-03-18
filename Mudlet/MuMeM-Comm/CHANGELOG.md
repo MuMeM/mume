@@ -1,3 +1,7 @@
+### 20230318
+
+  * global class functions updated
+
 ### 20230311
 
   * Widget library updated
