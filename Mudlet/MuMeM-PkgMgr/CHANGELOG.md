@@ -1,3 +1,7 @@
+### 20230318
+
+  * Initialization now based on events and no longer on timers
+
 ### 20230308
 
   * Fixed window-resize at window showing
