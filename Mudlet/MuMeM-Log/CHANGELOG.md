@@ -1,3 +1,7 @@
+### 20230318
+
+  * Global class functions updated
+
 ### 20230212
 
   * Fixed logLevel and updated pipeline to set correct update level
