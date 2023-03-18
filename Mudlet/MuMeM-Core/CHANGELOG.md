@@ -1,3 +1,7 @@
+### 20230318
+
+  * Global class functions updated
+
 ### 20230308
 
   * Quick (and dirty) fix for Package Manager window restore
