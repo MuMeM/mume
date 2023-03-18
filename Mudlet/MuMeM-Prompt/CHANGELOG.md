@@ -1,3 +1,11 @@
+### 20230318
+
+  * Full customization addded
+  * Different prompt layouts
+  * Visual editing of prompts
+  * Loading and saving
+  * Automatic loading
+
 ### 20230312
 
   * Rework of the Player prompts
