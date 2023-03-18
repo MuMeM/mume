@@ -1,3 +1,7 @@
+### 20230318
+
+  * Global class functions updated
+
 ### 20230303
 
   * Bugfix for fog setting
