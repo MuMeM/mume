@@ -3,6 +3,7 @@
   * New layout
   * Added "update ALL" button (which updates all installed packages)
   * "intall" button responsive to selection (install/update/upgrade/downgrade/re-install)
+  * Package dependencies shown in info-window
 
 ### 20230318
 

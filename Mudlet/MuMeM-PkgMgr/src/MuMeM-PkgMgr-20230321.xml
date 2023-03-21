@@ -199,7 +199,7 @@ function MuMeM.PkgMgr.updateAllPackages(package)
   end
   
   for package,_ in pairs(MuMeM.PkgMgr.packages) do
-    if package ~= "MuMeM-PkgMgr" and MuMeM.PkgMgr.isPackageInstalled(package) then
+    if MuMeM.PkgMgr.isPackageInstalled(package) then
       MuMeM.PkgMgr.buildInstallTree(package)
     end
   end
