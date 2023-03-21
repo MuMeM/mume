@@ -681,7 +681,7 @@ function MuMeM.PkgMgr.GUI.scrollRow(event)
   step = event.angleDeltaY / 120
   
   MuMeM.PkgMgr.GUI.scrollPosition = math.max(1, 
-                                        math.min(MuMeM.PkgMgr.GUI.scrollPosition+step, 
+                                        math.min(MuMeM.PkgMgr.GUI.scrollPosition-step, 
                                         table.size(MuMeM.PkgMgr.packages)-MuMeM.PkgMgr.GUI.MAX_ROWS+1)
                                       )
   MuMeM.PkgMgr.GUI.displayPackages()
