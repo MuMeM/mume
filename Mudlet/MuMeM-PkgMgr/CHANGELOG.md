@@ -1,3 +1,9 @@
+### 20230321
+
+  * New layout
+  * Added "update ALL" button (which updates all installed packages)
+  * "intall" button responsive to selection (install/update/upgrade/downgrade/re-install)
+
 ### 20230318
 
   * Initialization now based on events and no longer on timers
