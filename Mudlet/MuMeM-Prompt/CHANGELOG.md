@@ -1,3 +1,8 @@
+### 20230325
+
+  * Customization of panels (height, borders, background)
+  * More widgets (tp, xp, spring)
+
 ### 20230318
 
   * Full customization addded
