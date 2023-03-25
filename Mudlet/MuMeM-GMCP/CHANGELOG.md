@@ -1,3 +1,7 @@
+### 20230325
+
+  * "autodiscover" setting methods (cleaner code)
+
 ### 20230318
 
   * Global class functions updated
