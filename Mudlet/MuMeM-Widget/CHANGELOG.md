@@ -1,3 +1,7 @@
+### 20230325
+
+  * New widget: ColorInput
+
 ### 20230318
 
   * And more widgets to enjoy
