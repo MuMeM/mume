@@ -1,3 +1,7 @@
+### 20230403
+
+  * new include mechanism for inheritance
+
 ### 20230311
 
   * Global class function update

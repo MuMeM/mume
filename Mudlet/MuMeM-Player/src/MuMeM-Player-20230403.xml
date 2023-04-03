@@ -1,0 +1,773 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE MudletPackage>
+<MudletPackage version="1.001">
+	<ScriptPackage>
+		<ScriptGroup isActive="yes" isFolder="yes">
+			<name>MuMeM.Player</name>
+			<packageName></packageName>
+			<script>--[[
+    All information about the player, like Vitals, Name, Status, ...
+--]]
+
+require "MuMeM-Core"
+
+-- --- Module setup ----------------------------------------------
+
+MuMeM = MuMeM or {}
+MuMeM.Player = MuMeM.Player or {}
+MuMeM.Player.Buffer = MuMeM.Player.Buffer or {}
+MuMeM.Player.Mount = MuMeM.Player.Mount or {}
+MuMeM.Player.Opponent = MuMeM.Player.Opponent or {}
+MuMeM.Player.EventHandler = MuMeM.Player.EventHandler or {}
+
+-- --- Module registration -----------------------------------------
+
+MuMeM.Player.module_name = "MuMeM.Player"
+MuMeM.Player.module_dependencies = {"MuMeM.Core","MuMeM.Log","MuMeM.GMCP"}
+MuMeM.modules = MuMeM.modules or {}
+MuMeM.modules[MuMeM.Player.module_name] = MuMeM.modules[MuMeM.Player.module_name] or {module=MuMeM.Player}</script>
+			<eventHandlerList />
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Player.Library</name>
+				<packageName></packageName>
+				<script>--[[
+hp            current health points (*)
+maxhp         maximum health points
+mana          current mana points (*)
+maxmana       maximum mana points
+mp            current movement points (*)
+maxmp         maximum movement points
+xp            current experience points
+tp            current travel points
+carrying      string describing how heavy load you are carrying 
+              (heavy -&gt; really heavy -&gt; painful)
+ride          true if currently riding; otherwise false
+ridden        true if currently ridden by someone; otherwise false
+climb         null, "c", or "C"
+swim          null, "s", or "S"
+light         "*", "!", ")", or "o"
+fog           null, "-" or "="
+weather       "~", "'", "\"", or "*"
+alertness     "normal", "careful", etc.
+mood          "wimpy", "prudent", etc.
+spell-effort  "quick", "fast", etc.
+position	    "standing", "fighting", "sitting", "resting", "sleeping", 
+              "stunned", "incapacitated", or "dying"
+              
+fullname      current character name and title
+name          current character name
+
+level         character's level
+next-level-tp travel points needed to reach the next level; or null
+next-level-xp experience points needed to reach the next level; or null
+race          player's race
+subclass      current subclass
+subrace       subrace
+              
+--- SUB-CLASSED ----
+mount-moves	  "rested", "slow", etc.
+opponent-hits	"healthy", "fine", etc.
+buffer-hits	  "healthy", "fine", etc.
+--]]
+
+-- ### INITIALIZATION #############################################################
+
+function MuMeM.Player.initialize()
+  MuMeM.Player.Mount.initialize()
+  MuMeM.Player.Opponent.initialize()
+  
+  MuMeM.Player.reset()
+  MuMeM.Player.Mount.reset()
+  MuMeM.Player.Opponent.reset()
+end
+
+function MuMeM.Player.reset()
+  MuMeM.Player._name = "NoName"
+  MuMeM.Player.fullName = "NoName without name"
+
+  MuMeM.Player._name = nil
+  MuMeM.Player._fullName = nil
+  MuMeM.Player._level = nil
+  MuMeM.Player._race = nil
+  MuMeM.Player._subClass = nil
+  MuMeM.Player._subRace = nil
+
+  MuMeM.Player._hp = nil
+  MuMeM.Player._maxhp = nil
+  MuMeM.Player._sp = nil
+  MuMeM.Player._maxsp = nil
+  MuMeM.Player._mp = nil
+  MuMeM.Player._maxmp = nil
+  MuMeM.Player._xp = nil
+  MuMeM.Player._tp = nil
+  MuMeM.Player._carrying = nil
+  MuMeM.Player._ride = nil
+  MuMeM.Player._ridden = nil
+  MuMeM.Player._climb = nil
+  MuMeM.Player._swim = nil
+  MuMeM.Player._light = nil
+  MuMeM.Player._fog = nil
+  MuMeM.Player._weather = nil
+  MuMeM.Player._alertness = nil
+  MuMeM.Player._mood = nil
+  MuMeM.Player._spellEffort = nil
+  MuMeM.Player._position = nil
+  MuMeM.Player._mountMoves = nil
+  MuMeM.Player._opponent = nil
+  MuMeM.Player._position = nil
+  
+  MuMeM.Player._nextLevelTp = nil
+  MuMeM.Player._nextLevelXp = nil
+
+--mount-moves	  "rested", "slow", etc.
+--opponent-hits	"healthy", "fine", etc.
+--buffer-hits	  "healthy", "fine", etc.
+end
+
+local function player_setvalue(key, value, eventName)
+  if value ~= MuMeM.Player[key] then
+    MuMeM.Player[key] = value
+    raiseEvent("MuMeM.Player."..eventName)
+  end
+end
+
+-- ### NAME #######################################################################
+
+function MuMeM.Player.name()
+  return MuMeM.Player._name
+end
+
+function MuMeM.Player.gmcp_set_name(name)
+  player_setvalue("_name", name, "name")
+end
+
+-- ### FULLNAME ###################################################################
+
+function MuMeM.Player.fullName()
+  return MuMeM.Player._fullName
+end
+
+function MuMeM.Player.gmcp_set_fullname(fullname)
+  player_setvalue("_fullname", fullname, "fullName")
+end
+
+-- ### LEVEL #######################################################################
+
+function MuMeM.Player.level()
+  return MuMeM.Player._level
+end
+
+function MuMeM.Player.setLevel(level)
+  player_setvalue("_level", level, "Level")
+end
+
+-- ### RACE ########################################################################
+
+function MuMeM.Player.race()
+  return MuMeM.Player._race
+end
+
+function MuMeM.Player.setRace(race)
+  player_setvalue("_race", race, "Race")
+end
+
+-- ### SUBRACE #####################################################################
+
+function MuMeM.Player.subRace()
+  return MuMeM.Player._subRace
+end
+
+function MuMeM.Player.setSubRace(subRace)
+  player_setvalue("_subRace", subRace, "SubRace")
+end
+
+function MuMeM.Player.gmcp_set_subrace(subRace)
+  MuMeM.Player.setSubRace(subRace)
+end
+
+-- ### SUBCLASS ####################################################################
+
+function MuMeM.Player.subClass()
+  return MuMeM.Player._subClass
+end
+
+function MuMeM.Player.setSubClass(subClass)
+  player_setvalue("_subClass", subClass, "SubClass")
+end
+
+function MuMeM.Player.gmcp_set_subclass(subClass)
+  MuMeM.Player.setSubClass(subClass)
+end
+
+-- ### NEXT-LEVEL-TP ###############################################################
+
+function MuMeM.Player.nextLevelTp()
+  return MuMeM.Player._nextLevelTp
+end
+
+function MuMeM.Player.setNextLevelTp(nextLevelTp)
+  player_setvalue("_nextLevelTp", nextLevelTp, "NextLevelTp")
+end
+
+function MuMeM.Player.gmcp_set_next_level_tp(nextLevelTp)
+  MuMeM.Player.setNextLevelTp(nextLevelTp)
+end
+
+-- ### NEXT-LEVEL-XP ###############################################################
+
+function MuMeM.Player.nextLevelXp()
+  return MuMeM.Player._nextLevelXp
+end
+
+function MuMeM.Player.setNextLevelXp(nextLevelXp)
+  player_setvalue("_nextLevelXp", nextLevelXp, "NextLevelXp")
+end
+
+function MuMeM.Player.gmcp_set_next_level_xp(nextLevelXp)
+  MuMeM.Player.setNextLevelXp(nextLevelXp)
+end
+
+-- ### HP #########################################################################
+
+function MuMeM.Player.hp()
+  return MuMeM.Player._hp
+end
+
+function MuMeM.Player.setHp(hp)
+  player_setvalue("_hp", hp, "Hp")
+end
+
+function MuMeM.Player.gmcp_set_hp(hp)
+  MuMeM.Player.setHp(hp)
+end
+
+function MuMeM.Player.maxHp()
+  return MuMeM.Player._maxhp
+end
+
+function MuMeM.Player.setMaxHp(maxhp)
+  player_setvalue("_maxhp", maxhp, "MaxHp")
+end
+
+function MuMeM.Player.gmcp_set_maxhp(maxhp)
+  MuMeM.Player.setMaxHp(maxhp)
+end
+
+-- ### SP (MANA) ###################################################################
+
+function MuMeM.Player.sp()
+  return MuMeM.Player._sp
+end
+
+function MuMeM.Player.setSp(sp)
+  player_setvalue("_sp", sp, "Sp")
+end
+
+function MuMeM.Player.gmcp_set_mana(sp)
+  MuMeM.Player.setSp(sp)
+end
+
+function MuMeM.Player.maxSp()
+  return MuMeM.Player._maxsp
+end
+
+function MuMeM.Player.setMaxSp(maxsp)
+  player_setvalue("_maxsp", maxsp, "MaxSp")
+end
+
+function MuMeM.Player.gmcp_set_maxmana(maxsp)
+  MuMeM.Player.setMaxSp(maxsp)
+end
+
+-- ### MP ##########################################################################
+
+function MuMeM.Player.mp()
+  return MuMeM.Player._mp
+end
+
+function MuMeM.Player.setMp(mp)
+  player_setvalue("_mp", mp, "Mp")
+end
+
+function MuMeM.Player.gmcp_set_mp(mp)
+  MuMeM.Player.setMp(mp)
+end
+
+function MuMeM.Player.maxMp()
+  return MuMeM.Player._maxmp
+end
+
+function MuMeM.Player.setMaxMp(maxmp)
+  player_setvalue("_maxmp", maxmp, "MaxMp")
+end
+
+function MuMeM.Player.gmcp_set_maxmp(maxmp)
+  MuMeM.Player.setMaxMp(maxmp)
+end
+
+-- ### XP ##########################################################################
+
+function MuMeM.Player.xp()
+  return MuMeM.Player._xp
+end
+
+function MuMeM.Player.setXp(xp)
+  player_setvalue("_xp", xp, "Xp")
+end
+
+--function MuMeM.Player.gmcp_set_xp(xp)
+--  MuMeM.Player.setXp(xp)
+--end
+
+-- ### TP ##########################################################################
+
+function MuMeM.Player.tp()
+  return MuMeM.Player._tp
+end
+
+function MuMeM.Player.setTp(tp)
+  player_setvalue("_tp", tp, "Tp")
+end
+
+--function MuMeM.Player.gmcp_set_tp(tp)
+--  MuMeM.Player.setTp(tp)
+--end
+
+-- ### CARRYING ####################################################################
+
+function MuMeM.Player.carrying()
+  return MuMeM.Player._carrying
+end
+
+function MuMeM.Player.setCarrying(carrying)
+  player_setvalue("_carrying", carrying, "Carrying")
+end
+
+--function MuMeM.Player.gmcp_set_carrying(carrying)
+--  MuMeM.Player.setCarrying(carrying)
+--end
+
+-- ### RIDE ########################################################################
+
+function MuMeM.Player.ride()
+  return MuMeM.Player._ride
+end
+
+function MuMeM.Player.setRide(ride)
+  player_setvalue("_ride", ride, "Ride")
+end
+
+--function MuMeM.Player.gmcp_set_ride(ride)
+--  MuMeM.Player.setRide(ride)
+--end
+
+-- ### RIDDEN ######################################################################
+
+function MuMeM.Player.ridden()
+  return MuMeM.Player._ridden
+end
+
+function MuMeM.Player.setRidden(ridden)
+  player_setvalue("_ridden", ridden, "Ridden")
+end
+
+--function MuMeM.Player.gmcp_set_ridden(ridden)
+--  MuMeM.Player.setRidden(ridden)
+--end
+
+-- ### CLIMB ########################################################################
+
+-- "C" / "c" / ""
+function MuMeM.Player.climb()
+  return MuMeM.Player._climb
+end
+
+function MuMeM.Player.setClimb(climb)
+  player_setvalue("_climb", climb, "Climb")
+end
+
+function MuMeM.Player.gmcp_set_climb(climb)
+  if type(climb) == "userdata" then
+    climb = ""
+  end
+  MuMeM.Player.setClimb(climb)
+end
+
+-- ### SWIM #########################################################################
+
+function MuMeM.Player.swim()
+  return MuMeM.Player._swim
+end
+
+function MuMeM.Player.setSwim(swim)
+  player_setvalue("_swim", swim, "Swim")
+end
+
+--function MuMeM.Player.gmcp_set_swim(swim)
+--  MuMeM.Player.setSwim(swim)
+--end
+
+-- ### LIGHT ########################################################################
+
+function MuMeM.Player.light()
+  return MuMeM.Player._light
+end
+
+function MuMeM.Player.setLight(light)
+  player_setvalue("_light", light, "Light")
+end
+
+--function MuMeM.Player.gmcp_set_light(light)
+--  MuMeM.Player.setLight(light)
+--end
+
+-- ### FOG ##########################################################################
+
+function MuMeM.Player.fog()
+  return MuMeM.Player._fog
+end
+
+function MuMeM.Player.setFog(fog)
+  player_setvalue("_fog", fog, "Fog")
+end
+
+function MuMeM.Player.gmcp_set_fog(fog)
+  if type(fog) == "userdata" then
+    fog = ""
+  end
+  MuMeM.Player.setFog(fog)
+end
+
+-- ### WEATHER ######################################################################
+
+function MuMeM.Player.weather()
+  return MuMeM.Player._weather
+end
+
+function MuMeM.Player.setWeather(weather)
+  player_setvalue("_weather", weather, "Weather")
+end
+
+function MuMeM.Player.gmcp_set_weather(weather)
+  if type(weather) == "userdata" then
+    weather = ""
+  end
+  MuMeM.Player.setWeather(weather)
+end
+
+-- ### ALERTNESS ####################################################################
+
+function MuMeM.Player.alertness()
+  return MuMeM.Player._alterness
+end
+
+function MuMeM.Player.setAlertness(alertness)
+  player_setvalue("_alertness", alertness, "Alertness")
+end
+
+--function MuMeM.Player.gmcp_set_alertness(alertness)
+--  MuMeM.Player.setAlertness(alertness)
+--end
+
+-- ### MOOD #########################################################################
+
+function MuMeM.Player.mood()
+  return MuMeM.Player._mood
+end
+
+function MuMeM.Player.setMood(mood)
+  player_setvalue("_mood", mood, "Mood")
+end
+
+--function MuMeM.Player.gmcp_set_mood(mood)
+--  MuMeM.Player.setMood(mood)
+--end
+
+-- ### SPELL-EFFORT ##################################################################
+
+function MuMeM.Player.spellEffort()
+  return MuMeM.Player._spellEffort
+end
+
+function MuMeM.Player.setSpellEffort(spellEffort)
+  player_setvalue("_spellEffort", spellEffort, "SpellEffort")
+end
+
+--function MuMeM.Player.gmcp_set_spell_effort(spellEffort)
+--  MuMeM.Player.setSpellEffort(spellEffort)
+--end
+
+-- ### POSITION ######################################################################
+
+function MuMeM.Player.position()
+  return MuMeM.Player._position
+end
+
+function MuMeM.Player.setPosition(position)
+  player_setvalue("_position", position, "Position")
+end
+
+--function MuMeM.Player.gmcp_set_position(position)
+--  MuMeM.Player.setPosition(position)
+--end
+
+-- ### GENERIC GMCP_SET_VALUE #########################################################
+
+function MuMeM.Player.gmcp_set_value(key, value)
+  local setter = "gmcp_set_"..key                         -- MuMeM.Player.gmcp_set_position()
+
+  if MuMeM.Player[setter] then
+    MuMeM.Player[setter](value)
+  else 
+    setter = "set"..string.title(key)                     -- MuMeM.Player.setPosition()
+    if MuMeM.Player[setter] then
+      MuMeM.Player[setter](value)
+    else  
+      setter = "gmcp_set_"..string.gsub(key, "-", "_")    -- MuMeM.Player.gmcp_set_next_level_tp()
+      if MuMeM.Player[setter] then
+        MuMeM.Player[setter](value)
+      else      
+        MuMeM.Log.notice("No setter defined for: "..key, "MuMeM.Player")
+      end
+    end
+  end
+end
+
+-- ### RAISE TRIGGER ##################################################################
+
+--[[
+    I am not sure yet how to do this:
+      - notify on every SINGLE event (hp, sp, ...)
+      - notify after the BATCH update (all vitals)
+      
+    TODO / IDEA : Pass the changed values in the arguments!!!
+                 -&gt; raiseEvent("MuMeM.Player.Vitals", {Hp,MaxHp,Carrying))
+--]]
+
+function MuMeM.Player.notifyVitals()
+  raiseEvent("MuMeM.Player.Vitals")
+end
+
+function MuMeM.Player.notifyStatusVars()
+  raiseEvent("MuMeM.Player.StatusVars")
+end</script>
+				<eventHandlerList />
+			</Script>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Player.EventHandler</name>
+				<packageName></packageName>
+				<script></script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Player.EventHandler.Connect</name>
+					<packageName></packageName>
+					<script>function MuMeM.Player.EventHandler.Connect(event, ...)
+    -- happens when the profile becomes available and player connects
+  -- CAVEAT: MMapper stays connected!
+  if event == "sysConnectionEvent" then
+    MuMeM.Player.reset()
+  end
+
+  -- happens when GMCP becomes available, which is "normally" at login!
+  -- CAVEAT: This can also happen during gameplay (enable / disable protocol)
+  if event == "sysProtocolEnabled" and arg[1] == "GMCP" then
+    MuMeM.Player.reset()
+  end
+end</script>
+					<eventHandlerList>
+						<string>sysConnectionEvent</string>
+					</eventHandlerList>
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Player.Buffer</name>
+				<packageName></packageName>
+				<script></script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Player.Buffer.Library</name>
+					<packageName></packageName>
+					<script>--[[
+    buffer-hits	  "healthy", "fine", etc.
+--]]
+
+-- ### INITIALIZATION #############################################################
+
+function MuMeM.Player.Buffer.initialize()
+  MuMeM.Player.Buffer.reset()
+end
+
+function MuMeM.Player.Buffer.reset()
+  MuMeM.Player.Buffer._health = nil
+end
+
+local function player_buffer_setvalue(key, value, eventName)
+  if value ~= MuMeM.Player.Buffer[key] then
+    MuMeM.Player.Buffer[key] = value
+    raiseEvent("MuMeM.Player.Buffer."..eventName)
+  end
+end
+
+-- ### NAME #######################################################################
+
+function MuMeM.Player.Buffer.health()
+  return MuMeM.Player.Buffer._health
+end
+
+function MuMeM.Player.Buffer.setHealth(health)
+  player_buffer_setvalue("_health", health, "Health")
+end
+
+function MuMeM.Player.Buffer.gmcp_set_buffer_hits(hits)
+  if type(hits) == "userdata" then
+    hits = nil
+  end
+  MuMeM.Player.Buffer.setHealth(hits)
+end
+
+-- ### RAISE TRIGGER ##################################################################
+
+--[[
+    I am not sure yet how to do this:
+      - notify on every SINGLE event (hp, sp, ...)
+      - notify after the BATCH update (all vitals)
+      
+    TODO / IDEA : Pass the changed values in the arguments!!!
+                 -&gt; raiseEvent("MuMeM.Player.Vitals", {Hp,MaxHp,Carrying))
+--]]
+
+function MuMeM.Player.Buffer.notify()
+  raiseEvent("MuMeM.Player.Buffer")
+end</script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Player.Mount</name>
+				<packageName></packageName>
+				<script></script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Player.Mount.Library</name>
+					<packageName></packageName>
+					<script>--[[
+mount-moves	  "rested", "slow", etc.
+--]]
+
+-- ### INITIALIZATION #############################################################
+
+function MuMeM.Player.Mount.initialize()
+  MuMeM.Player.Mount.reset()
+end
+
+function MuMeM.Player.Mount.reset()
+  MuMeM.Player.Mount._moves = nil
+end
+
+local function player_mount_setvalue(key, value, eventName)
+  if value ~= MuMeM.Player.Mount[key] then
+    MuMeM.Player.Mount[key] = value
+    raiseEvent("MuMeM.Player.Mount."..eventName)
+  end
+end
+
+-- ### NAME #######################################################################
+
+function MuMeM.Player.Mount.moves()
+  return MuMeM.Player.Mount._moves
+end
+
+function MuMeM.Player.Mount.setMoves(moves)
+  player_mount_setvalue("_moves", moves, "Moves")
+end
+
+function MuMeM.Player.Mount.gmcp_set_mount_moves(moves)
+  if type(moves) == "userdata" then
+    moves = nil
+  end
+  MuMeM.Player.Mount.setMoves(moves)
+end
+
+-- ### RAISE TRIGGER ##################################################################
+
+--[[
+    I am not sure yet how to do this:
+      - notify on every SINGLE event (hp, sp, ...)
+      - notify after the BATCH update (all vitals)
+      
+    TODO / IDEA : Pass the changed values in the arguments!!!
+                 -&gt; raiseEvent("MuMeM.Player.Vitals", {Hp,MaxHp,Carrying))
+--]]
+
+function MuMeM.Player.Mount.notify()
+  raiseEvent("MuMeM.Player.Mount")
+end</script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Player.Opponent</name>
+				<packageName></packageName>
+				<script></script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Player.Opponent.Library</name>
+					<packageName></packageName>
+					<script>--[[
+  opponent-hits	"healthy", "fine", etc.
+--]]
+
+-- ### INITIALIZATION #############################################################
+
+function MuMeM.Player.Opponent.initialize()
+  MuMeM.Player.Opponent.reset()
+end
+
+function MuMeM.Player.Opponent.reset()
+  MuMeM.Player.Opponent._health = nil
+end
+
+local function player_opponent_setvalue(key, value, eventName)
+  if value ~= MuMeM.Player.Opponent[key] then
+    MuMeM.Player.Opponent[key] = value
+    raiseEvent("MuMeM.Player.Opponent."..eventName)
+  end
+end
+
+-- ### NAME #######################################################################
+
+function MuMeM.Player.Opponent.health()
+  return MuMeM.Player.Opponent._health
+end
+
+function MuMeM.Player.Opponent.setHealth(health)
+  player_opponent_setvalue("_health", health, "Health")
+end
+
+function MuMeM.Player.Opponent.gmcp_set_opponent_hits(hits)
+  if type(hits) == "userdata" then
+    hits = nil
+  end
+  MuMeM.Player.Opponent.setHealth(hits)
+end
+
+-- ### RAISE TRIGGER ##################################################################
+
+--[[
+    I am not sure yet how to do this:
+      - notify on every SINGLE event (hp, sp, ...)
+      - notify after the BATCH update (all vitals)
+      
+    TODO / IDEA : Pass the changed values in the arguments!!!
+                 -&gt; raiseEvent("MuMeM.Player.Vitals", {Hp,MaxHp,Carrying))
+--]]
+
+function MuMeM.Player.Opponent.notify()
+  raiseEvent("MuMeM.Player.Opponent")
+end</script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+		</ScriptGroup>
+	</ScriptPackage>
+</MudletPackage>
