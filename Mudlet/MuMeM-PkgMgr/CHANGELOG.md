@@ -1,3 +1,9 @@
+### 20230403
+
+  * fixed two-finger scrolling
+  * bugfixes when installing "other" packages
+  * changed inheritance
+
 ### 20230321
 
   * New layout
