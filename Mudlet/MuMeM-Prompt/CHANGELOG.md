@@ -1,3 +1,10 @@
+### 20230403
+
+  * You can change font-family and font-size of TextStatus
+  * You can now create status to display your own text messages
+  * Width for "fixed sized" widgets is now configurable
+  * Terrain background now colored by movement cost (green/red/none)
+
 ### 20230325
 
   * Customization of panels (height, borders, background)
