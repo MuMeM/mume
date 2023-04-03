@@ -1,3 +1,8 @@
+### 20230403
+
+  * Added FontSelection widget
+  * ItemSelection can now scroll to an initial value
+
 ### 20230325
 
   * New widget: ColorInput

@@ -1,0 +1,2067 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE MudletPackage>
+<MudletPackage version="1.001">
+	<ScriptPackage>
+		<ScriptGroup isActive="yes" isFolder="yes">
+			<name>MuMeM.Widget</name>
+			<packageName></packageName>
+			<script>--[[
+    Collection of Widgets
+--]]
+
+require "MuMeM-Core"
+
+-- --- Module setup ----------------------------------------------
+
+MuMeM = MuMeM or {}
+MuMeM.Widget = MuMeM.Widget or {}
+
+
+-- --- Module registration -----------------------------------------
+
+MuMeM.Widget.module_name = "MuMeM.Widget"
+MuMeM.Widget.module_dependencies = {"MuMeM.Core","MuMeM.Log"}
+MuMeM.modules = MuMeM.modules or {}
+MuMeM.modules[MuMeM.Widget.module_name] = MuMeM.modules[MuMeM.Widget.module_name] or {module=MuMeM.Widget}</script>
+			<eventHandlerList />
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Widget.Library</name>
+				<packageName></packageName>
+				<script>function MuMeM.Widget.initialize()
+  if MuMeM.Core.IO.nodeExists(getMudletHomeDir().."/MuMeM.Widget") then
+    MuMeM.Widget.resourceDir = getMudletHomeDir().."/MuMeM.Widget/Resources"
+  else
+    MuMeM.Widget.resourceDir = getMudletHomeDir().."/MuMeM-Widget/Resources"
+  end
+end
+
+function MuMeM.Widget.showUserWindow(userWindow)
+  local width = userWindow:get_width()
+  local height = userWindow:get_height()
+
+  userWindow:show()
+
+  if userWindow:get_width() ~= width or userWindow:get_height() ~= height then
+    userWindow:resize(width+2, height+21)
+  end
+end
+
+function MuMeM.Widget.getResourceDir()
+  return MuMeM.Widget.resourceDir
+end
+
+function MuMeM.Widget.wheelScrollDistanceVertical(event)
+  if event.angleDeltaY % 120 == 0 then
+    return event.angleDeltaY / 120
+  elseif event.angleDeltaY &gt; 0 then
+    return math.floor(event.angleDeltaY / 10) + 1
+  elseif event.angleDeltaY &lt; 0 then
+    return math.ceil(event.angleDeltaY / 10) - 1
+  end
+
+  return 0
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Widget.Widget</name>
+				<packageName></packageName>
+				<script>MuMeM.Widget.Widget = MuMeM.Widget.Widget or
+{
+  _name = "undefined",
+  _parentWindow = false,
+    
+  _x = 0,
+  _y = 0,
+  _width = 50,
+  _height = 20,
+
+  _window = false,
+  _visuals = nil,
+  
+  _value = nil,
+  _isEnabled = true,
+  
+  _valueChangedCallback = false,
+  _clickCallback = false,
+}
+
+mumem_inherit("MuMeM.Widget.Widget", "MuMeM.Widget.Widget")
+
+function MuMeM.Widget.Widget:new(props, parentWindow)
+  local me = props or {}
+  
+  me._name = me._name or Geyser.nameGen()
+  me._parentWindow = parentWindow or props._parentWindow or false
+  me._visuals = {}
+  
+  if mumem_isa(me._parentWindow,"MuMeM.Widget.Widget") then
+    me._parentWindow = me._parentWindow:window()
+  end
+  
+  setmetatable(me, self)
+  self.__index = self
+
+  return me
+end
+
+function MuMeM.Widget.Widget:name()
+  return self._name
+end
+
+function MuMeM.Widget.Widget:parentWindow()
+  if self._parentWindow == false then
+    return nil
+  end
+  
+  return self._parentWindow
+end
+
+function MuMeM.Widget.Widget:window()
+  if self._window == false then
+    return nil
+  end
+  
+  return self._window
+end
+
+function MuMeM.Widget.Widget:x()
+  return self._x
+end
+
+function MuMeM.Widget.Widget:y()
+  return self._y
+end
+
+function MuMeM.Widget.Widget:width()
+  return self._width
+end
+
+function MuMeM.Widget.Widget:height()
+  return self._height
+end
+
+function MuMeM.Widget.Widget:show()
+  return self:window():show()
+end
+
+function MuMeM.Widget.Widget:hide()
+  return self:window():hide()
+end
+
+function MuMeM.Widget.Widget:clickCallback(event)
+  if self._clickCallback and self:isEnabled() then
+    self._clickCallback(event)
+  end
+end
+
+function MuMeM.Widget.Widget:value()
+  return self:getValue()
+end
+
+function MuMeM.Widget.Widget:getValue()
+  return self._value
+end
+
+function MuMeM.Widget.Widget:setValue(value)
+  self._value = value
+end
+
+function MuMeM.Widget.Widget:setValueRaise(value)
+  local prevValue = self:value()
+  
+  self:setValue(value)
+  
+  if prevValue ~= self:value() then
+    if self._valueChangedCallback then
+      self._valueChangedCallback(value)
+    end
+    raiseEvent("MuMeM.Widget.ValueChanged."..self:name(), self)
+  end
+end
+
+function MuMeM.Widget.Widget:isEnabled()
+  return self._isEnabled
+end
+
+function MuMeM.Widget.Widget:isDisabled()
+  return not self._isEnabled
+end
+
+function MuMeM.Widget.Widget:enable()
+  if not self:isEnabled() then
+    self._isEnabled = true
+  end
+end
+
+function MuMeM.Widget.Widget:disable()
+  if self:isEnabled() then
+    self._isEnabled = false
+  end
+end
+
+function MuMeM.Widget.Widget:setEnabled(state)
+  if state then
+    self:enable()
+  else
+    self:disable()
+  end
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Widget.Frame</name>
+				<packageName></packageName>
+				<script>MuMeM.Widget.Frame = MuMeM.Widget.Frame or
+{
+  _title = "Frame",
+  
+  _x = 0,
+  _y = 0,
+  _width = 50,
+  _height = 20,
+  
+  _frameStyleSheet = Geyser.StyleSheet:new([[
+    background-color: transparent;
+    border: 1px solid black;
+    border-radius: 3px;
+  ]]),
+  _frameTitleStyleSheet = Geyser.StyleSheet:new([[
+    background-color: #D3D3D3;
+    color: black;
+    font-size: 10pt;
+    font-family: "Bitstream Vera Sans";
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+  ]]),
+}
+
+mumem_inherit("MuMeM.Widget.Frame", "MuMeM.Widget.Widget")
+
+function MuMeM.Widget.Frame:new(props, parentWindow)
+  local props = props or {}
+
+  local me = self.parentClass:new(props, parentWindow)
+  
+  setmetatable(me, self)
+  self.__index = self
+  
+  fontWidth,fontHeight = calcFontSize(10, "DejaVu Sans Serif")    -- TODO: THIS IS NOT GENERIC!!!!
+
+  me._visuals.frame = Geyser.Label:new({
+    name = me._name,
+    x = me._x, y = me._y + fontHeight/2,
+    width = me._width, height = me._height - fontHeight/2,
+    stylesheet = me._frameStyleSheet:getCSS(),
+  },me._parentWindow)
+  
+  me._visuals.frameTitle = Geyser.Label:new({
+    name = f"{me._name}:title",
+    x = me._x+10, y = me._y,
+    width = fontWidth * (string.len(me:title())+2), height = fontHeight,
+    stylesheet = me._frameTitleStyleSheet:getCSS(),
+  },me._parentWindow) 
+  me:setTitle(me:title())
+  
+  me._window = me._visuals.frame
+   
+  return me
+end
+
+function MuMeM.Widget.Frame:title()
+  return self._title
+end
+
+function MuMeM.Widget.Frame:setTitle(title)
+  self._title = title
+  self._visuals.frameTitle:rawEcho(title)
+end
+
+function MuMeM.Widget.Label:editStyleSheet(cst)
+  local styleSheet = Geyser.StyleSheet:new(self._visuals.label.stylesheet)
+  for csk,csv in pairs(cst) do
+    styleSheet:set(csk, csv)
+  end
+  self._visuals.label:setStyleSheet(styleSheet:getCSS())
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Widget.Label</name>
+				<packageName></packageName>
+				<script>MuMeM.Widget.Label = MuMeM.Widget.Label or
+{
+  _x = 0,
+  _y = 0,
+  _width = 50,
+  _height = 20,
+    
+  _labelStyleSheet = Geyser.StyleSheet:new([[
+    background-color: transparent;
+    color: black;
+    font-size: 10pt;
+    font-family: "Bitstream Vera Sans";
+  ]]),
+}
+
+mumem_inherit("MuMeM.Widget.Label", "MuMeM.Widget.Widget")
+
+function MuMeM.Widget.Label:new(props, parentWindow)
+  local props = props or {}
+  
+  props._value = props._value or props._text or "label"
+  props._text = nil
+
+  local me = self.parentClass:new(props, parentWindow)
+  
+  setmetatable(me, self)
+  self.__index = self
+
+  me._visuals.label = Geyser.Label:new({
+    name = me._name,
+    x = me._x, y = me._y,
+    width = me._width, height = me._height,
+    stylesheet = me._labelStyleSheet:getCSS(),
+  },me._parentWindow)
+  me._visuals.label:rawEcho(me:value())
+  
+  me._window = me._visuals.label
+   
+  return me
+end
+
+function MuMeM.Widget.Label:getText()
+  return self:value()
+end
+
+function MuMeM.Widget.Label:setText(text)
+  self:setValue(text)
+end
+
+function MuMeM.Widget.Label:setValue(value)
+  MuMeM.Widget.Label.parentClass.setValue(self, value)
+  
+  self._visuals.label:rawEcho(value)
+end
+
+function MuMeM.Widget.Label:editStyleSheet(cst)
+  local styleSheet = Geyser.StyleSheet:new(self._visuals.label.stylesheet)
+  for csk,csv in pairs(cst) do
+    styleSheet:set(csk, csv)
+  end
+  self._visuals.label:setStyleSheet(styleSheet:getCSS())
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Widget.Image</name>
+				<packageName></packageName>
+				<script>MuMeM.Widget.Image = MuMeM.Widget.Image or 
+{
+  _image = "undefined", 
+}
+
+mumem_inherit("MuMeM.Widget.Image", "MuMeM.Widget.Widget")
+
+function MuMeM.Widget.Image:new(props, parentWindow)
+  local props = props or {}
+
+  local me = self.parentClass:new(props, parentWindow)
+  
+  setmetatable(me, self)
+  self.__index = self
+  
+  me._visuals.image = Geyser.Label:new({
+    name = me._name,
+    x = me._x, y = me._y,
+    width = me._width, height = me._height,
+  },me._parentWindow)
+  
+  me._window = me._visuals.image
+  
+  if me._clickCallback then
+    me._visuals.image:setClickCallback(function(event) me:clickCallback(event) end)
+  end
+  
+  return me
+end
+
+function MuMeM.Widget.Image:image()
+  return self._image
+end
+
+function MuMeM.Widget.Image:setImage(image)
+  self._image = image
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Widget.BorderImage</name>
+				<packageName></packageName>
+				<script>MuMeM.Widget.BorderImage = MuMeM.Widget.BorderImage or 
+{  
+  _imageStyleSheet = Geyser.StyleSheet:new([[
+    border-image: url(%s) 0 0 0 0 stretch stretch;
+    background-color: transparent;
+  ]]),
+}
+
+mumem_inherit("MuMeM.Widget.BorderImage", "MuMeM.Widget.Image")
+
+function MuMeM.Widget.BorderImage:new(props, parentWindow)
+  local props = props or {}
+
+  local me = self.parentClass:new(props, parentWindow)
+  
+  setmetatable(me, self)
+  self.__index = self
+  
+  local styleSheet = string.format(me._imageStyleSheet:getCSS(), me:image())
+  me._visuals.image:setStyleSheet(styleSheet)
+
+  return me
+end
+
+function MuMeM.Widget.BorderImage:setImage(image)
+  MuMeM.Widget.BorderImage.parentClass.setImage(self, image)
+
+  local styleSheet = string.format(self._imageStyleSheet:getCSS(), self:image())
+  self._visuals.image:setStyleSheet(styleSheet)
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Widget.TextInput</name>
+				<packageName></packageName>
+				<script>MuMeM.Widget.TextInput = MuMeM.Widget.TextInput or
+{
+  _text = "",
+
+  _x = 0,
+  _y = 0,
+  _width = 50,
+  _height = 20,
+  
+  _actionCallback = nil,
+  
+  _textInputStyleSheet = Geyser.StyleSheet:new([[
+    background-color: #FFFFFF;
+    border-color: black;
+    border-style: solid;
+    border-width: 1;
+    color: black;
+    font-size: 10pt;
+    font-family: "Bitstream Vera Sans";
+  ]]),
+
+--  myCommandLine:setStyleSheet([[
+--    QPlainTextEdit{ /* QPlainTextEdit is used to prevent the styleSheet bleeding to the right click menu*/
+--      border: 1px solid silver;          /* Command line border style */
+--      background-color: rgb(0,255,150); /* Command line background color */
+--      font: bold 12pt "Arial";          /* Font and font-size of your command line */
+--      color: rgb(0,0,150);              /* Command line text color */
+--    }
+--    ]])
+}
+
+mumem_inherit("MuMeM.Widget.TextInput", "MuMeM.Widget.Widget")
+
+function MuMeM.Widget.TextInput:new(props, parentWindow)
+  local props = props or {}
+
+  local me = self.parentClass:new(props, parentWindow)
+  
+  setmetatable(me, self)
+  self.__index = self
+
+  me._visuals.text = Geyser.CommandLine:new({
+    name = me._name,
+    x = me._x, y = me._y,
+    width = me._width, height = me._height,
+    stylesheet = me._textInputStyleSheet:getCSS(),
+  },me._parentWindow)
+  me._visuals.text:print(me._text)
+  
+  me._visuals.text:setAction(function() me:actionCallback() end)
+  
+  me._window = me._visuals.text
+   
+  return me
+end
+
+function MuMeM.Widget.TextInput:setText(text)
+  self._visuals.text:print(text)
+end
+
+function MuMeM.Widget.TextInput:getText()
+  return self._visuals.text:getText()
+end
+
+function MuMeM.Widget.TextInput:value()
+  return self:getText()
+end
+
+function MuMeM.Widget.TextInput:highlightError()
+  self:editStyleSheet({["border-color"]="red"})
+end
+
+function MuMeM.Widget.TextInput:clearError()
+  self:editStyleSheet({["border-color"]="black"})
+end
+
+function MuMeM.Widget.Widget:actionCallback()
+  if self._valueChangedCallback and self:isEnabled() then
+    self._valueChangedCallback(self:getText())
+  end
+end
+
+function MuMeM.Widget.TextInput:editStyleSheet(cst)
+  local styleSheet = Geyser.StyleSheet:new(self._visuals.text.stylesheet)
+  for csk,csv in pairs(cst) do
+    styleSheet:set(csk, csv)
+  end
+  self._visuals.text:setStyleSheet(styleSheet:getCSS())
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Widget.ColorInput</name>
+				<packageName></packageName>
+				<script>MuMeM.Widget.ColorInput = MuMeM.Widget.ColorInput or
+{
+  _text = "",
+
+  _x = 0,
+  _y = 0,
+  _width = 50,
+  _height = 20,
+  
+  _colorLabelStyleSheet = Geyser.StyleSheet:new([[
+    background-color: transparent;
+    border: 1px solid black;
+  ]]),
+  
+  _textInputStyleSheet = Geyser.StyleSheet:new([[
+    background-color: #FFFFFF;
+    border: 1px solid black;
+    color: black;
+    font-size: 10pt;
+    font-family: "Bitstream Vera Sans";
+  ]]),
+  
+  _imageStyleSheetString = ([[
+    border-image: url(%s) 0 0 0 0 stretch stretch;
+    background-color: %s;
+  ]]),
+}
+
+mumem_inherit("MuMeM.Widget.ColorInput", "MuMeM.Widget.Widget")
+
+function MuMeM.Widget.ColorInput:new(props, parentWindow)
+  local props = props or {}
+
+  local me = self.parentClass:new(props, parentWindow)
+
+  setmetatable(me, self)
+  self.__index = self
+
+  -- colorLabel
+  me._visuals.color = Geyser.Label:new({
+    name = me._name,
+    x = me._x, y = me._y,
+    width = me._width, height = me._height,
+    stylesheet = me._colorLabelStyleSheet:getCSS(),
+  },me:parentWindow())
+
+  me._window = me._visuals.color
+
+
+  -- textInput
+  me._visuals.text = Geyser.CommandLine:new({
+    name = me._name..":Text",
+    x = 0, y = 0,
+    width = "100%-"..(me:height()-1), height = me:height(),
+    stylesheet = me._textInputStyleSheet:getCSS(),
+  },me._visuals.color)
+  me._visuals.text:print(me._text)
+  
+  me._visuals.text:setAction(function() me:apply() end)
+
+  -- return-key image
+  me._visuals.image = Geyser.Label:new({
+    name = me._name..":Image",
+    x = "100%-"..(me:height()-1), y = 1,
+    width = me:height()-2, height = me:height()-2,
+  },me._visuals.color)
+  me._visuals.image:setClickCallback(function() me:apply() end)
+
+  me:colorReturnKey()  
+
+  return me
+end
+
+function MuMeM.Widget.ColorInput:setColor(color)
+  self._visuals.text:print(color)
+  
+  self:colorReturnKey()
+end
+
+function MuMeM.Widget.ColorInput:getColor()
+  return self._visuals.text:getText()
+end
+
+function MuMeM.Widget.ColorInput:value()
+  return self:getColor()
+end
+
+function MuMeM.Widget.ColorInput:colorReturnKey()
+  local color = self:getColor()
+  local image = "return-key-black"
+  
+  if color == nil or color == "transparent" then
+    -- nop  
+  elseif MuMeM.Core.Color.isValid(color) then
+    if MuMeM.Core.Color.calcLuminosity(color) &lt; 0.5 then
+       image = "return-key-white.svg"
+    end
+  end
+
+  image = MuMeM.Core.IO.concatPath(MuMeM.Widget.getResourceDir(), image)
+  local styleSheet = string.format(self._imageStyleSheetString, image, color)
+  self._visuals.image:setStyleSheet(styleSheet)   
+end
+
+function MuMeM.Widget.ColorInput:validateColor()
+  return MuMeM.Core.Color.isValid(self:getColor())
+end
+
+function MuMeM.Widget.ColorInput:highlightError()
+  local styleSheet = Geyser.StyleSheet:new(self._visuals.text.stylesheet)
+  styleSheet:set("border-color", "red")
+  self._visuals.text:setStyleSheet(styleSheet:getCSS())
+end
+
+function MuMeM.Widget.ColorInput:clearError()
+  local styleSheet = Geyser.StyleSheet:new(self._visuals.text.stylesheet)
+  styleSheet:set("border-color", "black")
+  self._visuals.text:setStyleSheet(styleSheet:getCSS())
+end
+
+function MuMeM.Widget.ColorInput:apply()
+  local color = self:getColor()
+
+  if MuMeM.Core.Color.isValid(color) then
+    self:clearError()
+    self:colorReturnKey()
+  
+    if self._valueChangedCallback then
+      self._valueChangedCallback(color)
+    end
+  else
+    self:highlightError()
+  end
+end
+
+function MuMeM.Widget.ColorInput:setApplyCallback(applyCallback)
+  me._visuals.text:setAction(applyCallback)
+  me._visuals.color:setClickCallback(applyCallback)
+end
+
+function MuMeM.Widget.ColorInput:editTextStyleSheet(cst)
+  local styleSheet = Geyser.StyleSheet:new(self._visuals.color.stylesheet)
+  for csk,csv in pairs(cst) do
+    styleSheet:set(csk, csv)
+  end
+  self._visuals.color:setStyleSheet(styleSheet:getCSS())
+end
+
+function MuMeM.Widget.ColorInput:editStyleSheet(cst)
+  local styleSheet = Geyser.StyleSheet:new(self._visuals.color.stylesheet)
+  for csk,csv in pairs(cst) do
+    styleSheet:set(csk, csv)
+  end
+  self._visuals.color:setStyleSheet(styleSheet:getCSS())
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Widget.NumberInput</name>
+				<packageName></packageName>
+				<script>MuMeM.Widget.NumberInput = MuMeM.Widget.NumberInput or
+{
+  _minNumber = -99999,
+  _maxNumber = 99999,
+  
+  _labelStyleSheet = Geyser.StyleSheet:new([[
+    background-color: transparent;
+    color: black;
+    font-size: 10pt;
+    font-family: "Bitstream Vera Sans";
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+    border: 1px solid black;
+  ]]),
+
+  _decStyleSheet = Geyser.StyleSheet:new([[
+    border-image: url(%s) 0 0 0 0 stretch stretch;
+    background-color: darkGray;
+    border: 5px transparent;
+  ]]),
+  _incStyleSheet = Geyser.StyleSheet:new([[
+    border-image: url(%s) 0 0 0 0 stretch stretch;
+    background-color: darkGray;
+    border: 5px transparent;
+  ]]),
+}
+
+mumem_inherit("MuMeM.Widget.NumberInput", "MuMeM.Widget.Label")
+
+function MuMeM.Widget.NumberInput:new(props, parentWindow)
+  local props = props or {}
+  
+  props._value = props._value or props._number
+  props._number = nil
+
+  local me = self.parentClass:new(props, parentWindow)
+  
+  setmetatable(me, self)
+  self.__index = self
+  
+  -- label
+  me._visuals.label:setStyleSheet(me._labelStyleSheet:getCSS())
+  
+  -- dec
+  local styleSheet = string.format(me._decStyleSheet:getCSS(),
+                                    MuMeM.Core.IO.concatPath(MuMeM.Widget.getResourceDir(), "minus.svg"))
+
+  me._visuals.labelDec = Geyser.Label:new({
+    name = f"{me:name()}:Dec",
+    x = 1, y = 1,
+    width = me._height-2, height = me._height-2,          -- YES, width = me._height to make it square
+    stylesheet = styleSheet,
+  }, me._visuals.label)
+  
+  -- inc
+  local styleSheet = string.format(me._incStyleSheet:getCSS(),
+                                    MuMeM.Core.IO.concatPath(MuMeM.Widget.getResourceDir(), "plus.svg"))
+
+  me._visuals.labelInc = Geyser.Label:new({
+    name = f"{me:name()}:Inc",
+    x = "100%-"..me._height-1, y = 1,
+    width = me._height-2, height = me._height-2,          -- YES, width = me._height to make it square
+    stylesheet = styleSheet,
+  }, me._visuals.label)
+  
+  -- click stopAllNamedEventHandlers
+  me._visuals.labelDec:setClickCallback(function(event) me:clickCallbackStep(event,-1) end)
+  me._visuals.labelInc:setClickCallback(function(event) me:clickCallbackStep(event,1) end)
+  me._visuals.label:setWheelCallback(function(event) me:wheelCallbackStep(event) end)
+     
+  return me
+end
+
+function MuMeM.Widget.NumberInput:minNumber()
+  return self._minNumber
+end
+
+function MuMeM.Widget.NumberInput:setMinNumber(number)
+  self._minNumber = number
+end
+
+function MuMeM.Widget.NumberInput:maxNumber()
+  return self._maxNumber
+end
+
+function MuMeM.Widget.NumberInput:setMaxNumber(number)
+  self._maxNumber = number
+end
+
+function MuMeM.Widget.NumberInput:getNumber()
+  return self:value()
+end
+
+function MuMeM.Widget.NumberInput:getNumber()
+  return self:value()
+end
+
+function MuMeM.Widget.NumberInput:setNumber(number)
+  self:setValue(tonumber(number))
+end
+
+function MuMeM.Widget.NumberInput:setText(text)
+  self:setValue(tonumber(number))
+end
+
+function MuMeM.Widget.NumberInput:setValue(value)
+  MuMeM.Widget.NumberInput.parentClass.setValue(self, 
+                              math.min(math.max(tonumber(value),self:minNumber()),self:maxNumber()))
+end
+
+function MuMeM.Widget.NumberInput:setValueRaise(value)
+  MuMeM.Widget.NumberInput.parentClass.setValueRaise(self,
+                              math.min(math.max(tonumber(value),self:minNumber()),self:maxNumber()))
+end 
+
+function MuMeM.Widget.NumberInput:clickCallbackStep(event, upDown)
+  if event.button == "LeftButton" then
+    step = 1 * upDown
+  else
+    step = 10 * upDown
+  end
+    
+  self:setValueRaise(self:getNumber() + step)
+end
+
+function MuMeM.Widget.NumberInput:wheelCallbackStep(event)
+  self:setValueRaise(self:getNumber() + MuMeM.Widget.wheelScrollDistanceVertical(event))
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Widget.Button</name>
+				<packageName></packageName>
+				<script>MuMeM.Widget.Button = MuMeM.Widget.Button or 
+{
+  _text = "",
+  
+  _x = 0,
+  _y = 0,
+  _width = 50,
+  _height = 20,
+    
+  _isEnabled = true,
+}
+
+mumem_inherit("MuMeM.Widget.Button", "MuMeM.Widget.Widget")
+
+function MuMeM.Widget.Button:new(props, parentWindow)
+  local props = props or {}
+
+  local me = self.parentClass:new(props, parentWindow)
+  
+  setmetatable(me, self)
+  self.__index = self
+
+  me._visuals.button = Geyser.Label:new({
+    name = me._name,
+    x = me._x, y = me._y,
+    width = me._width, height = me._height,
+  },me._parentWindow)
+  
+  me._window = me._visuals.button
+  
+  if me._clickCallback then
+    me._visuals.button:setClickCallback(function(event) me:clickCallback(event) end)
+  end
+   
+  return me
+end
+ 
+function MuMeM.Widget.Button:enable()
+  if not self:isEnabled() then
+    MuMeM.Widget.Button.parentClass.enable(self)
+    self:editStyleSheet({color="black"})
+  end
+end
+
+function MuMeM.Widget.Button:disable()
+  if self:isEnabled() then
+    MuMeM.Widget.Button.parentClass.disable(self)
+    self:editStyleSheet({color="#666666"})
+  end
+end
+
+function MuMeM.Widget.Button:editStyleSheet(cst)
+  local styleSheet = Geyser.StyleSheet:new(self._visuals.button.stylesheet)
+  for csk,csv in pairs(cst) do
+    styleSheet:set(csk, csv)
+  end
+  self._visuals.button:setStyleSheet(styleSheet:getCSS())
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Widget.TextButton</name>
+				<packageName></packageName>
+				<script>MuMeM.Widget.TextButton = MuMeM.Widget.TextButton or
+{
+  _text = "button",
+  
+  _x = 0,
+  _y = 0,
+  _width = 50,
+  _height = 20,
+
+  _textButtonStyleSheet = Geyser.StyleSheet:new([[
+    background-color: darkGray;
+    color: black;
+    font-size: 10pt;
+    font-family: "Bitstream Vera Sans";
+    border: 2px solid black;
+    border-radius: 5px;
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+  ]]),
+}
+
+mumem_inherit("MuMeM.Widget.TextButton", "MuMeM.Widget.Button")
+
+function MuMeM.Widget.TextButton:new(props, parentWindow)
+  local props = props or {}
+
+  local me = self.parentClass:new(props, parentWindow)
+  
+  setmetatable(me, self)
+  self.__index = self
+
+  me._visuals.button:setStyleSheet(me._textButtonStyleSheet:getCSS())
+  me._visuals.button:rawEcho(me._text)
+
+  return me
+end
+
+function MuMeM.Widget.TextButton:setValue(value)
+  MuMeM.Widget.TextButton.parentClass.setValue(self, value)
+
+  self._visuals.button:rawEcho(value)
+end
+
+function MuMeM.Widget.TextButton:getText()
+  return self:getValue()
+end
+
+function MuMeM.Widget.TextButton:setText(text)
+  return self:setValue(text)
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Widget.FontSelection</name>
+				<packageName></packageName>
+				<script>MuMeM.Widget.FontSelection = MuMeM.Widget.FontSelection or
+{
+  _text = "button",
+  
+  _x = 0,
+  _y = 0,
+  _width = 50,
+  _height = 20,
+
+  _fontSelectionStyleSheet = Geyser.StyleSheet:new([[
+    background-color: transparent;
+    color: black;
+    font-size: 10pt;
+    font-family: "Bitstream Vera Sans";
+    border: 1px solid black;
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+  ]]),
+}
+
+mumem_inherit("MuMeM.Widget.FontSelection", "MuMeM.Widget.Button")
+
+function MuMeM.Widget.FontSelection:new(props, parentWindow)
+  local props = props or {}
+
+  props._clickCallback = function(event) props:openSelectFont(event) end
+
+  local me = self.parentClass:new(props, parentWindow)
+  
+  setmetatable(me, self)
+  self.__index = self
+
+  me._visuals.button:setStyleSheet(me._fontSelectionStyleSheet:getCSS())
+  me._visuals.button:rawEcho(me._text)
+
+  return me
+end
+
+function MuMeM.Widget.FontSelection:setValue(value)
+  MuMeM.Widget.FontSelection.parentClass.setValue(self, value)
+
+  self._visuals.button:rawEcho(value)
+end
+
+function MuMeM.Widget.FontSelection:getFont()
+  return self:getValue()
+end
+
+function MuMeM.Widget.FontSelection:setFont(font)
+  self:setValue(font)
+end
+
+function MuMeM.Widget.FontSelection:openSelectFont(event)
+  self._fontSelectDlg = MuMeM.Widget.ItemSelection:new({
+    _x = 0,
+    _y = self:window():get_height()/2,
+    _width = self:window():get_width(),
+    _anchor = "left",
+    _itemSelectedCallback = function(selectedValue) self:closeSelectFont(selectedValue) end,
+  }, self:window())
+  
+  local dataList = {}
+  for k,_ in spairs(getAvailableFonts()) do
+    table.insert(dataList, {title=k,_value=k})
+  end
+  self._fontSelectDlg:setDataList(dataList, self:getFont())
+end
+
+function MuMeM.Widget.FontSelection:closeSelectFont(selectedFont)
+  if selectedFont then
+    self:editStyleSheet({["font-family"]=f'"{selectedFont}"'})
+    self:setValueRaise(selectedFont)
+  end
+
+--  if selectedClassName then
+--    if not MuMeM.Prompt.Layout.Manager.panelExists(panelName) then
+--        panel = MuMeM.Prompt.Layout.Manager.deployPanelSimple(panelName)
+--    end
+--  
+--    local widget = MuMeM.Prompt.Layout.Manager.deployWidget(panelName, selectedClassName)
+--    widget:enableEditMode()
+--  end
+
+  self._fontSelectDlg:destroy()
+  self._fontSelectDlg = nil
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Widget.ImageButton</name>
+				<packageName></packageName>
+				<script>MuMeM.Widget.ImageButton = MuMeM.Widget.ImageButton or 
+{
+  IMAGE_LAYER_BORDER = 1,
+  IMAGE_LAYER_BACKGROUND = 2,
+  
+  _image = "undefined",
+  _image_layer = 1,
+  
+  _imageButtonBorderLayerStyleSheet = Geyser.StyleSheet:new([[
+    background-color: darkGray;
+    color: white;
+    font-size: 10pt;
+    border: 2px solid black;
+    border-radius: 5px;
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+  ]]),
+  _imageButtonBorderLayerImageStyleSheet = Geyser.StyleSheet:new([[
+    border-image: url(%s) 0 0 0 0 stretch stretch;
+    background-color: transparent;
+    border: 5px transparent;
+  ]]),
+  
+  _imageButtonBackgroundLayerStyleSheet = Geyser.StyleSheet:new([[
+    background-image: url(%s);
+    background-repeat: no;
+    background-position: center;
+    background-color: transparent;
+  ]]),
+}
+
+mumem_inherit("MuMeM.Widget.ImageButton", "MuMeM.Widget.Button")
+
+function MuMeM.Widget.ImageButton:new(props, parentWindow)
+  local props = props or {}
+
+  local me = self.parentClass:new(props, parentWindow)
+  
+  setmetatable(me, self)
+  self.__index = self
+  
+  if me:imageLayer() == MuMeM.Widget.ImageButton.IMAGE_LAYER_BORDER then
+    me._visuals.button:setStyleSheet(me._imageButtonBorderLayerStyleSheet:getCSS())
+    local styleSheet = string.format(me._imageButtonBorderLayerImageStyleSheet:getCSS(), me:image())
+
+    me._visuals.buttonImage = Geyser.Label:new({
+      name = me._name..":Image",
+      x = 0, y = 0,
+      width = "100%", height = "100%",
+    },me._visuals.button)
+    me._visuals.buttonImage:setStyleSheet(styleSheet)
+    me._visuals.buttonImage:enableClickthrough() 
+  
+  elseif me:imageLayer() == MuMeM.Widget.ImageButton.IMAGE_LAYER_BACKGROUND then
+    local styleSheet = string.format(me._imageButtonBackgroundLayerStyleSheet, me:image())
+    -- TODO TODO TODO
+    -- TODO
+  end
+  
+  return me
+end
+
+function MuMeM.Widget.ImageButton:image()
+  return self._image
+end
+
+function MuMeM.Widget.ImageButton:imageLayer()
+  return self._imageLayer
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Widget.CheckButton</name>
+				<packageName></packageName>
+				<script>MuMeM.Widget.CheckButton = MuMeM.Widget.CheckButton or
+{
+  _text = "Check Button",
+  
+  _x = 0,
+  _y = 0,
+  _width = 50,
+  _height = 20,
+  
+  _enabled = false,
+  
+  _buttonEnabledStyleSheet = Geyser.StyleSheet:new([[
+    background-color: darkGreen;
+    border: 1px solid black;
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+  ]]),
+  _buttonDisabledStyleSheet = Geyser.StyleSheet:new([[
+    background-color: white;
+    border: 1px solid black;
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+  ]]),
+
+  _labelStyleSheet = Geyser.StyleSheet:new([[
+    background-color: transparent;
+    color: black;
+    font-size: 10pt;
+    qproperty-alignment: 'AlignLeft | AlignVCenter';
+  ]]),
+}
+
+mumem_inherit("MuMeM.Widget.CheckButton", "MuMeM.Widget.Widget")
+
+function MuMeM.Widget.CheckButton:new(props, parentWindow)
+  local props = props or {}
+      
+  local me = self.parentClass:new(props, parentWindow)
+ 
+  setmetatable(me, self)
+  self.__index = self
+
+  me._visuals.box = Geyser.Container:new({
+    name = f"{me._name}:Box",
+    x = me._x, y = me._y,
+    width = me._width, height = me._height,
+    --stylesheet = self._buttonStyleSheet:getCSS(),
+  },me._parentWindow)
+
+  me._visuals.button = Geyser.Label:new({
+    name = f"{me._name}:Button",
+    x = 1, y = 1,
+    width = 18, height = 18,
+    stylesheet = me:buttonStyleSheet():getCSS(),
+  },me._visuals.box)
+
+  me._visuals.label = Geyser.Label:new({
+    name = f"{me._name}:Label",
+    x = 25, y = 0,
+    width = "100%-25", height = "100%",
+    stylesheet = me._labelStyleSheet:getCSS(),
+  },me._visuals.box)
+  me._visuals.label:rawEcho(me._text)
+  
+  me._visuals.button:setClickCallback(function (event) me:clicked(event) end)
+  
+  me._window = me._visuals.box
+
+  return me
+end
+
+function MuMeM.Widget.CheckButton:buttonStyleSheet()
+  if self._enabled then
+    return self._buttonEnabledStyleSheet
+  else
+    return self._buttonDisabledStyleSheet
+  end
+end
+
+function MuMeM.Widget.CheckButton:enabled()
+  return self._enabled
+end
+
+function MuMeM.Widget.CheckButton:isEnabled()
+  return self:enabled()
+end
+
+function MuMeM.Widget.CheckButton:enable()
+  if not self:enabled() then
+    self._enabled = true
+    self._visuals.button:setStyleSheet(self._buttonEnabledStyleSheet:getCSS())
+  end
+end
+
+function MuMeM.Widget.CheckButton:disable()
+  if self:enabled() then
+    self._enabled = false
+    self._visuals.button:setStyleSheet(self._buttonDisabledStyleSheet:getCSS())
+  end
+end
+
+function MuMeM.Widget.CheckButton:toggle()
+  if self:enabled() then
+    self:disable()
+  else
+    self:enable()
+  end
+end
+
+function MuMeM.Widget.CheckButton:clicked(event)
+  self:toggle()
+end
+</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Widget.RadioButton</name>
+				<packageName></packageName>
+				<script>MuMeM.Widget.RadioButton = MuMeM.Widget.RadioButton or
+{
+  _radioGroup = false,
+  _value = "none",
+
+  _buttonEnabledStyleSheet = Geyser.StyleSheet:new([[
+    background-color: darkGreen;
+    border: 1px solid black;
+    border-radius: 9px;
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+  ]]),
+  _buttonDisabledStyleSheet = Geyser.StyleSheet:new([[
+    background-color: white;
+    border: 1px solid black;
+    border-radius: 9px;
+    qproperty-alignment: 'AlignHCenter | AlignVCenter';
+  ]]),
+}
+
+mumem_inherit("MuMeM.Widget.RadioButton", "MuMeM.Widget.CheckButton")
+
+function MuMeM.Widget.RadioButton:new(props, parentWindow)
+  local props = props or {}
+  
+  props._text = props._text or "Radio Button"
+      
+  local me = self.parentClass:new(props, parentWindow)
+ 
+  setmetatable(me, self)
+  self.__index = self
+  
+  me._visuals.button:setStyleSheet(me:buttonStyleSheet():getCSS())
+
+  return me
+end
+
+function MuMeM.Widget.RadioButton:setRadioGroup(radioGroup)
+  self._radioGroup = radioGroup
+end
+
+function MuMeM.Widget.RadioButton:clicked(event)
+  if self._radioGroup then
+    self._radioGroup:updateSelection(self:name())
+  else
+    MuMeM.Widget.RadioButton.parentClass.clicked(self, event)
+  end
+end
+</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Widget.RadioGroup</name>
+				<packageName></packageName>
+				<script>MuMeM.Widget.RadioGroup = MuMeM.Widget.RadioGroup or
+{
+  _text = "Radio Group",
+  
+  _x = 0,
+  _y = 0,
+  _width = 50,
+  _height = 20,
+  
+  _radioButtons = nil,
+
+  _boxStyleSheet = Geyser.StyleSheet:new([[
+    background-color: transparent;
+    border: 1px solid black;
+    border-radius: 3px;
+  ]]),
+
+  _labelStyleSheet = Geyser.StyleSheet:new([[
+    background-color: transparent;
+    color: black;
+  ]]),
+}
+
+mumem_inherit("MuMeM.Widget.RadioGroup", "MuMeM.Widget.Widget")
+
+function MuMeM.Widget.RadioGroup:new(props, parentWindow)
+  local props = props or {}
+  
+  props._radioButtons = {}
+      
+  local me = self.parentClass:new(props, parentWindow)
+ 
+  setmetatable(me, self)
+  self.__index = self
+
+  me._visuals.box = Geyser.Label:new({
+    name = me._name,
+    x = me._x, y = me._y,
+    width = me._width, height = me._height,
+    stylesheet = self._boxStyleSheet:getCSS(),
+  },me._parentWindow)
+  
+  me._visuals.label = Geyser.Label:new({
+    name = f"{me._name}:Label",
+    x = 10, y = 0,
+    width = "20%", height = 20,
+    stylesheet = self._labelStyleSheet:getCSS(),
+  },me._visuals.box)
+  me._visuals.label:rawEcho("&lt;b&gt;"..me._text.."&lt;/b&gt;")
+
+  me._window = me._visuals.box
+ 
+  return me
+end
+
+function MuMeM.Widget.RadioGroup:add(radioButton)
+  self._radioButtons[radioButton:name()] = radioButton
+  radioButton:setRadioGroup(self)
+end
+
+function MuMeM.Widget.RadioGroup:updateSelection(selectedName)
+  for rbName,rb in pairs(self._radioButtons) do
+    if rbName == selectedName then
+      rb:enable()
+    else
+      rb:disable()
+    end
+  end
+end
+
+function MuMeM.Widget.RadioGroup:getSelected()
+  for rbName,rb in pairs(self._radioButtons) do
+    if rb:enabled() then
+      return rb._value
+    end
+  end
+end
+
+function MuMeM.Widget.RadioGroup:value()
+  return self:getSelected()
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Widget.ItemSelection</name>
+				<packageName></packageName>
+				<script>MuMeM.Widget.ItemSelection = MuMeM.Widget.ItemSelection or
+{
+  _anchor = "topleft",
+  
+  --_closeOnSelect = true|false,                    -- IDEA: now it ALWAYS autocloses when value is selected
+  
+  _numItems = 7,
+  _lineHeight = 20,
+
+  _borderThickness = 3,                             -- you also need to adjust stylesheets (MANUALLY!)
+  
+  _dataList = nil,                                  -- { {title=string,_value=whatever}, ..}
+  _dataListPosition = 1,
+  
+  _selectedValue = nil,
+  _itemSelectedCallback = nil,
+  _delayedCloseTimerId = false,
+  
+  _rootPaneStyleSheet = Geyser.StyleSheet:new([[
+    background-color: #D3D3D3;
+    border: 3px solid yellow;
+  ]]),
+
+  _lineItemStyleSheetString = [[
+    QLabel {
+      background-color: #D3D3D3;
+      color: black;
+      font-size: 10pt;
+      font-family: "Bitstream Vera Sans";
+      qproperty-alignment: 'AlignLeft | AlignVCenter';
+    }
+    QLabel::hover {
+      background-color: forestgreen;
+      color: white;
+    }
+  ]],
+  
+  _scrollStyleSheetString = [[
+    QLabel {
+      border-image: url(%s) 0 0 0 0 stretch stretch;
+      border-left: %spx transparent;
+      border-right: %spx transparent;
+      background-color: #AAAAAA;
+    }
+    QLabel::hover {
+      background-color: #666666;
+    }
+  ]],
+}
+
+mumem_inherit("MuMeM.Widget.ItemSelection", "MuMeM.Widget.Widget")
+
+function MuMeM.Widget.ItemSelection:new(props, parentWindow)
+  local props = props or {}
+
+  local me = self.parentClass:new(props, parentWindow)
+  
+  setmetatable(me, self)
+  self.__index = self
+  
+  -- root pane
+  local x,y = me._x, me._y
+   
+  if me._anchor == "center" then
+    x = me._x - math.floor(me:width()/2)
+    if x &lt; 0 then
+      x = (me._x - me:parentWindow():get_width()) - math.floor(me:width()/2)
+    end
+  end
+  if me._anchor == "center" or me._anchor == "left" then
+    y = me._y - math.floor(me:height()/2)
+    if y &lt; 0 then
+      y = (me._y - me:parentWindow():get_height()) - math.floor(me:height()/2)
+    end
+  end
+
+  me._visuals.rootPane = Geyser.Label:new({
+    name = me._name,
+    x = x, y = y,
+    width = me._width, height = me:height(),
+   stylesheet = me._rootPaneStyleSheet:getCSS(),
+  },me:parentWindow())
+  me._window = me._visuals.rootPane
+  
+  me._visuals.rootPane:setOnEnter(function(event) me:mouseEnter(event) end)
+  me._visuals.rootPane:setOnLeave(function(event) me:mouseLeave(event) end)
+   
+  return me
+end
+
+function MuMeM.Widget.ItemSelection:createLineItems()
+  if self._visuals.lineItem then
+    return
+  end
+  
+  self._visuals.lineItem = {}
+  
+  -- top scroll
+  local styleSheet = string.format(
+                        self._scrollStyleSheetString, 
+                        MuMeM.Core.IO.concatPath(MuMeM.Widget.getResourceDir(), "scroll-up.svg"),
+                        (self:width()-self:scrollHeight()*2)/2,
+                        (self:width()-self:scrollHeight()*2)/2
+                      )
+
+  self._visuals.topScroll = Geyser.Label:new({
+    name = f"{self:name()}:topScroll",
+    x = self:borderThickness(),
+    y = self:borderThickness(),
+    width = "100%-"..(self:borderThickness() * 2),
+    height = self:scrollHeight(),
+    stylesheet = styleSheet,
+  },self._visuals.rootPane)
+  
+  self._visuals.topScroll:setClickCallback(function(event) self:scrollUp(event) end)
+  self._visuals.topScroll:setOnEnter(function(event) self:mouseEnter(event) end)
+  self._visuals.topScroll:setOnLeave(function(event) self:mouseLeave(event) end)
+  
+  -- middle data items
+  for i=1,self:numItems() do
+    self._visuals.lineItem[i] = Geyser.Label:new({
+      name = f"{self:name()}:lineItem#{i}",
+      x = self:borderThickness(),
+      y = self:borderThickness() + self:scrollHeight() + (i-1) * self:lineHeight(),
+      width = "100%-"..(self:borderThickness() * 2),
+      height = self:lineHeight(),
+      stylesheet = self._lineItemStyleSheetString,
+    },self._visuals.rootPane)
+
+    self._visuals.lineItem[i]:setClickCallback(function(event) self:selectLineItem(i, event) end)
+    self._visuals.lineItem[i]:setWheelCallback(function(event) self:scrollWheel(event) end)
+    self._visuals.lineItem[i]:setOnEnter(function(event) self:mouseEnter(event) end)
+    self._visuals.lineItem[i]:setOnLeave(function(event) self:mouseLeave(event) end)
+  end
+
+  -- bottom scroll
+  local styleSheet = string.format(
+                        self._scrollStyleSheetString, 
+                        MuMeM.Core.IO.concatPath(MuMeM.Widget.getResourceDir(), "scroll-down.svg"),
+                        (self:width()-self:scrollHeight()*2)/2,
+                        (self:width()-self:scrollHeight()*2)/2
+                      )
+                      
+  self._visuals.bottomScroll = Geyser.Label:new({
+    name = f"{self:name()}:bottomScroll",
+    x = self:borderThickness(),
+    y = self:borderThickness() + self:scrollHeight() + self:lineHeight() * self:numItems(),
+    width = "100%-"..(self:borderThickness() * 2),
+    height = self:scrollHeight(),
+    stylesheet = styleSheet,
+  },self._visuals.rootPane)
+  
+  self._visuals.bottomScroll:setClickCallback(function(event) self:scrollDown(event) end)
+  self._visuals.bottomScroll:setOnEnter(function(event) self:mouseEnter(event) end)
+  self._visuals.bottomScroll:setOnLeave(function(event) self:mouseLeave(event) end) 
+end
+
+function MuMeM.Widget.ItemSelection:borderThickness()
+  return self._borderThickness
+end
+
+function MuMeM.Widget.ItemSelection:numItems()
+  return self._numItems
+end
+
+function MuMeM.Widget.ItemSelection:height()
+  self._height = self:numItems() * self:lineHeight() + self:borderThickness() * 2 + self:scrollHeight() * 2
+  return self._height
+end
+
+function MuMeM.Widget.ItemSelection:lineHeight()
+  return self._lineHeight
+end
+
+function MuMeM.Widget.ItemSelection:scrollHeight()
+  return self:lineHeight() / 2
+end
+
+function MuMeM.Widget.ItemSelection:selectedValue()
+  return self._selectedValue
+end
+
+function MuMeM.Widget.ItemSelection:dataListPosition()
+  return self._dataListPosition
+end
+
+function MuMeM.Widget.ItemSelection:setDataListPosition(pos)
+  self._dataListPosition = math.max(math.min(pos, table.getn(self._dataList) - self:numItems() + 1), 1)
+end
+
+function MuMeM.Widget.ItemSelection:setDataList(dataList, initialValue)
+  -- create item selection list
+  self:createLineItems()
+  
+  -- set the dataList
+  if initialValue then
+    initialValuePos = 1
+    self._dataList = {}
+    for i,v in pairs(dataList) do
+      self._dataList[i] = v
+      if v._value == initialValue then
+        initialValuePos = i
+      end
+    end
+    self:setDataListPosition(initialValuePos - math.floor(self:numItems()/2))
+  else
+    self._dataList = table.deepcopy(dataList)
+    self:setDataListPosition(1)
+  end
+  
+  -- fill the list
+  self:redraw()
+  
+  self._selectedValue = nil
+end
+
+function MuMeM.Widget.ItemSelection:redraw()
+  for i=1,self:numItems() do
+    self._visuals.lineItem[i]:rawEcho(" "..self._dataList[self:dataListPosition()+i-1].title)
+  end
+end
+
+function MuMeM.Widget.ItemSelection:selectLineItem(itemNumber, event)
+  self._selectedValue = self._dataList[self:dataListPosition()+itemNumber-1]._value
+  
+  -- triggers close event!
+  self._visuals.rootPane:hide()
+end
+
+function MuMeM.Widget.ItemSelection:scrollUp(event)
+  if event.button == "RightButton" then
+    self:setDataListPosition(self:dataListPosition() - (self:numItems()-1))
+  else
+    self:setDataListPosition(self:dataListPosition() - 1)
+  end
+  self:redraw()
+end
+
+function MuMeM.Widget.ItemSelection:scrollDown(event)
+  if event.button == "RightButton" then
+    self:setDataListPosition(self:dataListPosition() + (self:numItems()-1))
+  else
+    self:setDataListPosition(self:dataListPosition() + 1)
+  end
+  self:redraw()
+end
+
+function MuMeM.Widget.ItemSelection:scrollWheel(event)
+  self:setDataListPosition(self:dataListPosition() - MuMeM.Widget.wheelScrollDistanceVertical(event))
+  self:redraw()
+end
+
+function MuMeM.Widget.ItemSelection:mouseEnter(event)
+  self:delayedClose(false)
+end
+
+function MuMeM.Widget.ItemSelection:mouseLeave(event)
+  self:delayedClose(true)
+end
+
+function MuMeM.Widget.ItemSelection:delayedClose(switch)
+  if switch == false then
+    if self._delayedCloseTimerId ~= false then
+      local rtc = killTimer(self._delayedCloseTimerId)
+      self._delayedCloseTimerId = false
+    end
+  else
+    self._delayedCloseTimerId = tempTimer(0.1, function() self:close() end)
+  end
+end 
+
+function MuMeM.Widget.ItemSelection:editStyleSheet(cst)
+  local styleSheet = Geyser.StyleSheet:new(self._visuals.label.stylesheet)
+  for csk,csv in pairs(cst) do
+    styleSheet:set(csk, csv)
+  end
+  self._visuals.label:setStyleSheet(styleSheet:getCSS())
+end
+
+function MuMeM.Widget.ItemSelection:close()
+  if self._itemSelectedCallback then
+    self._itemSelectedCallback(self._selectedValue)
+  end
+end
+
+function MuMeM.Widget.ItemSelection:destroy()
+  self:teardown()
+end
+
+function MuMeM.Widget.ItemSelection:teardown()
+  self._visuals.rootPane:hideAll()
+  self._visuals.rootPane:hide()
+
+  if self._visuals.lineItem then
+    for i=1,self:numItems() do
+      deleteLabel(self._visuals.lineItem[i].name)
+    end
+    deleteLabel(self._visuals.topScroll.name)
+    deleteLabel(self._visuals.bottomScroll.name)
+  end
+
+  deleteLabel(self._visuals.rootPane.name)
+  
+  self._visuals.rootPane.container:remove(self._visuals.rootPane)
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Widget.ItemList</name>
+				<packageName></packageName>
+				<script>MuMeM.Widget.ItemList = MuMeM.Widget.ItemList or
+{
+  _name = "undefined",
+  _parentWindow = nil,
+  
+--  _width = "100%-10",
+--  _height = 200,
+  _numRows = 8,
+  _rowHeight = 20,
+  
+  _selectedRow = 0,
+  
+  _boxBorderThickness = 2,
+  _boxStyleSheet = Geyser.StyleSheet:new({
+    ["background-color"] = "gray",
+    ["border-color"] = "black",
+    ["border-style"] = "solid",
+    ["border-width"] = "2px",
+  }), 
+
+  _titleRowStyleSheet = Geyser.StyleSheet:new({
+    ["background-color"] = "black",
+  }),  
+  _bodyRowStyleSheet = Geyser.StyleSheet:new({
+    ["background-color"] = "green",
+    ["border-bottom"] = "1px solid black",
+  }),
+  _bodyRowSelectedStyleSheet = Geyser.StyleSheet:new({
+    ["background-color"] = "#1f4f2d",
+    ["border-bottom"] = "1px solid black",
+  }),
+  _alternatingRowColors = {
+    "#a9bcc7",
+    "#5582a7",
+  },
+  
+  _columnLayout = {
+    {title="col1",x="0%", width="75%",columnKey=1,renderer="text"},
+    {title="col2",x="75%",width="25%",columnKey=2,renderer="text"},
+  },
+
+  _titleCellStyleSheet = Geyser.StyleSheet:new({
+    ["background-color"] = "transparent",
+    ["color"] = "white",
+    ["font-size"] = "10pt",
+    ["font-family"] = "Bitstream Vera Sans",
+  }),
+}
+
+mumem_inherit("MuMeM.Widget.ItemList", "MuMeM.Widget.Widget")
+
+function MuMeM.Widget.ItemList:new(props, parentWindow)
+  local props = props or {}
+  
+  local me = self.parentClass:new(props, parentWindow)
+  
+  setmetatable(me, self)
+  self.__index = self
+
+  me._visuals = {}
+  me._visuals.row = {}
+
+  -- --- Box ---
+  me._boxStyleSheet:set("border-width", f"{me._boxBorderThickness}px")
+  me._visuals.box = Geyser.Label:new({
+    name = Geyser.nameGen(),
+    x = me._x, y = me._x,
+    width = me._width, height = me._height,
+    stylesheet = self._boxStyleSheet:getCSS(),
+  },me._parentWindow)
+  
+  me._window = me._visuals.box
+   
+  return me
+end
+
+function MuMeM.Widget.ItemList:name()
+  return self._name
+end
+
+function MuMeM.Widget.ItemList:boxBorderThickness()
+  return self._boxBorderThickness
+end
+
+function MuMeM.Widget.ItemList:rowHeight()
+  return self._rowHeight
+end
+
+function MuMeM.Widget.ItemList:numRows()
+  return self._numRows
+end
+
+function MuMeM.Widget.ItemList:rowStyleSheet(rowNum)
+  local styleSheet = self._bodyRowStyleSheet                -- WARNING: this is a REFERENCE !!!!
+
+  if rowNum % 2 == 0 then
+    styleSheet:set("background-color", self._alternatingRowColors[2])
+  else
+    styleSheet:set("background-color", self._alternatingRowColors[1])
+  end
+  
+  return styleSheet
+end
+
+function MuMeM.Widget.ItemList:setDataTable(dataTable)
+  local selectionRestored = false
+  local selectedUUID = self:selectedUUID() 
+  self:unselectRow() 
+
+  local rowNum = 1
+  for k,v in pairs(dataTable) do
+    self:addTitle()
+    self:addRow(rowNum)
+    self:fillRow(rowNum, dataTable[rowNum])
+    self._visuals.row[rowNum].row:show()
+    if selectedUUID ~= nil and dataTable[rowNum]._uuid == selectedUUID then
+      self:selectRow(rowNum)
+      selectionRestored = true
+    end
+    rowNum = rowNum + 1
+    if rowNum &gt; self:numRows() then
+      break
+    end
+  end
+  
+  for n=rowNum,self:numRows() do
+    if self._visuals.row[n] then
+      self._visuals.row[n].row:hide()
+    end
+  end
+  
+  if not selectionRestored then
+    raiseEvent(f"MuMeM.Widget.ItemList.SelectionChanged.{self:name()}")
+  end
+end
+
+function MuMeM.Widget.ItemList:addTitle()
+  if self._visuals.titleRow then
+    return
+  end
+
+  self._visuals.titleRow = {row=nil, cells={}}
+
+  self._visuals.titleRow.row = Geyser.Label:new({
+    name = Geyser.nameGen(),
+    x = self:boxBorderThickness(), y = self:boxBorderThickness(),
+    width = "100%-"..(2*self:boxBorderThickness()), height = self:rowHeight(),
+    stylesheet = self._titleRowStyleSheet:getCSS(),
+  },self._visuals.box)
+
+  for colNum,colData in pairs(self._columnLayout) do
+    self._visuals.titleRow.cells[colNum] = Geyser.Label:new({
+      name = Geyser.nameGen(),
+      x = colData.x, y = 0,
+      width = colData.width, height = self:rowHeight(),
+      stylesheet = self._titleCellStyleSheet:getCSS(),
+    },self._visuals.titleRow.row)
+    self._visuals.titleRow.cells[colNum]:rawEcho(colData.title)
+  end 
+end
+
+function MuMeM.Widget.ItemList:addRow(rowNum)
+  if self._visuals.row[rowNum] then
+    return
+  end
+  
+  self._visuals.row[rowNum] = {row=nil, cells={}}
+ 
+  local styleSheet = self:rowStyleSheet(rowNum)
+
+  self._visuals.row[rowNum].row = Geyser.Label:new({
+    name = Geyser.nameGen(),
+    x = self:boxBorderThickness(), y = self:boxBorderThickness() + rowNum * self:rowHeight(),
+    width = "100%-"..(2*self:boxBorderThickness()), height = self:rowHeight(),
+    stylesheet = styleSheet:getCSS(),
+  },self._visuals.box)
+
+  self._visuals.row[rowNum].row:setClickCallback(function (event) self:rowSelected(rowNum, event) end)
+  
+  for colNum,colData in pairs(self._columnLayout) do
+    if colData.renderer == "CellRendererBorderImage" then
+      self._visuals.row[rowNum].cells[colNum] = MuMeM.Widget.CellRendererBorderImage:new({
+        _x = colData.x, _y = 0,
+        _width = colData.width, _height = self:rowHeight(),
+      }, self._visuals.row[rowNum].row)
+    else
+      self._visuals.row[rowNum].cells[colNum] = MuMeM.Widget.CellRendererText:new({
+        _x = colData.x, _y = 0,
+        _width = colData.width, _height = self:rowHeight(),
+      }, self._visuals.row[rowNum].row)
+    end
+    
+    self._visuals.row[rowNum].cells[colNum]:create()
+  end
+end
+
+function MuMeM.Widget.ItemList:fillRow(rowNum, rowData)
+  for colNum,colData in pairs(self._columnLayout) do
+    self._visuals.row[rowNum].cells[colNum]:render(rowData[colData.columnKey])
+    self._visuals.row[rowNum].value = rowData._value
+    if rowData._uuid then
+      self._visuals.row[rowNum].uuid = rowData._uuid
+    elseif type(rowData._value) == "string" or type(rowData._value) == "number" then
+      self._visuals.row[rowNum].uuid = rowData._value
+    end
+  end 
+end
+
+function MuMeM.Widget.ItemList:selectedRow()
+  return self._selectedRow
+end
+
+function MuMeM.Widget.ItemList:selectRow(rowNum)
+  self._visuals.row[rowNum].row:setStyleSheet(self._bodyRowSelectedStyleSheet:getCSS())
+  self._selectedRow = rowNum
+end
+
+function MuMeM.Widget.ItemList:unselectRow()
+  if self:selectedRow() &gt; 0 then
+    self._visuals.row[self:selectedRow()].row:setStyleSheet(self:rowStyleSheet(self:selectedRow()):getCSS())
+    self._selectedRow = 0
+  end
+end
+
+function MuMeM.Widget.ItemList:rowSelected(rowNum, event)
+  if self:selectedRow() == rowNum then
+    self:unselectRow()
+  else
+    self:unselectRow()
+    self:selectRow(rowNum)
+  end
+  
+  raiseEvent(f"MuMeM.Widget.ItemList.SelectionChanged.{self:name()}")
+end
+
+function MuMeM.Widget.ItemList:selectedValue()
+  if self:selectedRow() &gt; 0 then
+    return self._visuals.row[self:selectedRow()].value
+  end
+  
+  return nil
+end
+
+function MuMeM.Widget.ItemList:value()
+  return self:selectedValue()
+end
+
+function MuMeM.Widget.ItemList:selectedUUID()
+  if self:selectedRow() &gt; 0 then
+    return self._visuals.row[self:selectedRow()].uuid
+  end
+  
+  return nil
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Widget.CellRenderer</name>
+				<packageName></packageName>
+				<script>MuMeM.Widget.CellRenderer = MuMeM.Widget.CellRenderer or
+{
+  _parentWindow = nil,
+    
+  _x = 0,
+  _y = 0,
+  _width = 50,
+  _height = 20,
+  
+  _cellStyleSheet = Geyser.StyleSheet:new({
+    ["background-color"] = "transparent",
+  }),
+    
+  _visuals = false,
+  _window = false,
+}
+
+mumem_inherit("MuMeM.Widget.CellRenderer", "MuMeM.Widget.CellRenderer")
+
+function MuMeM.Widget.CellRenderer:new(props, parentWindow)
+  local me = props or {}
+  
+  props._parentWindow = props._parentWindow or parentWindow
+  
+  setmetatable(me, self)
+  self.__index = self
+  
+  me._visuals = {}
+
+  return me
+end
+
+function MuMeM.Widget.CellRenderer:create()
+  -- nop
+end
+
+function MuMeM.Widget.CellRenderer:parentWindow()
+  return self._parentWindow
+end
+
+function MuMeM.Widget.CellRenderer:cellStyleSheet()
+  return self._cellStyleSheet
+end
+
+function MuMeM.Widget.CellRenderer:render(data)
+  MuMeM.Log.warning("MuMeM.Widget.CellRenderer:render() must be overridden!", "MuMeM.Widget")
+end
+</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Widget.CellRendererText</name>
+				<packageName></packageName>
+				<script>MuMeM.Widget.CellRendererText = MuMeM.Widget.CellRendererText or
+{
+  _cellStyleSheet = Geyser.StyleSheet:new({
+    ["background-color"] = "transparent",
+    ["color"] = "black",
+    ["font-size"] = "10pt",
+    ["font-family"] = "Bitstream Vera Sans",
+  }),
+}
+
+mumem_inherit("MuMeM.Widget.CellRendererText", "MuMeM.Widget.CellRenderer")
+
+function MuMeM.Widget.CellRendererText:new(props, parentWindow)
+  local props = props or {}
+  
+  local me = self.parentClass:new(props, parentWindow)
+
+  setmetatable(me, self)
+  self.__index = self
+    
+  return me
+end
+
+function MuMeM.Widget.CellRendererText:create()
+  MuMeM.Widget.CellRendererText.parentClass.create(self)
+  
+  self._visuals.text = Geyser.Label:new({
+    x = self._x, y = self._y,
+    width = self._width, height = self._height,
+    stylesheet = self:cellStyleSheet():getCSS(),
+  }, self:parentWindow())
+  
+  self._visuals.text:enableClickthrough()
+
+  self.window = self._visuals.text
+end
+
+function MuMeM.Widget.CellRendererText:render(data)
+  self._visuals.text:rawEcho(data)
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Widget.CellRendererBorderImage</name>
+				<packageName></packageName>
+				<script>MuMeM.Widget.CellRendererBorderImage = MuMeM.Widget.CellRendererBorderImage or
+{
+  _cellStyleSheet = Geyser.StyleSheet:new([[
+    border-image: url(%s) 0 0 0 0 stretch stretch;
+    background-color: transparent;
+  ]]),
+}
+
+mumem_inherit("MuMeM.Widget.CellRendererBorderImage", "MuMeM.Widget.CellRenderer")
+
+function MuMeM.Widget.CellRendererBorderImage:new(props, parentWindow)
+  local props = props or {}
+  
+  local me = self.parentClass:new(props, parentWindow)
+
+  setmetatable(me, self)
+  self.__index = self
+    
+  return me
+end
+
+function MuMeM.Widget.CellRendererBorderImage:create()
+  MuMeM.Widget.CellRendererText.parentClass.create(self)
+  
+  self._visuals.image = Geyser.Label:new({
+    x = self._x, y = self._y,
+    width = self._width, height = self._height,
+  }, self:parentWindow())
+  
+  self._visuals.image:enableClickthrough()
+
+  self.window = self._visuals.text
+end
+
+function MuMeM.Widget.CellRendererBorderImage:render(data)
+  -- TODO : use the stylesheet from the Geyser.Label ???? (aka allow override)
+
+  local styleSheet = string.format(self:cellStyleSheet():getCSS(), data or "")
+  self._visuals.image:setStyleSheet(styleSheet)
+end</script>
+				<eventHandlerList />
+			</Script>
+		</ScriptGroup>
+	</ScriptPackage>
+</MudletPackage>
