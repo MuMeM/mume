@@ -1,3 +1,8 @@
+### 20230412
+
+  * new GMCP data (hp/sp/mp string)
+  * spell-effort bugfix
+
 ### 20230403
 
   * new include mechanism for inheritance
