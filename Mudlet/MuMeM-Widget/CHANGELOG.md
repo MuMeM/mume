@@ -1,3 +1,7 @@
+### 20230412
+
+  * Various small additions and fixes
+
 ### 20230403
 
   * Added FontSelection widget
