@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE MudletPackage>
+<MudletPackage version="1.001">
+	<ScriptPackage>
+		<ScriptGroup isActive="yes" isFolder="yes">
+			<name>MuMeM.MumeEvent</name>
+			<packageName></packageName>
+			<script>--[[
+    All information about the player, like Vitals, Name, Status, ...
+--]]
+
+require "MuMeM-Core"
+
+-- --- Module setup ----------------------------------------------
+
+MuMeM = MuMeM or {}
+MuMeM.MumeEvent = MuMeM.MumeEvent or {}
+
+
+-- --- Module registration -----------------------------------------
+
+MuMeM.MumeEvent.module_name = "MuMeM.MumeEvent"
+MuMeM.MumeEvent.module_dependencies = {"MuMeM.Core","MuMeM.Log","MuMeM.GMCP"}
+MuMeM.modules = MuMeM.modules or {}
+MuMeM.modules[MuMeM.MumeEvent.module_name] = MuMeM.modules[MuMeM.MumeEvent.module_name] or {module=MuMeM.MumeEvent}</script>
+			<eventHandlerList />
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.MumeEvent.Library</name>
+				<packageName></packageName>
+				<script>--[[
+Event.Darkness
+  Sent as you observe a change in the Necromancer's Darkness
+
+  what	string describing what happened: "start", "grow", "shrink", "end-soon", or "end"
+
+---
+
+Event.Moved
+  Sent as you move to a new room
+  
+  dir	string with the name of the direction you moved in ("north", "east", etc.)
+
+--]]
+
+-- ### INITIALIZATION #############################################################
+
+function MuMeM.MumeEvent.initialize()
+  MuMeM.MumeEvent.reset()
+
+end
+
+function MuMeM.MumeEvent.reset()
+  MuMeM.MumeEvent._darkness = nil
+  MuMeM.MumeEvent._moved = nil
+end
+
+local function mumeevent_setvalue(key, value, eventName)
+  if value ~= MuMeM.MumeEvent[key] then
+    MuMeM.MumeEvent[key] = value
+    raiseEvent("MuMeM.MumeEvent."..eventName)
+  end
+end
+
+-- ### DARKNESS ###################################################################
+
+function MuMeM.MumeEvent.darkness()
+  return MuMeM.MumeEvent._darkness
+end
+
+function MuMeM.MumeEvent.setDarkness(darkness)
+  mumeevent_setvalue("_darkness", darkness, "Darkness")
+end
+
+-- ### MOVED ######################################################################
+
+function MuMeM.MumeEvent.moved()
+  return MuMeM.MumeEvent._moved
+end
+
+function MuMeM.MumeEvent.setMoved(moved)
+  mumeevent_setvalue("_moved", moved, "Moved")
+end
+</script>
+				<eventHandlerList />
+			</Script>
+		</ScriptGroup>
+	</ScriptPackage>
+</MudletPackage>
