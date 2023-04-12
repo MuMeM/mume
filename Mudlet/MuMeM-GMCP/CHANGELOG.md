@@ -1,3 +1,7 @@
+### 20230412
+
+  * handling of new MUME events (gmcp.Event)
+
 ### 20230403
 
   * new include mechanism for inheritance
