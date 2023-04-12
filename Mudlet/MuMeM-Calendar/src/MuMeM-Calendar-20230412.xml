@@ -1,0 +1,886 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE MudletPackage>
+<MudletPackage version="1.001">
+	<ScriptPackage>
+		<ScriptGroup isActive="yes" isFolder="yes">
+			<name>MuMeM.Calendar</name>
+			<packageName></packageName>
+			<script>--[[
+    All information about the player, like Vitals, Name, Status, ...
+--]]
+
+require "MuMeM-Core"
+
+-- --- Module setup ----------------------------------------------
+
+MuMeM = MuMeM or {}
+--MuMeM.Calendar = MuMeM.Calendar or {}  -&gt; in Library FILE
+
+
+-- --- Module registration -----------------------------------------
+
+MuMeM.Calendar.module_name = "MuMeM.Calendar"
+MuMeM.Calendar.module_dependencies = {"MuMeM.Core","MuMeM.Log","MuMeM.GMCP"}
+MuMeM.modules = MuMeM.modules or {}
+MuMeM.modules[MuMeM.Calendar.module_name] = MuMeM.modules[MuMeM.Calendar.module_name] or {module=MuMeM.Calendar}</script>
+			<eventHandlerList />
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Calendar.Library</name>
+				<packageName></packageName>
+				<script>--[[
+
+Event.Moon
+  Sent as you observe a change in the Moon's state
+
+  what	string describing what happened: "rise" or "set"
+
+---
+
+Event.Sun
+  Sent as you observe a change in the Sun state
+
+  what	string describing what happened: "light", "rise", "set", or "dark"
+
+--]]
+
+MuMeM.Calendar = MuMeM.Calendar or
+{
+  DAY_OF_WEEK = {
+    WESTRON = {
+      ["Monday"]    = 1, [1] = "Monday",
+      ["Trewsday"]  = 2, [2] = "Trewsday",
+      ["Hevensday"] = 3, [3] = "Hevensday",
+      ["Mersday"]   = 4, [4] = "Mersday",
+      ["Highday"]   = 5, [5] = "Highday",
+      ["Sterday"]   = 6, [6] = "Sterday",
+      ["Sunday"]    = 7, [7] = "Sunday",
+    },
+    SINDARIN = {
+      ["Orithil"]    = 1, [1] = "Orithil",
+      ["Orgaladhad"] = 2, [2] = "Orgaladhad",
+      ["Ormenel"]    = 3, [3] = "Ormenel",
+      ["Orbelain"]   = 4, [4] = "Orbelain",
+      ["Oraearon"]   = 5, [5] = "Oraearon",
+      ["Orgilion"]   = 6, [6] = "Orgilion",
+      ["Oranor"]     = 7, [7] = "Oranor",
+    },
+    ENGLISH = {
+      -- TODO
+    },
+  },
+  
+  MONTH = {
+    WESTRON = {
+      ["Afteryule"]   =  1,  [1] = "Afteryule",
+      ["Solmath"]     =  2,  [2] = "Solmath",
+      ["Rethe"]       =  3,  [3] = "Rethe",
+      ["Astron"]      =  4,  [4] = "Astron",
+      ["Thrimidge"]   =  5,  [5] = "Thrimidge",
+      ["Forelithe"]   =  6,  [6] = "Forelithe",
+      ["Afterlithe"]  =  7,  [7] = "Afterlithe",
+      ["Wedmath"]     =  8,  [8] = "Wedmath",
+      ["Halimath"]    =  9,  [9] = "Halimath",
+      ["Winterfilth"] = 10, [10] = "Winterfilth",
+      ["Blotmath"]    = 11, [11] = "Blotmath",
+      ["Foreyule"]    = 12, [12] = "Foreyule",
+    },
+    SINDARIN = {
+      ["Narwain"]     =  1,  [1] = "Narwain",
+      ["Nínui"]       =  2,  [2] = "Nínui",
+      ["Gwaeron"]     =  3,  [3] = "Gwaeron",
+      ["Gwirith"]     =  4,  [4] = "Gwirith",
+      ["Lothron"]     =  5,  [5] = "Lothron",
+      ["Nórui"]       =  6,  [6] = "Nórui",
+      ["Cerveth"]     =  7,  [7] = "Cerveth",
+      ["Urui"]        =  8,  [8] = "Urui",
+      ["Ivanneth"]    =  9,  [9] = "Ivanneth",
+      ["Narbeleth"]   = 10, [10] = "Narbeleth",
+      ["Hithui"]      = 11, [11] = "Hithui",
+      ["Girithron"]   = 12, [12] = "Girithron",
+    },
+    ENGLISH = {
+      -- TODO
+    },
+  },
+  
+  DAWNDUSK = {
+     [1] = { DAWN = 8, DUSK = 18, },
+     [2] = { DAWN = 9, DUSK = 17, },
+     [3] = { DAWN = 8, DUSK = 18, },
+     [4] = { DAWN = 7, DUSK = 19, },
+     [5] = { DAWN = 7, DUSK = 20, },
+     [6] = { DAWN = 6, DUSK = 20, },
+     [7] = { DAWN = 5, DUSK = 21, },
+     [8] = { DAWN = 4, DUSK = 22, },
+     [9] = { DAWN = 5, DUSK = 21, },
+    [10] = { DAWN = 6, DUSK = 20, },
+    [11] = { DAWN = 7, DUSK = 20, },
+    [12] = { DAWN = 7, DUSK = 19, },
+  },
+}
+
+-- ### INITIALIZATION #############################################################
+
+function MuMeM.Calendar.initialize()
+  MuMeM.Calendar.reset()
+  
+  MuMeM.Calendar.Clock.initialize()
+  MuMeM.Calendar.Date.initialize()
+  MuMeM.Calendar.Time.initialize()
+  
+  MuMeM.Calendar.Clock.start()
+end
+
+function MuMeM.Calendar.reset()
+  MuMeM.Calendar._moon = nil
+  MuMeM.Calendar._sun = nil
+end
+
+local function calendar_setvalue(key, value, eventName)
+  if value ~= MuMeM.Calendar[key] then
+    MuMeM.Calendar[key] = value
+    raiseEvent("MuMeM.Calendar."..eventName)
+  end
+end
+
+-- ### MOON #######################################################################
+
+function MuMeM.Calendar.moon()
+  return MuMeM.Calendar._moon
+end
+
+function MuMeM.Calendar.setMoon(moon)
+  calendar_setvalue("_moon", moon, "Moon")
+  
+  local dstFileIO = io.open("/tmp/moon.txt", "a")
+  if dstFileIO then
+    dstFileIO:write(string.format("%s - %s\n",moon, getTime(true)))
+    dstFileIO:close()
+  end
+end
+
+function MuMeM.Calendar.parseMoon(moonPhase, moonWhere)
+  --^You can see a ([\w+ ]) moon to the (\w+)\.$
+end
+
+-- ### SUN ########################################################################
+
+function MuMeM.Calendar.sun()
+  return MuMeM.Calendar._sun
+end
+
+function MuMeM.Calendar.setSun(sun)
+  calendar_setvalue("_sun", sun, "Sun")
+end
+
+function MuMeM.Calendar.timeOfDay()
+  local timeOfDay = {rise="dawn",light="day",set="dusk",dark="night"}
+  return timeOfDay[MuMeM.Calendar.sun()]
+end
+
+function MuMeM.Calendar.setTimeOfDay(timeOfDay)
+  local timeOfDayMap = {dawn="rise",day="light",dusk="set",night="dark"}
+  MuMeM.Calendar.setSun(timeOfDayMap[timeOfDay])
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Calendar.Clock</name>
+				<packageName></packageName>
+				<script>MuMeM.Calendar.Clock = MuMeM.Calendar.Clock or
+{
+  _clockTimerId = nil,
+  _sunState = nil,          -- remember sun state for sync
+}
+
+-- ### INITIALIZATION #############################################################
+
+function MuMeM.Calendar.Clock.initialize()
+  MuMeM.Calendar.Clock.reset()
+  
+  --MuMeM.Calendar.Clock.start()  NO, let MuMeM.Calendar.initialize() so this!
+end
+
+function MuMeM.Calendar.Clock.reset()
+  MuMeM.Calendar.Clock.stop()
+end
+
+-- ### CLOCK ######################################################################
+
+function MuMeM.Calendar.Clock.start()
+  if not MuMeM.Calendar.Clock._clockTimerId then
+    MuMeM.Calendar.Clock._clockTimerId = tempTimer(1, MuMeM.Calendar.Clock.tick, true)
+  end
+end
+
+function MuMeM.Calendar.Clock.stop()
+  if MuMeM.Calendar.Clock._clockTimerId then
+    killTimer(MuMeM.Calendar.Clock._clockTimerId)
+    MuMeM.Calendar.Clock._clockTimerId = nil
+  end
+end
+
+function MuMeM.Calendar.Clock.sync()
+  MuMeM.Calendar.Clock.stop()
+  MuMeM.Calendar.Clock.start()
+end
+
+function MuMeM.Calendar.Clock.syncWithClockCommand(hour, minute, period)
+  local h = tonumber(hour)
+  local m = tonumber(minute)
+  
+  if period == "pm" then
+    h = h + 12
+  end
+  
+  if MuMeM.Calendar.Time.hour() ~= h or MuMeM.Calendar.Time.minute() ~= m then
+    MuMeM.Calendar.Time.setTime(h, m)
+    MuMeM.Calendar.Clock.sync()
+    MuMeM.Log.debug("Clock sync with ClockCommand: DONE", "MuMeM.Calendar")
+  else
+    MuMeM.Log.debug("Clock sync with ClockCommand: no drift", "MuMeM.Calendar")
+  end
+end
+
+function MuMeM.Calendar.Clock.syncWithSun(sunState)
+  if sunState == MuMeM.Calendar.Clock._sunState then
+    return
+  end
+  
+  local month = MuMeM.Calendar.Date.month()
+  if not month then
+    return
+  end
+
+  local h,m = 0,0
+  if sunState == "rise" then
+    h,m = MuMeM.Calendar.DAWNDUSK[month].DAWN,0
+  elseif sunState == "light" then
+    h,m = MuMeM.Calendar.DAWNDUSK[month].DAWN+1,0
+  elseif sunState == "set" then
+    h,m = MuMeM.Calendar.DAWNDUSK[month].DUSK,0
+  elseif sunState == "dark" then
+    h,m = MuMeM.Calendar.DAWNDUSK[month].DUSK+1,0
+  end
+
+  local drift = 0
+  if MuMeM.Calendar.Time.hour() ~= h or MuMeM.Calendar.Time.minute() ~= m then
+    drift = 1
+  end
+
+  MuMeM.Calendar.Time.setTime(h,m)
+  
+  MuMeM.Calendar.Clock.sync()
+  MuMeM.Log.debug("Clock synced with sun: FORCED (drift: "..drift..")", "MuMeM.Calendar")
+end
+
+function MuMeM.Calendar.Clock.startViaTimeCommand()
+  if MuMeM.Calendar.Clock.isTicking() then
+    return
+  end
+  
+  MuMeM.Calendar.Clock.start()
+end
+
+function MuMeM.Calendar.Clock.isTicking()
+  return MuMeM.Calendar.Clock._clockTimerId ~= nil
+end
+
+function MuMeM.Calendar.Clock.tick()
+  MuMeM.Calendar.Time.tick()
+  
+  local month = MuMeM.Calendar.Date.month()
+  if month then
+    local hour,minute = MuMeM.Calendar.Time.time()
+    if minute == 3 then                                           -- sync at exact time over the hour
+      if hour == MuMeM.Calendar.DAWNDUSK[month].DAWN then
+        MuMeM.Calendar.setSun("rise")
+      elseif hour == MuMeM.Calendar.DAWNDUSK[month].DAWN + 1 then
+        MuMeM.Calendar.setSun("light")
+      elseif hour == MuMeM.Calendar.DAWNDUSK[month].DUSK then
+        MuMeM.Calendar.setSun("set")
+      elseif hour == MuMeM.Calendar.DAWNDUSK[month].DUSK + 1 then
+        MuMeM.Calendar.setSun("dark")
+      end
+    end
+  end
+
+  raiseEvent("MuMeM.Calendar.Clock.Tick")
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Calendar.Date</name>
+				<packageName></packageName>
+				<script>MuMeM.Calendar.Date = MuMeM.Calendar.Date or
+{
+  _dayOfWeek = nil,
+  
+  _day = nil,
+  _month = nil,
+  _year = nil,
+}
+
+-- ### INITIALIZATION #############################################################
+
+function MuMeM.Calendar.Date.initialize()
+  MuMeM.Calendar.Date.reset()
+end
+
+function MuMeM.Calendar.Date.reset()
+end
+
+-- ### SET/GET #####################################################################
+
+function MuMeM.Calendar.Date.dayOfWeek()
+  return MuMeM.Calendar.Date._dayOfWeek
+end
+
+function MuMeM.Calendar.Date.day()
+  return MuMeM.Calendar.Date._day
+end
+
+function MuMeM.Calendar.Date.month()
+  return MuMeM.Calendar.Date._month
+end
+
+function MuMeM.Calendar.Date.year()
+  return MuMeM.Calendar.Date._year
+end
+
+function MuMeM.Calendar.Date.date()
+end
+
+-- ### TICK ########################################################################
+
+function MuMeM.Calendar.Date.incDay()
+  if MuMeM.Calendar.Date._day == 30 then
+    MuMeM.Calendar.Date._day = 1
+    if MuMeM.Calendar.Date._month == 12 then
+      MuMeM.Calendar.Date._month = 1
+      MuMeM.Calendar.Date._year = MuMeM.Calendar.Date._year + 1
+    else
+      MuMeM.Calendar.Date._month = MuMeM.Calendar.Date._month + 1
+    end 
+  else
+    MuMeM.Calendar.Date._day = MuMeM.Calendar.Date._day + 1
+  end
+end
+
+-- ### PARSE #######################################################################
+
+function MuMeM.Calendar.Date.parseTimeCommandDate(dayOfWeek, dayOfMonth, monthName, yearString)
+  --Mersday (Friday), the 6th of Astron (April), year 2995 of the Third Age.
+  
+  local dow = MuMeM.Calendar.DAY_OF_WEEK.WESTRON[dayOfWeek] or MuMeM.Calendar.DAY_OF_WEEK.SINDARIN[dayOfWeek]
+  local m = MuMeM.Calendar.MONTH.WESTRON[monthName] or MuMeM.Calendar.MONTH.SINDARIN[monthName]
+
+  if dow then
+    MuMeM.Calendar.Date._dayOfWeek = dow
+  end
+  
+  if m then
+    MuMeM.Calendar.Date._month = m
+  end
+  
+  MuMeM.Calendar.Date._day = tonumber(dayOfMonth)
+  MuMeM.Calendar.Date._year = tonumber(yearString)
+
+  --print("M&lt;", dayOfWeek, dayOfMonth, monthName, yearString)
+  --print("M=", MuMeM.Calendar.Date._dayOfWeek, MuMeM.Calendar.Date._day, MuMeM.Calendar.Date._month, MuMeM.Calendar.Date._year)
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Calendar.Time</name>
+				<packageName></packageName>
+				<script>MuMeM.Calendar.Time = MuMeM.Calendar.Time or
+{  
+  _hour = nil,
+  _minute = nil,
+  _isAccurate = false,
+  
+  -- APRIL 7am - 7pm
+
+  TIME_STRING = {
+    
+    -- --- DAY --------------------------------------------------------
+    ["According to the sun, it is early in the morning."] = {
+      [4] = {hours={7,8}, timeOfDay={"dusk","day"},},
+      [5] = {hours={7,8}, timeOfDay={"dusk","day"},},
+      [6] = {hours={6,7}, timeOfDay={"dusk","day"},},
+    },
+    ["The sun is already high in the sky."] = {
+      [4] = {hours={9}, timeOfDay="day",},                                -- verify!
+      [5] = {hours={9,10}, timeOfDay="day",},
+      [6] = {hours={8,9}, timeOfDay="day",},
+    },
+    ["The sun is very high. It must be noon soon."] = {
+      [4] = {hours={10,11}, timeOfDay="day",},                            -- verify!
+      [5] = {hours={11}, timeOfDay="day",},
+      [6] = {hours={10,11}, timeOfDay="day",},
+    },
+    ["The sun is near its zenith. It is noon."] = {
+      [4] = {hours={12}, timeOfDay="day",},
+      [5] = {hours={12,13}, timeOfDay="day",},
+      [6] = {hours={12}, timeOfDay="day",},
+    },
+    ["According to the sun, it must be early in the afternoon."] = {
+      [4] = {hours={13,14}, timeOfDay="day",},
+      [5] = {hours={14,15}, timeOfDay="day",},
+      [6] = {hours={13,14}, timeOfDay="day",},
+    },
+    ["It is the middle of the afternoon."] = {
+      [4] = {hours={15}, timeOfDay="day",},
+      [5] = {hours={16}, timeOfDay="day",},
+      [6] = {hours={15,16}, timeOfDay="day",},
+    },
+    ["The sun is already low. It is the end of the afternoon."] = {
+      [4] = {hours={16,17}, timeOfDay="day",},
+      [5] = {hours={17,18}, timeOfDay="day",},
+      [6] = {hours={17,18}, timeOfDay="day",},
+    },
+    ["The red sun in the west beams its last piercing rays."] = {
+      [4] = {hours={18}, timeOfDay="day",},
+      [5] = {hours={19}, timeOfDay="day",},
+      [6] = {hours={19}, timeOfDay="day",},
+    },
+  
+    -- --- DUSK -------------------------------------------------------
+    ["The sun is slowly disappearing in the west."] = {
+      [4] = {hours={19}, timeOfDay="dusk",},
+      [5] = {hours={20}, timeOfDay="dusk",},
+      [6] = {hours={20}, timeOfDay="dusk",},
+    },
+
+    -- --- NIGHT ------------------------------------------------------
+    ["It is nightfall. The last rays of the sun are peeking over the horizon."] = {
+      [4] = {hours={20,21}, timeOfDay="night",},
+      [5] = {hours={21}, timeOfDay="night",},
+      [6] = {hours={21}, timeOfDay="night",},
+    },
+    ["It must be the middle of the night."] = {
+      [4] = {hours={22,23,0,1,2}, timeOfDay="night",},
+      [5] = {hours={22,23,0,1,2}, timeOfDay="night",},
+      [6] = {hours={22,23,0,1,2}, timeOfDay="night",},
+    },
+    ["It should be the end of the night soon."] = {
+      [4] = {hours={3,4,5,6}, timeOfDay="night",},
+      [5] = {hours={3,4,5,6}, timeOfDay="night",},
+      [6] = {hours={3,4,5}, timeOfDay="night",},
+    },
+            
+    -- --- INDOOR -----------------------------------------------------
+    ["Daylight is shining outside."] = {
+      [4] = {hours={7,8,9,10,11,12,13,14,15,16,17,18}, timeOfDay={"dawn","day"},},
+      [5] = {hours={7,8,9,10,11,12,13,14,15,16,17,18,19}, timeOfDay={"dawn","day"},},
+      [6] = {hours={6,7,8,9,10,11,12,13,14,15,16,17,18,19}, timeOfDay={"dawn","day"},},
+    },
+    ["The sky is dark outside."] = {
+      [4] = {hours={19,20,21,22,23,0,1,2,3,4,5,6,}, timeOfDay={"dusk","night"},},
+      [5] = {hours={20,21,22,23,0,1,2,3,4,5,6,}, timeOfDay={"dusk","night"},},
+      [5] = {hours={20,21,22,23,0,1,2,3,4,5,}, timeOfDay={"dusk","night"},},
+    },    
+  },
+  
+}
+
+-- ### INITIALIZATION #############################################################
+
+function MuMeM.Calendar.Time.initialize()
+  MuMeM.Calendar.Time.reset()
+end
+
+function MuMeM.Calendar.Time.reset()
+end
+
+-- ### SET/GET #####################################################################
+
+function MuMeM.Calendar.Time.isAccurate()
+  return MuMeM.Calendar.Time._isAccurate
+end
+
+function MuMeM.Calendar.Time.hour()
+  return MuMeM.Calendar.Time._hour
+end
+
+function MuMeM.Calendar.Time.minute()
+  return MuMeM.Calendar.Time._minute
+end
+
+function MuMeM.Calendar.Time.time()
+  return MuMeM.Calendar.Time.hour(), MuMeM.Calendar.Time.minute()
+end
+
+function MuMeM.Calendar.Time.timeString()
+  if MuMeM.Calendar.Time._isAccurate then
+    return string.format("%02d:%02d", MuMeM.Calendar.Time._hour, MuMeM.Calendar.Time._minute)
+  elseif MuMeM.Calendar.Time._timeHint ~= nil then
+    return string.format("~%02dh", MuMeM.Calendar.Time._hour)
+  end
+  
+  return "??:??"
+end
+
+function MuMeM.Calendar.Time.setTime(hour, minute)
+  MuMeM.Calendar.Time._hour = hour
+  MuMeM.Calendar.Time._minute = minute
+
+  MuMeM.Calendar.Time._isAccurate = true
+end
+
+-- ### TIMER ######################################################################
+
+function MuMeM.Calendar.Time.timeDiffString(lowHour, lowMinute, highHour, highMinute)
+  local minuteDiff = (highHour - lowHour - 1) * 60 + (60 - lowMinute) + highMinute
+  
+  return string.format("%02d:%02d", math.floor(minuteDiff / 60), minuteDiff % 60)
+end
+
+function MuMeM.Calendar.Time.timerString()
+  local month = MuMeM.Calendar.Date.month()
+  
+  if not month then
+    return "??:??"
+  end
+  
+  local dawn = MuMeM.Calendar.DAWNDUSK[month].DAWN
+  local dusk = MuMeM.Calendar.DAWNDUSK[month].DUSK
+  local hour = MuMeM.Calendar.Time.hour()
+  local minute = MuMeM.Calendar.Time.minute()
+  local timeDiffString = "??:??"
+  
+  if not MuMeM.Calendar.Time.isAccurate() then
+    minute = 0
+  end
+
+  if hour &lt; dawn then
+    timeDiffString = MuMeM.Calendar.Time.timeDiffString(hour, minute, dawn, 0)
+  elseif hour &lt; dawn+1 then
+    timeDiffString = MuMeM.Calendar.Time.timeDiffString(hour, minute, dawn+1, 0)
+  elseif hour &lt; dusk then
+    timeDiffString = MuMeM.Calendar.Time.timeDiffString(hour, minute, dusk, 0)
+  elseif hour &lt; dusk+1 then
+    timeDiffString = MuMeM.Calendar.Time.timeDiffString(hour, minute, dusk+1, 0)
+  else
+    timeDiffString = MuMeM.Calendar.Time.timeDiffString(hour, minute, 24+dawn, 0)
+  end
+
+  if MuMeM.Calendar.Time._isAccurate then
+    return timeDiffString
+  else
+    return string.format("~%sh", string.sub(timeDiffString,1,2))
+  end
+  
+  return "??:??"
+end
+
+-- ### TIMEOFDAY ###################################################################
+
+function MuMeM.Calendar.Time.timeOfDay()
+  local month = MuMeM.Calendar.Date.month()
+  
+  if not (month and MuMeM.Calendar.Time.isAccurate()) then
+    return MuMeM.Calendar.timeOfDay()
+  end
+  
+  local dawn = MuMeM.Calendar.DAWNDUSK[month].DAWN
+  local dusk = MuMeM.Calendar.DAWNDUSK[month].DUSK
+  local hour = MuMeM.Calendar.Time.hour()
+  local minute = MuMeM.Calendar.Time.minute()
+  
+  if hour &lt; dawn then
+    return "night"
+  elseif hour &lt; dawn+1 then
+    return "dawn"
+  elseif hour &lt; dusk then
+    return "day"
+  elseif hour &lt; dusk+1 then
+    return "dusk"
+  else
+    return "night"
+  end
+end
+
+-- ### TICK ########################################################################
+
+function MuMeM.Calendar.Time.incMinute()
+  if MuMeM.Calendar.Time._minute == 59 then
+    MuMeM.Calendar.Time._minute = 0
+    if MuMeM.Calendar.Time._hour == 23 then
+      MuMeM.Calendar.Time._hour = 0
+      MuMeM.Calendar.Date.incDay()
+    else
+      MuMeM.Calendar.Time._hour = MuMeM.Calendar.Time._hour + 1
+    end
+  else
+    MuMeM.Calendar.Time._minute = MuMeM.Calendar.Time._minute + 1
+  end
+end
+
+function MuMeM.Calendar.Time.tick()
+  if MuMeM.Calendar.Time._hour ~= nil and MuMeM.Calendar.Time._minute ~= nil then
+    MuMeM.Calendar.Time.incMinute()
+  end
+end
+
+-- ### PARSE #######################################################################
+
+function MuMeM.Calendar.Time.parseTimeCommand(timeString)
+  local month = MuMeM.Calendar.Date.month()
+  if month and 
+     MuMeM.Calendar.Time.TIME_STRING[timeString] and 
+     MuMeM.Calendar.Time.TIME_STRING[timeString][month]
+  then
+    -- --- debug display in "time" command ---
+    local dbg = ""
+    for _,v in pairs(MuMeM.Calendar.Time.TIME_STRING[timeString][month].hours) do
+      dbg = dbg..v..", "
+    end
+    if type(MuMeM.Calendar.Time.TIME_STRING[timeString][month].timeOfDay) == "string" then
+      dbg = dbg..MuMeM.Calendar.Time.TIME_STRING[timeString][month].timeOfDay
+    else
+      dbg = dbg.."MULTI"
+    end
+    print("  ["..dbg.."]")
+    
+    -- --- sync "sun" ---
+    local timeOfDay = MuMeM.Calendar.Time.TIME_STRING[timeString][month].timeOfDay
+    if type(timeOfDay) == "string" then
+      MuMeM.Calendar.setTimeOfDay(timeOfDay)
+    end
+
+    -- --- if no timer yet, start guessing ---
+    if MuMeM.Calendar.Time._isAccurate then
+      return
+    end
+    
+    local timeHint = MuMeM.Calendar.Time.TIME_STRING[timeString][month].hours
+    if MuMeM.Calendar.Time._hour == nil or not table.contains(timeHint,MuMeM.Calendar.Time._hour) then
+      MuMeM.Calendar.Time._hour = timeHint[1]
+      MuMeM.Calendar.Time._minute = 0
+      MuMeM.Calendar.Time._isAccurate = false
+    end
+       
+    MuMeM.Calendar.Clock.startViaTimeCommand()
+  end
+end
+</script>
+				<eventHandlerList />
+			</Script>
+		</ScriptGroup>
+	</ScriptPackage>
+	<TriggerPackage>
+		<TriggerGroup isActive="yes" isFolder="yes" isTempTrigger="no" isMultiline="no" isPerlSlashGOption="no" isColorizerTrigger="no" isFilterTrigger="no" isSoundTrigger="no" isColorTrigger="no" isColorTriggerFg="no" isColorTriggerBg="no">
+			<name>MuMeM:Calendar</name>
+			<script></script>
+			<triggerType>0</triggerType>
+			<conditonLineDelta>0</conditonLineDelta>
+			<mStayOpen>0</mStayOpen>
+			<mCommand></mCommand>
+			<packageName></packageName>
+			<mFgColor>#ff0000</mFgColor>
+			<mBgColor>#ffff00</mBgColor>
+			<mSoundFile></mSoundFile>
+			<colorTriggerFgColor>#000000</colorTriggerFgColor>
+			<colorTriggerBgColor>#000000</colorTriggerBgColor>
+			<regexCodeList />
+			<regexCodePropertyList />
+			<TriggerGroup isActive="yes" isFolder="yes" isTempTrigger="no" isMultiline="no" isPerlSlashGOption="no" isColorizerTrigger="no" isFilterTrigger="no" isSoundTrigger="no" isColorTrigger="no" isColorTriggerFg="no" isColorTriggerBg="no">
+				<name>MuMeM:Calendar:time</name>
+				<script>-- start parsing</script>
+				<triggerType>0</triggerType>
+				<conditonLineDelta>0</conditonLineDelta>
+				<mStayOpen>10</mStayOpen>
+				<mCommand></mCommand>
+				<packageName></packageName>
+				<mFgColor>#ff0000</mFgColor>
+				<mBgColor>#ffff00</mBgColor>
+				<mSoundFile></mSoundFile>
+				<colorTriggerFgColor>#000000</colorTriggerFgColor>
+				<colorTriggerBgColor>#000000</colorTriggerBgColor>
+				<regexCodeList>
+					<string>^According to the (.+) calendar, it is:$</string>
+				</regexCodeList>
+				<regexCodePropertyList>
+					<integer>1</integer>
+				</regexCodePropertyList>
+				<Trigger isActive="yes" isFolder="no" isTempTrigger="no" isMultiline="no" isPerlSlashGOption="no" isColorizerTrigger="no" isFilterTrigger="no" isSoundTrigger="no" isColorTrigger="no" isColorTriggerFg="no" isColorTriggerBg="no">
+					<name>MuMeM:Calendar:timeDate</name>
+					<script>MuMeM.Calendar.Date.parseTimeCommandDate(matches[2], matches[3], matches[4], matches[5])</script>
+					<triggerType>0</triggerType>
+					<conditonLineDelta>0</conditonLineDelta>
+					<mStayOpen>0</mStayOpen>
+					<mCommand></mCommand>
+					<packageName></packageName>
+					<mFgColor>#ff0000</mFgColor>
+					<mBgColor>#ffff00</mBgColor>
+					<mSoundFile></mSoundFile>
+					<colorTriggerFgColor>#000000</colorTriggerFgColor>
+					<colorTriggerBgColor>#000000</colorTriggerBgColor>
+					<regexCodeList>
+						<string>^(\w+), the (\d+)\w+ of (\w+), year (\d+) of the Third Age\.$</string>
+					</regexCodeList>
+					<regexCodePropertyList>
+						<integer>1</integer>
+					</regexCodePropertyList>
+				</Trigger>
+				<Trigger isActive="yes" isFolder="no" isTempTrigger="no" isMultiline="no" isPerlSlashGOption="no" isColorizerTrigger="no" isFilterTrigger="no" isSoundTrigger="no" isColorTrigger="no" isColorTriggerFg="no" isColorTriggerBg="no">
+					<name>MuMeM:Calendar:timeDay</name>
+					<script>MuMeM.Calendar.Time.parseTimeCommand(matches[1])</script>
+					<triggerType>0</triggerType>
+					<conditonLineDelta>0</conditonLineDelta>
+					<mStayOpen>0</mStayOpen>
+					<mCommand></mCommand>
+					<packageName></packageName>
+					<mFgColor>#ff0000</mFgColor>
+					<mBgColor>#ffff00</mBgColor>
+					<mSoundFile></mSoundFile>
+					<colorTriggerFgColor>#000000</colorTriggerFgColor>
+					<colorTriggerBgColor>#000000</colorTriggerBgColor>
+					<regexCodeList>
+						<string>According to the sun, it is early in the morning.</string>
+						<string>The sun is already high in the sky.</string>
+						<string>The sun is very high. It must be noon soon.</string>
+						<string>The sun is very high. It must be noon soon.</string>
+						<string>The sun is near its zenith. It is noon.</string>
+						<string>According to the sun, it must be early in the afternoon.</string>
+						<string>It is the middle of the afternoon.</string>
+						<string>The sun is already low. It is the end of the afternoon.</string>
+						<string>The red sun in the west beams its last piercing rays.</string>
+						<string>Daylight is shining outside.</string>
+					</regexCodeList>
+					<regexCodePropertyList>
+						<integer>3</integer>
+						<integer>3</integer>
+						<integer>3</integer>
+						<integer>3</integer>
+						<integer>3</integer>
+						<integer>3</integer>
+						<integer>3</integer>
+						<integer>3</integer>
+						<integer>3</integer>
+						<integer>3</integer>
+					</regexCodePropertyList>
+				</Trigger>
+				<Trigger isActive="yes" isFolder="no" isTempTrigger="no" isMultiline="no" isPerlSlashGOption="no" isColorizerTrigger="no" isFilterTrigger="no" isSoundTrigger="no" isColorTrigger="no" isColorTriggerFg="no" isColorTriggerBg="no">
+					<name>MuMeM:Calendar:timeNight</name>
+					<script>MuMeM.Calendar.Time.parseTimeCommand(matches[1])</script>
+					<triggerType>0</triggerType>
+					<conditonLineDelta>0</conditonLineDelta>
+					<mStayOpen>0</mStayOpen>
+					<mCommand></mCommand>
+					<packageName></packageName>
+					<mFgColor>#ff0000</mFgColor>
+					<mBgColor>#ffff00</mBgColor>
+					<mSoundFile></mSoundFile>
+					<colorTriggerFgColor>#000000</colorTriggerFgColor>
+					<colorTriggerBgColor>#000000</colorTriggerBgColor>
+					<regexCodeList>
+						<string>It is nightfall. The last rays of the sun are peeking over the horizon.</string>
+						<string>It must be the middle of the night.</string>
+						<string>It should be the end of the night soon.</string>
+						<string>The sky is dark outside.</string>
+					</regexCodeList>
+					<regexCodePropertyList>
+						<integer>3</integer>
+						<integer>3</integer>
+						<integer>3</integer>
+						<integer>3</integer>
+					</regexCodePropertyList>
+				</Trigger>
+				<Trigger isActive="yes" isFolder="no" isTempTrigger="no" isMultiline="no" isPerlSlashGOption="no" isColorizerTrigger="no" isFilterTrigger="no" isSoundTrigger="no" isColorTrigger="no" isColorTriggerFg="no" isColorTriggerBg="no">
+					<name>MuMeM:Calendar:timeDusk</name>
+					<script>MuMeM.Calendar.Time.parseTimeCommand(matches[1])
+</script>
+					<triggerType>0</triggerType>
+					<conditonLineDelta>0</conditonLineDelta>
+					<mStayOpen>0</mStayOpen>
+					<mCommand></mCommand>
+					<packageName></packageName>
+					<mFgColor>#ff0000</mFgColor>
+					<mBgColor>#ffff00</mBgColor>
+					<mSoundFile></mSoundFile>
+					<colorTriggerFgColor>#000000</colorTriggerFgColor>
+					<colorTriggerBgColor>#000000</colorTriggerBgColor>
+					<regexCodeList>
+						<string>The sun is slowly disappearing in the west.</string>
+					</regexCodeList>
+					<regexCodePropertyList>
+						<integer>3</integer>
+					</regexCodePropertyList>
+				</Trigger>
+				<Trigger isActive="yes" isFolder="no" isTempTrigger="no" isMultiline="no" isPerlSlashGOption="no" isColorizerTrigger="no" isFilterTrigger="no" isSoundTrigger="no" isColorTrigger="no" isColorTriggerFg="no" isColorTriggerBg="no">
+					<name>MuMeM:Calendar:timeMoon</name>
+					<script>--You can see a waxing half moon to the southwest.
+--You can see a new moon to the east.
+--rise: east -&gt; se -&gt; s -&gt; sw -&gt; west
+
+--print("MOON",matches[2],matches[3])
+
+MuMeM.Calendar.parseMoon(matches[2], matches[3])
+
+</script>
+					<triggerType>0</triggerType>
+					<conditonLineDelta>0</conditonLineDelta>
+					<mStayOpen>0</mStayOpen>
+					<mCommand></mCommand>
+					<packageName></packageName>
+					<mFgColor>#ff0000</mFgColor>
+					<mBgColor>#ffff00</mBgColor>
+					<mSoundFile></mSoundFile>
+					<colorTriggerFgColor>#000000</colorTriggerFgColor>
+					<colorTriggerBgColor>#000000</colorTriggerBgColor>
+					<regexCodeList>
+						<string>^You can see a ([\w ]+) moon to the (\w+)\.$</string>
+					</regexCodeList>
+					<regexCodePropertyList>
+						<integer>1</integer>
+					</regexCodePropertyList>
+				</Trigger>
+				<Trigger isActive="yes" isFolder="no" isTempTrigger="no" isMultiline="no" isPerlSlashGOption="no" isColorizerTrigger="no" isFilterTrigger="no" isSoundTrigger="no" isColorTrigger="no" isColorTriggerFg="no" isColorTriggerBg="no">
+					<name>MuMeM:Calendar:timeStop</name>
+					<script>-- parsing is done, we could trigger some endconditions</script>
+					<triggerType>0</triggerType>
+					<conditonLineDelta>0</conditonLineDelta>
+					<mStayOpen>0</mStayOpen>
+					<mCommand></mCommand>
+					<packageName></packageName>
+					<mFgColor>#ff0000</mFgColor>
+					<mBgColor>#ffff00</mBgColor>
+					<mSoundFile></mSoundFile>
+					<colorTriggerFgColor>#000000</colorTriggerFgColor>
+					<colorTriggerBgColor>#000000</colorTriggerBgColor>
+					<regexCodeList>
+						<string>Real time is</string>
+						<string>Last reboot</string>
+					</regexCodeList>
+					<regexCodePropertyList>
+						<integer>2</integer>
+						<integer>2</integer>
+					</regexCodePropertyList>
+				</Trigger>
+			</TriggerGroup>
+			<Trigger isActive="yes" isFolder="no" isTempTrigger="no" isMultiline="no" isPerlSlashGOption="no" isColorizerTrigger="no" isFilterTrigger="no" isSoundTrigger="no" isColorTrigger="no" isColorTriggerFg="no" isColorTriggerBg="no">
+				<name>MuMeM:Calendar:clock</name>
+				<script>MuMeM.Calendar.Clock.syncWithClockCommand(matches[2], matches[3], matches[4])</script>
+				<triggerType>0</triggerType>
+				<conditonLineDelta>0</conditonLineDelta>
+				<mStayOpen>0</mStayOpen>
+				<mCommand></mCommand>
+				<packageName></packageName>
+				<mFgColor>#ff0000</mFgColor>
+				<mBgColor>#ffff00</mBgColor>
+				<mSoundFile></mSoundFile>
+				<colorTriggerFgColor>#000000</colorTriggerFgColor>
+				<colorTriggerBgColor>#000000</colorTriggerBgColor>
+				<regexCodeList>
+					<string>^The current time is (\d+):(\d+) (am|pm)\.$</string>
+				</regexCodeList>
+				<regexCodePropertyList>
+					<integer>1</integer>
+				</regexCodePropertyList>
+			</Trigger>
+		</TriggerGroup>
+	</TriggerPackage>
+</MudletPackage>
