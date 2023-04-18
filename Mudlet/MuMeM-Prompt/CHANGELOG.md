@@ -1,3 +1,9 @@
+### 20230418
+
+  * Added "lastMoveDir"
+  * Added "sneak" (icon)
+  * Added mount-fatigue
+
 ### 20230412
 
   * MUME time and MUME day/night timers added
