@@ -221,7 +221,7 @@ function MuMeM.Practice.PracList:sortedKeys()
           f = true
           break
         elseif classIndex[self._pracs[k]:class()] == classIndex[self._pracs[sortedKeys[j]]:class()] then
-          if self._pracs[k]:skill() &lt; self._pracs[sortedKeys[j]]:skill() then
+          if self._pracs[k]:name() &lt; self._pracs[sortedKeys[j]]:name() then
             table.insert(sortedKeys, j, k)
             f = true
             break        
@@ -256,9 +256,9 @@ end
 
 
 function MuMeM.Practice.PracList:restoreData(props)
-  local skill = string.lower(props.skill)
-  self._pracs[skill] = MuMeM.Practice.Prac:new({_skill=skill})
-  self._pracs[skill]:restoreData(props)
+  local pracUid = MuMeM.Practice.pracNameToUid(props.name)
+  self._pracs[pracUid] = MuMeM.Practice.Prac:new({_uid=pracUid})
+  self._pracs[pracUid]:restoreData(props)
 end</script>
 				<eventHandlerList />
 			</Script>
@@ -579,7 +579,7 @@ function MuMeM.Practice.GUI.PracList:createPracRow(rowNum)
   }, self._visuals.pracBox)
   self._visuals.pracRow[rowNum].row:editStyleSheet(sst)
   
-  self:createPracCell(rowNum, "skill",         5,  175, "Skill/Spell")
+  self:createPracCell(rowNum, "name",          5,  175, "Skill/Spell")
   self:createPracCell(rowNum, "sessions",    180,   70, "Sessions")
   self:createPracCell(rowNum, "difficulty",  390,  100, "Difficulty")
   self:createPracCell(rowNum, "class",       490,   80, "Class")
@@ -621,8 +621,8 @@ function MuMeM.Practice.GUI.PracList:fillPracRow(rowNum, prac)
   local maxPracString = "??"
   local sessionsString = "??"
   
-  if MuMeM.Skill.Repository.getSkill(prac:skill()) then
-    maxPracString = string.format("%2d", MuMeM.Skill.Repository.getSkill(prac:skill()):maxPrac())
+  if MuMeM.Skill.Repository.getSkill(prac:skillUid()) then
+    maxPracString = string.format("%2d", MuMeM.Skill.Repository.getSkill(prac:skillUid()):maxPrac())
   end
   
   if prac:sessions() then
@@ -632,7 +632,7 @@ function MuMeM.Practice.GUI.PracList:fillPracRow(rowNum, prac)
   self._visuals.pracRow[rowNum].row:show()
   self._visuals.pracRow[rowNum].row:editStyleSheet(self._classRowSST[prac:class()])
 
-  self._visuals.pracRow[rowNum].skill:setText(prac:name())
+  self._visuals.pracRow[rowNum].name:setText(prac:name())
   self._visuals.pracRow[rowNum].sessions:setText(sessionsString.." / "..maxPracString)
   self._visuals.pracRow[rowNum].knowledgePercentage:setText((prac:knowledgePercentage() or "?").."%")
   self._visuals.pracRow[rowNum].knowledgeString:setText(prac:knowledgeString())
