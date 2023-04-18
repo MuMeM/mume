@@ -1,3 +1,7 @@
+### 20230418
+
+  * Added "sneak"
+
 ### 20230412
 
   * new GMCP data (hp/sp/mp string)
