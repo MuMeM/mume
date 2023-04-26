@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE MudletPackage>
+<MudletPackage version="1.001">
+	<ScriptPackage>
+		<ScriptGroup isActive="yes" isFolder="yes">
+			<name>MuMeM.Class</name>
+			<packageName></packageName>
+			<script>require "MuMeM-Core"
+
+-- --- Module setup ----------------------------------------------
+
+MuMeM = MuMeM or {}
+MuMeM.Class = MuMeM.Class or {}
+
+
+-- --- Module registration -----------------------------------------
+
+MuMeM.Class.module_name = "MuMeM.Class"
+MuMeM.Class.module_dependencies = {"MuMeM.Core","MuMeM.Log"}
+MuMeM.modules = MuMeM.modules or {}
+MuMeM.modules[MuMeM.Class.module_name] = MuMeM.modules[MuMeM.Class.module_name] or {module=MuMeM.Class}</script>
+			<eventHandlerList />
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Class.Library</name>
+				<packageName></packageName>
+				<script>function MuMeM.Class.initialize()
+  -- MuMeM.Class.Repository.initialize()
+end
+
+function MuMeM.Class.configure()
+  -- MuMeM.Class.Repository.configure()
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Class.DEFINES</name>
+				<packageName></packageName>
+				<script>MuMeM.Class.TITLE = {
+  ["none"]       = "Ranger",
+  ["warrior"]    = "Warrior",
+  ["thief"]      = "Thief",
+  ["cleric"]     = "Cleric",
+  ["magic user"] = "Magic User"
+}
+
+MuMeM.Class.COLOR = {
+
+  ["none"] = {
+    HEADER_COLOR = "#38761d",
+  },
+  
+  ["warrior"] = {
+    HEADER_COLOR = "#990000",
+  },
+  
+  ["thief"] = {
+    HEADER_COLOR = "#b45f06",
+  },
+  
+  ["cleric"] = {
+    HEADER_COLOR = "#bf9000",
+  },
+  
+  ["magic user"] = {
+    HEADER_COLOR = "#1155cc",
+  },
+  
+}
+
+MuMeM.Class.STYLE = {
+
+  ["none"] = {
+    HEADER_STYLE = {
+      ["background-color"] = MuMeM.Class.COLOR["none"].HEADER_COLOR,
+      ["color"] = "white",
+    },
+    DARK_STYLE = { 
+      ["background-color"] = "#b6d7a8",
+      ["color"] = "black",
+    },
+    BRIGHT_STYLE = { 
+      ["background-color"] = "#d9ead3",
+      ["color"] = "black",
+    },
+  },
+  
+  ["warrior"] = {
+    HEADER_STYLE = {
+      ["background-color"] = MuMeM.Class.COLOR["warrior"].HEADER_COLOR,
+      ["color"] = "white",
+    },
+    DARK_STYLE = {
+      ["background-color"] = "#e06666",
+      ["color"] = "black",
+    },
+    BRIGHT_STYLE = {
+      ["background-color"] = "#ea9999",
+      ["color"] = "black",
+    },
+  },
+  
+  ["thief"] = {
+    HEADER_STYLE = {
+      ["background-color"] = MuMeM.Class.COLOR["thief"].HEADER_COLOR,
+      ["color"] = "white",
+    },
+    DARK_STYLE = {
+      ["background-color"] = "#f9cb9c",
+      ["color"] = "black",
+    },
+    BRIGHT_STYLE = {
+      ["background-color"] = "#fce5cd",
+      ["color"] = "black",
+    },
+  },
+  
+  ["cleric"] = {
+    HEADER_STYLE = {
+      ["background-color"] = MuMeM.Class.COLOR["cleric"].HEADER_COLOR,
+      ["color"] = "white",
+    },
+    DARK_STYLE = {
+      ["background-color"] = "#ffd966",
+      ["color"] = "black",
+    },
+    BRIGHT_STYLE = {
+      ["background-color"] = "#ffe599",
+      ["color"] = "black",
+    },
+  },
+  
+  ["magic user"] = {
+    HEADER_STYLE = {
+      ["background-color"] = MuMeM.Class.COLOR["magic user"].HEADER_COLOR,
+      ["color"] = "white",
+    },
+    DARK_STYLE = { 
+      ["background-color"] = "#a4c2f4",
+      ["color"] = "black",
+    },
+    BRIGHT_STYLE = { 
+      ["background-color"] = "#c9daf8",
+      ["color"] = "black",
+    },
+  },
+  
+}
+
+
+</script>
+				<eventHandlerList />
+			</Script>
+		</ScriptGroup>
+	</ScriptPackage>
+</MudletPackage>
