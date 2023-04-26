@@ -1,0 +1,1482 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE MudletPackage>
+<MudletPackage version="1.001">
+	<ScriptPackage>
+		<ScriptGroup isActive="yes" isFolder="yes">
+			<name>MuMeM.Practice</name>
+			<packageName></packageName>
+			<script>require "MuMeM-Core"
+
+-- --- Module setup ----------------------------------------------
+
+MuMeM = MuMeM or {}
+MuMeM.Practice = MuMeM.Practice or {}
+
+MuMeM.Practice.command = MuMeM.Practice.command or tempAlias("^mprac(?: +(.*))?$", function() MuMeM.Practice.alias() end)
+
+
+-- --- Module registration -----------------------------------------
+
+MuMeM.Practice.module_name = "MuMeM.Practice"
+MuMeM.Practice.module_dependencies = {"MuMeM.Core","MuMeM.Log","MuMeM.Skill","MuMeM.Class"}
+MuMeM.modules = MuMeM.modules or {}
+MuMeM.modules[MuMeM.Practice.module_name] = MuMeM.modules[MuMeM.Practice.module_name] or {module=MuMeM.Practice}</script>
+			<eventHandlerList />
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Practice.Library</name>
+				<packageName></packageName>
+				<script>function MuMeM.Practice.initialize()
+  if MuMeM.Core.IO.nodeExists(getMudletHomeDir().."/MuMeM.Practice") then
+    MuMeM.Practice.resourceDir = getMudletHomeDir().."/MuMeM.Practice/Resources"
+  else
+    MuMeM.Practice.resourceDir = getMudletHomeDir().."/MuMeM-Practice/Resources"
+  end
+  
+  MuMeM.Practice._playerPracList = {}
+end
+
+function MuMeM.Practice.configure()
+  MuMeM.Practice.load()
+end
+
+function MuMeM.Practice.getResourceDir()
+  return MuMeM.Practice.resourceDir
+end
+
+function MuMeM.Practice.playerPracList(playerName)
+  playerName = playerName or MuMeM.Player.name()
+  
+  if MuMeM.Practice._playerPracList[playerName] == nil then
+    MuMeM.Practice._playerPracList[playerName] = MuMeM.Practice.PracList:new({
+      _playerName = playerName,
+    })
+  end
+  
+  return MuMeM.Practice._playerPracList[playerName]
+end
+
+function MuMeM.Practice.updatePlayerSessionsLeft(sessionsLeft)
+  local sl = nil
+
+  if type(sessionsLeft) == "number" then
+    sl = sessionsLeft
+  else
+    sl = tonumber(sessionsLeft)
+    if sl == nil then
+      -- ONE TWO THRE .... TODO
+    end
+  end
+  
+  if type(sl) ~= "number" then
+    return  -- could not parse it
+  end
+  
+  MuMeM.Practice.playerPracList():setSessionsLeft(sl)
+end
+
+function MuMeM.Practice.updatePlayerPrac(props)
+  MuMeM.Practice.playerPracList():updatePrac(props)
+end
+
+function MuMeM.Practice.gatherPlayerBaseStats()
+  if MuMeM.Practice._gatherPlayerBaseStatsTriggerId ~= nil then
+    killTrigger(MuMeM.Practice._gatherPlayerBaseStatsTriggerId)
+    MuMeM.Practice._gatherPlayerBaseStatsTriggerId = nil
+  end
+  
+  MuMeM.Practice._gatherPlayerBaseStatsTriggerId = 
+                                    tempTrigger("_BASESTATS_ ", [[MuMeM.Practice.catchPlayerBaseStats()]], 1)
+  send("info _BASESTATS_ %b")
+end
+
+function MuMeM.Practice.catchPlayerBaseStats()
+  killTrigger(MuMeM.Practice._gatherPlayerBaseStatsTriggerId)
+  MuMeM.Practice._gatherPlayerBaseStatsTriggerId = nil
+        
+  local statsLine = line                  -- line is GLOBAL
+  local playerPracList = MuMeM.Practice.playerPracList()
+  
+  for k,v in string.gmatch(statsLine, "(%w+):(%w+)") do
+    playerPracList:setBaseStat(k, v)
+  end
+
+  MuMeM.Practice.save()
+  
+  if MuMeM.Practice.GUI.PracMatrix.instance then
+    MuMeM.Practice.GUI.PracMatrix.instance:fill()
+  end
+end
+
+function MuMeM.Practice.unlearnAll()
+  MuMeM.Practice.playerPracList():unlearnAll()
+end
+
+function MuMeM.Practice.getPlayers()
+  return table.keys(MuMeM.Practice._playerPracList)
+end
+
+function MuMeM.Practice.getPlayersSorted()
+  local players = table.keys(MuMeM.Practice._playerPracList)
+  table.sort(players)
+  return players
+end
+
+-- ###############################################################################
+
+function MuMeM.Practice.pracNameToUid(pracName)
+  return string.lower(string.gsub(pracName, " ", "_"))
+end
+
+-- ###############################################################################
+
+function MuMeM.Practice.alias()
+  if matches[2] == "list" then
+    MuMeM.Practice.GUI.PracList.open()
+  elseif matches[2] == "matrix" then
+    MuMeM.Practice.GUI.PracMatrix.open()
+  else
+    decho("mprac [list|matrix]")
+  end
+end
+
+-- ###############################################################################
+
+function MuMeM.Practice.save()
+  local saveData = {}
+  
+  for k,v in pairs(MuMeM.Practice._playerPracList) do
+    table.insert(saveData, v:getSaveData())
+  end
+  
+  local saveDir = MuMeM.Core.IO.concatPath(getMudletHomeDir(), "mumem-config")
+  local saveFile = "MuMeM-Practice_Practices.json"
+      
+  MuMeM.Core.IO.createDir(saveDir)
+  MuMeM.Core.IO.saveTable(MuMeM.Core.IO.concatPath(saveDir, saveFile), saveData)
+  
+  return true
+end
+
+function MuMeM.Practice.load()
+  local saveDir = MuMeM.Core.IO.concatPath(getMudletHomeDir(), "mumem-config")
+  local saveFile = "MuMeM-Practice_Practices.json"
+
+  local saveData = MuMeM.Core.IO.loadTable(MuMeM.Core.IO.concatPath(saveDir, saveFile))
+  if not saveData then
+    MuMeM.Log.warning("Could not load savefile: "..MuMeM.Core.IO.concatPath(saveDir, saveFile), "MuMeM.Practice")
+    return false
+  end
+
+  -- restore the data
+  MuMeM.Practice._playerPracList = {}
+  for _,plV in pairs(saveData) do
+    playerPracList = MuMeM.Practice.playerPracList(plV.playerName)
+    playerPracList:restoreData(plV) 
+    --playerPracList:setSessionsLeft(plV.sessionsLeft)
+    --for _,pV in pairs(plV.pracs) do
+    --  MuMeM.Practice._playerPracList[plV.playerName]:restoreData(pV) 
+    --end
+  end
+
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Practice.PracList</name>
+				<packageName></packageName>
+				<script>MuMeM.Practice.PracList = MuMeM.Practice.PracList or
+{
+  _playerName = nil,
+  _baseStats = nil,
+  
+  _sessionsLeft = nil,
+  _pracs = nil,
+}
+
+mumem_inherit("MuMeM.Practice.PracList", "MuMeM.Practice.PracList")
+
+function MuMeM.Practice.PracList:new(props)
+  local me = props or {}
+  
+  me._playerName = props._playerName or MuMeM.Player.name()
+  me._sessionsLeft = props._sessionsLeft
+    
+  setmetatable(me, self)
+  self.__index = self
+  
+  me._pracs = {}
+  me._baseStats = {str=10, dex=10, con=10, int=10, wis=10, wil=10, per=10}
+
+  return me
+end
+
+function MuMeM.Practice.PracList:playerName()
+  return self._playerName
+end
+
+function MuMeM.Practice.PracList:sessionsLeft()
+  return self._sessionsLeft
+end
+
+function MuMeM.Practice.PracList:setSessionsLeft(sessionsLeft)
+  self._sessionsLeft = sessionsLeft
+end
+
+function MuMeM.Practice.PracList:sessionsUsed()
+  local sessionsUsed = 0
+    
+  for k,v in pairs(self._pracs) do
+    if self._pracs[k]:isLearned() and self._pracs[k]:sessions() then
+      sessionsUsed = sessionsUsed + self._pracs[k]:sessions()
+    end
+  end
+  
+  return sessionsUsed
+end
+
+function MuMeM.Practice.PracList:sessionsTarget()
+  local sessionsTarget = 0
+    
+  for k,v in pairs(self._pracs) do
+    if self._pracs[k]:targetSessions() then
+      sessionsTarget = sessionsTarget + self._pracs[k]:targetSessions()
+    end
+  end
+  
+  return sessionsTarget
+end
+
+function MuMeM.Practice.PracList:baseStat(stat)
+  return self._baseStats[string.lower(stat)]
+end
+
+function MuMeM.Practice.PracList:baseStats()
+  return table.deepcopy(self._baseStats)
+end
+
+function MuMeM.Practice.PracList:baseStatsString()
+  local bss = ""
+  
+  for _,k in pairs({"str","int","wis","dex","con","wil","per"}) do
+    bss = bss .. string.title(k) .. ":" .. self:baseStat(k) .. " "
+  end
+  
+  return string.sub(bss, 1, string.len(bss)-1)
+end
+
+function MuMeM.Practice.PracList:setBaseStat(stat, value)
+  local s = string.lower(stat)
+  if self._baseStats[s] then
+    self._baseStats[s] = value
+  end
+end
+
+function MuMeM.Practice.PracList:setBaseStats(baseStats)
+  for k,v in pairs(stats) do
+    self:setStat(k, v)
+  end
+end
+
+function MuMeM.Practice.PracList:getPrac(pracUid)
+  if self._pracs[pracUid] then
+    return self._pracs[pracUid]
+  end
+  
+  return nil
+end
+
+function MuMeM.Practice.PracList:getLearnedPrac(pracUid)
+  if self._pracs[pracUid] and self._pracs[pracUid]:isLearned() then
+    return self._pracs[pracUid]
+  end
+  
+  return nil
+end
+
+function MuMeM.Practice.PracList:updatePrac(pracUid, props)
+  if type(pracUid) == "table" then
+    props = pracUid
+    pracUid = MuMeM.Practice.pracNameToUid(props.name)
+  end
+  
+  if not self._pracs[pracUid] then
+    self._pracs[pracUid] = MuMeM.Practice.Prac:new({_uid=pracUid})
+  end
+
+  self._pracs[pracUid]:update(props)
+end
+
+function MuMeM.Practice.PracList:unlearnAll()
+  for k,prac in pairs(self._pracs) do
+    prac:unlearn()
+  end
+end
+
+-- ##############################################################
+
+function MuMeM.Practice.PracList:keys()
+  local keys = {}
+  
+  for k,v in pairs(self._pracs) do
+    if self._pracs[k]:isLearned() then
+      table.insert(keys, k)
+    end
+  end
+  
+  return keys
+end
+
+function MuMeM.Practice.PracList:allKeys()
+  local keys = {}
+  
+  for k,v in pairs(self._pracs) do
+    table.insert(keys, k)
+  end
+  
+  return keys
+end
+
+function MuMeM.Practice.PracList:sortedKeys()
+  local classIndex = {["none"] = 1, ["magic user"] = 2, ["cleric"] = 3, ["thief"] = 4, ["warrior"] = 5}
+  local sortedKeys = {}
+  
+  if table.is_empty(self._pracs)then
+    return sortedKeys
+  end
+  
+  -- fast-forward to the first learned skills
+  local k = next(self._pracs)
+  while k and not self._pracs[k]:isLearned() do
+    k = next(self._pracs, k)
+  end
+  
+  -- nothing learned yet (VERY unlikely)
+  if not k then
+    return sortedKeys
+  end
+    
+  -- sort the rest (in relation to the first key)
+  table.insert(sortedKeys, k)
+  k = next(self._pracs, k)
+  while k do
+    if self._pracs[k]:isLearned() then
+      local f = false
+      for j=1,table.getn(sortedKeys) do
+        if classIndex[self._pracs[k]:class()] &lt; classIndex[self._pracs[sortedKeys[j]]:class()] then
+          table.insert(sortedKeys, j, k)
+          f = true
+          break
+        elseif classIndex[self._pracs[k]:class()] == classIndex[self._pracs[sortedKeys[j]]:class()] then
+          if self._pracs[k]:name() &lt; self._pracs[sortedKeys[j]]:name() then
+            table.insert(sortedKeys, j, k)
+            f = true
+            break        
+          end
+        end
+      end
+      if not f then
+        table.insert(sortedKeys,k)
+      end
+    end
+    k = next(self._pracs, k)
+  end
+  
+  return sortedKeys
+end
+
+-- ###############################################################################
+
+function MuMeM.Practice.PracList:getSaveData()
+  local saveData = {
+    ["playerName"] = self._playerName,
+    ["sessionsLeft"] = self._sessionsLeft,
+    ["baseStats"] = self._baseStats,
+    ["pracs"] = {}
+  }
+  
+  for k,v in pairs(self._pracs) do
+    table.insert(saveData.pracs, v:getSaveData())
+  end 
+  
+  return saveData
+end
+
+function MuMeM.Practice.PracList:restoreData(config)
+  self._sessionsLeft = config.sessionsLeft
+  self._baseStats = config.baseStats or self._baseStats
+
+  for _,pracConfig in pairs(config.pracs) do
+    local pracUid = MuMeM.Practice.pracNameToUid(pracConfig.name)
+    self._pracs[pracUid] = MuMeM.Practice.Prac:new({_uid=pracUid})
+    self._pracs[pracUid]:restoreData(pracConfig)
+  end
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Practice.Prac</name>
+				<packageName></packageName>
+				<script>MuMeM.Practice.Prac = MuMeM.Practice.Prac or
+{
+  _uid = nil,
+  _name = nil,                      -- in MUME:   skillName == pracName
+  --_skillUid = nil,                  -- -&gt; thus: skillUid = pracUid  (TOO DIFFICULT TO SEPARATE THIS)
+  _sessions = nil,
+  _knowledgePercentage = nil,
+  _knowledgeString = nil,
+  _difficulty = nil,
+  _class = nil,
+  _mana = nil,
+  _castingTime = nil,
+  _advice = nil,
+  
+  _targetSessions = nil,
+  
+  _lastVerified = nil,              -- last seen at trainer
+  _learned = false,                 -- problem is that I can UNLEARN pracs without getting notified!
+}
+
+mumem_inherit("MuMeM.Practice.Prac", "MuMeM.Practice.Prac")
+
+function MuMeM.Practice.Prac:new(props)
+  local me = props or {}
+  
+  setmetatable(me, self)
+  self.__index = self
+
+  return me
+end
+
+function MuMeM.Practice.Prac:uid()
+  return self._uid
+end
+
+function MuMeM.Practice.Prac:name()
+  return self._name
+end
+
+function MuMeM.Practice.Prac:skillUid()
+  return self._uid
+end
+
+function MuMeM.Practice.Prac:sessions()
+  return self._sessions
+end
+
+function MuMeM.Practice.Prac:knowledgePercentage()
+  return self._knowledgePercentage
+end
+
+function MuMeM.Practice.Prac:knowledgeString()
+  return self._knowledgeString
+end
+
+function MuMeM.Practice.Prac:difficulty()
+  return self._difficulty
+end
+
+function MuMeM.Practice.Prac:class()
+  return self._class
+end
+
+function MuMeM.Practice.Prac:mana()
+  return self._mana
+end
+
+function MuMeM.Practice.Prac:castingTime()
+  return self._castingTime
+end
+
+function MuMeM.Practice.Prac:advice()
+  return self._advice
+end
+
+function MuMeM.Practice.Prac:targetSessions()
+  return self._targetSessions
+end
+
+function MuMeM.Practice.Prac:lastVerified()
+  return self._lastVerified
+end
+
+function MuMeM.Practice.Prac:isLearned()
+  return self._learned
+         or (self:knowledgePercentage() ~= nil and self:knowledgePercentage() &gt; 0)
+         or self:knowledgeString() ~= nil
+end
+
+function MuMeM.Practice.Prac:update(props)
+  --local uid = MuMeM.Practice.pracNameToUid(props.name)
+  
+  --if self._uid ~= uid then
+  --  MuMeM.Log.notice("MuMeM.Practice.Prac:update(): uid ~= _uid, not updating!", "MuMeM.Practice")
+  --  return
+  --end
+
+  if props.name ~= nil then 
+    self._name = props.name
+  end
+
+  if props.sessions ~= nil            then self._sessions = tonumber(props.sessions) end
+  if props.knowledgePercentage ~= nil then self._knowledgePercentage = tonumber(props.knowledgePercentage) end
+  if props.knowledgeString ~= nil     then self._knowledgeString = string.lower(props.knowledgeString) end
+  if props.difficulty ~= nil          then self._difficulty = string.lower(props.difficulty) end
+  if props.class ~= nil               then self._class = string.lower(props.class) end
+  if props.mana ~= nil                then self._mana = props.mana end
+  if props.castingTime ~= nil         then self._castingTime = string.lower(props.castingTime) end
+  if props.advice ~= nil              then self._advice = string.lower(props.advice) end
+  if props.targetSessions ~= nil      then self._targetSessions = tonumber(props.targetSessions) end
+  
+  if props.lastVerified then
+    props.lastVerified = props.lastVerified
+  else
+    if props.sessions ~= nil and props.knowledgePercentage ~= nil then
+      self._lastVerified = getEpoch()
+    end
+  end
+  
+  if self._knowledgeString ~= nil or
+     (self._knowledgePercentage ~= nil and self._knowledgePercentage &gt; 0) or
+     (self._sessions ~= nil and self._sessions &gt; 0)
+  then
+    self._learned = true
+  end
+end
+
+function MuMeM.Practice.Prac:unlearn()
+  self._learned = false
+end
+
+-- ###############################################################################
+
+function MuMeM.Practice.Prac:getSaveData()
+  return {
+    ["uid"] = self._uid,
+    ["name"] = self._name,
+    ["sessions"] = self._sessions,
+    ["knowledgePercentage"] = self._knowledgePercentage,
+    ["knowledgeString"] = self._knowledgeString,
+    ["difficulty"] = self._difficulty,
+    ["class"] = self._class,
+    ["mana"] = self._mana,
+    ["castingTime"] = self._castingTime,
+    ["advice"] = self._advice,
+    ["targetSessions"] = self._targetSessions,
+    ["lastVerified"] = self._lastVerified,
+    ["learned"] = self._learned,
+  }
+end
+
+function MuMeM.Practice.Prac:restoreData(config)
+    self._uid = config.uid
+    self._name = config.name
+    self._sessions = config.sessions
+    self._knowledgePercentage = config.knowledgePercentage
+    self._knowledgeString = config.knowledgeString
+    self._difficulty = config.difficulty
+    self._class = config.class
+    self._mana = config.mana
+    self._castingTime = config.castingTime
+    self._advice = config.advice
+    self._targetSessions = config.targetSessions
+    self._lastVerified = config.lastVerified
+    self._learned = config.learned
+end</script>
+				<eventHandlerList />
+			</Script>
+			<ScriptGroup isActive="yes" isFolder="yes">
+				<name>MuMeM.Practice.GUI</name>
+				<packageName></packageName>
+				<script>MuMeM.Practice.GUI = MuMeM.Practice.GUI or {}</script>
+				<eventHandlerList />
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Practice.GUI.PracList</name>
+					<packageName></packageName>
+					<script>MuMeM.Practice.GUI.PracList = MuMeM.Practice.GUI.PracList or
+{
+  instance = nil,
+  
+  _windowWidth = 1000,
+  _windowHeight = 600,
+  
+  _pracRowHeight = 20,
+  _pracBoxBorderWidth = 2,
+  
+  _visuals = nil,
+  
+  _selectedPlayer = nil,
+
+  _pracBoxSST = {
+    ["background-color"] = "gray",
+    ["border"] = "2px solid black",
+  },
+    
+  _titleRowSST = {
+    ["background-color"] = "black",
+  },
+  _titleCellSST = {
+    ["background-color"] = "transparent",
+    ["color"] = "white",
+    ["font-size"] = "12pt",
+  },
+
+  _pracRowSST = {
+    ["background-color"] = "white",
+  },
+  _pracCellSST = {
+    ["background-color"] = "transparent",
+    ["color"] = "black",
+    ["font-size"] = "10pt",
+  },
+} 
+
+mumem_inherit("MuMeM.Practice.GUI.PracList", "MuMeM.Practice.GUI.PracList")
+
+function MuMeM.Practice.GUI.PracList:new(props)
+  local me = props or {}
+    
+  setmetatable(me, self)
+  self.__index = self
+
+  return me
+end
+
+function MuMeM.Practice.GUI.PracList:create()
+  self._visuals = {}
+  
+  -- --- Main Window ---
+  self._visuals.mainWindow = Geyser.UserWindow:new({
+    name = "MuMeM.Practice.GUI.PracList",
+    titleText = "MuMeM - Practice List",
+    x = 20, y = 20,
+    width = self._windowWidth, height = self._windowHeight,
+    color = "lightGray",
+    restoreLayout = false,
+    docked = false, autoDock = false, dockPosition = "f",
+  })
+  
+  -- --- pracs container ---
+  self._visuals.pracRow = {}
+
+  self._visuals.pracBox = MuMeM.Widget.Label:new({
+    _x = 10, _y = 10,
+    _width = "100%-20", _height = "100%-20",
+  }, self._visuals.mainWindow)
+  self._visuals.pracBox:editStyleSheet(self._pracBoxSST)
+
+  -- --- header ---
+  self:createPracRow("H")
+  
+  -- --- player select ---
+  self._visuals.cbPlayers = MuMeM.Widget.ComboBox:new({
+    _x = 10, _y = -35,
+    _width = 150, _height = 20,
+    _anchor = "bottom",
+    _valueChangedCallback = function(value) self:changeSelectedPlayer(value) end,
+  }, self._visuals.mainWindow)
+  --self._visuals.pracBox:editStyleSheet(self._pracBoxSST)
+
+  -- --- sessions left ---
+  self._visuals.sessionsLeft = MuMeM.Widget.Label:new({
+    _x = 180, _y = -35,
+    _width = 100, _height = 20,
+  }, self._visuals.mainWindow)
+  --self._visuals.pracBox:editStyleSheet(self._pracBoxSST)
+  
+  -- --- Close button ---  
+  self._visuals.buttonClose = MuMeM.Widget.TextButton:new({
+    _text = "Close",
+    _x = "100%-110", _y = -40,
+    _width = 100, _height = 30,
+    _clickCallback = function (event) MuMeM.Practice.GUI.PracList.close() end,
+  }, self._visuals.mainWindow)
+end
+
+function MuMeM.Practice.GUI.PracList:createPracCell(rowNum, colName, x, width, text)
+  self._visuals.pracRow[rowNum][colName] = MuMeM.Widget.Label:new({
+    _x = x, _y = 0,
+    _width = width, _height = "100%",
+    _text = text,
+  }, self._visuals.pracRow[rowNum].row)
+  
+  if rowNum == "H" then
+    self._visuals.pracRow[rowNum][colName]:editStyleSheet(self._titleCellSST)
+  else
+    self._visuals.pracRow[rowNum][colName]:editStyleSheet(self._pracCellSST)
+  end
+end
+
+function MuMeM.Practice.GUI.PracList:createPracRow(rowNum)
+  local y
+  local sst
+  
+  if self._visuals.pracRow[rowNum] then
+    return
+  end
+
+  if rowNum == "H" then
+    y = 0
+    sst = self._titleRowSST
+  else
+    y = rowNum * self._pracRowHeight + rowNum
+    sst = self._pracRowSST
+  end
+  
+  self._visuals.pracRow[rowNum] = {}
+  
+  self._visuals.pracRow[rowNum].row = MuMeM.Widget.Label:new({
+    _x = self._pracBoxBorderWidth, _y = y,
+    _width = "100%-"..(self._pracBoxBorderWidth*2), _height = self._pracRowHeight,
+    _text = "",
+  }, self._visuals.pracBox)
+  self._visuals.pracRow[rowNum].row:editStyleSheet(sst)
+  
+  self:createPracCell(rowNum, "name",          5,  175, "Skill/Spell")
+  self:createPracCell(rowNum, "sessions",    180,   70, "Sessions")
+  self:createPracCell(rowNum, "difficulty",  390,  100, "Difficulty")
+  self:createPracCell(rowNum, "class",       490,   80, "Class")
+  self:createPracCell(rowNum, "mana",        570,   50, "Mana")
+  self:createPracCell(rowNum, "castingTime", 625,   95, "Cast Time")
+  self:createPracCell(rowNum, "age",         720,   40, "Age")
+  self:createPracCell(rowNum, "advice",      770, "100%-770", "Advice")
+
+  if rowNum == "H" then
+    self:createPracCell(rowNum, "knowledge",     250, 140, "Knowledge")
+  else
+    self:createPracCell(rowNum, "knowledgePercentage", 250,  40, "KP")
+    self:createPracCell(rowNum, "knowledgeString",     295,  95, "KS")
+    self._visuals.pracRow[rowNum].knowledgePercentage:editStyleSheet({
+                                        ["qproperty-alignment"] = "'AlignRight | AlignVCenter'",
+                                        ["font-family"] = "Bitstream Vera Sans Mono",
+                                      })
+                                      
+    self._visuals.pracRow[rowNum].sessions:editStyleSheet({
+                                        ["qproperty-alignment"] = "'AlignHCenter | AlignVCenter'",
+                                        ["font-family"] = "Bitstream Vera Sans Mono",
+                                      })
+    self._visuals.pracRow[rowNum].mana:editStyleSheet({
+                                        ["qproperty-alignment"] = "'AlignRight | AlignVCenter'",
+                                        ["font-family"] = "Bitstream Vera Sans Mono",
+                                      })
+    self._visuals.pracRow[rowNum].age:editStyleSheet({
+                                        ["qproperty-alignment"] = "'AlignRight | AlignVCenter'",
+                                      })
+  end
+--self._visuals.pracRow[rowNum].sessions:editStyleSheet({["background-color"] = "yellow",  })
+end
+
+function MuMeM.Practice.GUI.PracList:mainWindow()
+  return self._visuals.mainWindow
+end
+
+function MuMeM.Practice.GUI.PracList:fillPracRow(rowNum, prac)
+  local maxPracString = "??"
+  local sessionsString = "??"
+  
+  if MuMeM.Skill.Repository.getSkill(prac:skillUid()) then
+    maxPracString = string.format("%2d", MuMeM.Skill.Repository.getSkill(prac:skillUid()):maxPrac())
+  end
+  
+  if prac:sessions() then
+    sessionsString = string.format("%2d", prac:sessions())
+  end
+  
+  self._visuals.pracRow[rowNum].row:show()
+  self._visuals.pracRow[rowNum].row:editStyleSheet(MuMeM.Class.STYLE[prac:class()].DARK_STYLE)
+
+  self._visuals.pracRow[rowNum].name:setText(prac:name())
+  self._visuals.pracRow[rowNum].sessions:setText(sessionsString.." / "..maxPracString)
+  self._visuals.pracRow[rowNum].knowledgePercentage:setText((prac:knowledgePercentage() or "?").."%")
+  self._visuals.pracRow[rowNum].knowledgeString:setText(prac:knowledgeString())
+  self._visuals.pracRow[rowNum].difficulty:setText(prac:difficulty())
+  self._visuals.pracRow[rowNum].class:setText(prac:class())
+  self._visuals.pracRow[rowNum].mana:setText(prac:mana() or "")
+  self._visuals.pracRow[rowNum].castingTime:setText(prac:castingTime() or "")
+  self._visuals.pracRow[rowNum].advice:setText(prac:advice() or "")
+  
+  local lastVerifiedString = "?"
+  if prac:lastVerified() then
+    local lastVerified = (getEpoch() - prac:lastVerified()) / 60 / 60 / 24
+    if lastVerified / 30 &gt; 100 then 
+      lastVerifiedString = "-"..math.floor(lastVerified/365).."Y"
+    elseif lastVerified &gt; 100 then
+      lastVerifiedString = "-"..math.floor(lastVerified/30).."M"
+    elseif lastVerified &lt; 1 then
+      lastVerifiedString = "today"
+    else
+      lastVerifiedString = "-"..math.floor(lastVerified).."D"
+    end 
+  end
+  self._visuals.pracRow[rowNum].age:setText(lastVerifiedString)
+end
+
+function MuMeM.Practice.GUI.PracList:fill()
+  self._selectedPlayer = self._selectedPlayer or MuMeM.Player.name() or MuMeM.Practice.getPlayersSorted()[1]
+
+  local numRows = 0
+  local playerPracList = MuMeM.Practice.playerPracList(self._selectedPlayer)
+  local sortedKeys = playerPracList:sortedKeys()
+
+  for rowNum,pracKey in pairs(sortedKeys) do
+    self:createPracRow(rowNum)
+    self:fillPracRow(rowNum,playerPracList:getLearnedPrac(pracKey))
+    numRows = numRows + 1
+  end
+  
+  local rowNum = numRows + 1
+  while self._visuals.pracRow[rowNum] do
+    self._visuals.pracRow[rowNum].row:hide()
+    rowNum = rowNum + 1
+  end
+  
+  local boxHeight = numRows * self._pracRowHeight + numRows + self._pracRowHeight + self._pracBoxBorderWidth
+  self._visuals.pracBox:window():resize("100%-20", boxHeight)
+
+  self._visuals.cbPlayers:setDataList(MuMeM.Practice.getPlayersSorted())
+  self._visuals.cbPlayers:setValue(self._selectedPlayer)
+  self._visuals.sessionsLeft:setText((MuMeM.Practice.playerPracList(self._selectedPlayer):sessionsLeft() or "?").." sessions left")
+
+  local uwW,uwH = getUserWindowSize(self._visuals.mainWindow.name)
+  self._windowWidth = uwW + 2
+  self._windowHeight = boxHeight + 80
+  self._visuals.mainWindow:resize(self._windowWidth, self._windowHeight)
+end
+
+function MuMeM.Practice.GUI.PracList:changeSelectedPlayer(selectedPlayer)
+  self._selectedPlayer = selectedPlayer
+  self:fill()
+end
+
+function MuMeM.Practice.GUI.PracList:show()
+  self._selectedPlayer = MuMeM.Player.name()    -- make current player the selected one (maybe NOT do that...)
+  self:fill()
+  --MuMeM.Widget.showUserWindow(self:mainWindow())
+  self._visuals.mainWindow:show()
+  self._visuals.mainWindow:resize(self._windowWidth, self._windowHeight)
+end
+
+function MuMeM.Practice.GUI.PracList:hide()
+  self:mainWindow():hide()
+end
+
+function MuMeM.Practice.GUI.PracList.open()
+  if not MuMeM.Practice.GUI.PracList.instance then
+    MuMeM.Practice.GUI.PracList.instance = MuMeM.Practice.GUI.PracList:new()
+    MuMeM.Practice.GUI.PracList.instance:create()
+  end
+  
+  MuMeM.Practice.GUI.PracList.instance:show()
+end
+
+function MuMeM.Practice.GUI.PracList.close()
+  MuMeM.Practice.GUI.PracList.instance:hide()
+end</script>
+					<eventHandlerList />
+				</Script>
+				<Script isActive="yes" isFolder="no">
+					<name>MuMeM.Practice.GUI.PracMatrix</name>
+					<packageName></packageName>
+					<script>MuMeM.Practice.GUI.PracMatrix = MuMeM.Practice.GUI.PracMatrix or
+{
+  instance = nil,
+  
+  _windowWidth = 1120,
+  _windowHeight = 850,
+  
+  _pracRowHeight = 20,
+  _pracBoxBorderWidth = 2,
+  
+  _visuals = nil,
+  
+  _selectedPlayer = nil,
+  _selectedCell = nil,      -- { widgetTree=.., pracSkillUid=...,}
+  
+  _classBoxSST = {
+    ["background-color"] = "gray",
+    ["border"] = "2px solid black",
+  },
+  
+  _classHeaderSST = {
+    ["font-size"] = "12pt",
+  },
+
+  _numberHeaderSST = {
+    ["qproperty-alignment"] = "'AlignRight | AlignVCenter'",
+    ["padding-right"] = "2px",
+  }, 
+
+  _numberCellSST = {
+    ["qproperty-alignment"] = "'AlignRight | AlignVCenter'",
+    ["font-family"] = "Bitstream Vera Sans Mono",
+    ["padding-right"] = "2px",
+  }, 
+  
+  _targetIndicatorUpSST = {
+    ["background-position"] = "top left",
+    ["margin"] = "2px",
+  },
+  _targetIndicatorDownSST = {
+    ["background-position"] = "bottom left",
+    ["margin"] = "2px",
+  },
+  _targetIndicatorMatchSST = {
+    ["background-position"] = "left",
+    ["margin"] = "2px",
+  },
+  
+  _statsBoxSST = {
+    ["background-color"] = "#DDDDDD",
+    ["border"] = "2px solid black",
+    ["qproperty-alignment"] = "'AlignHCenter | AlignVCenter'",
+  },
+  
+  _infoBoxSST = {
+    ["background-color"] = "#DDDDDD",
+    ["border"] = "2px solid black",
+  },
+  _infoHeaderSST = {
+    ["background-color"] = "black",
+    ["color"] = "white",
+    ["font-size"] = "12pt",
+    ["padding-left"] = "3px",
+  },
+  _infoLabelSST = {
+    ["qproperty-alignment"] = "'AlignRight | AlignVCenter'",
+  },
+  _infoValueSST = {
+    ["qproperty-alignment"] = "'AlignRight | AlignVCenter'",
+    ["font-family"] = "Bitstream Vera Sans Mono",
+  },
+} 
+
+mumem_inherit("MuMeM.Practice.GUI.PracMatrix", "MuMeM.Practice.GUI.PracMatrix")
+
+function MuMeM.Practice.GUI.PracMatrix:new(props)
+  local me = props or {}
+    
+  setmetatable(me, self)
+  self.__index = self
+
+  return me
+end
+
+function MuMeM.Practice.GUI.PracMatrix:create()
+  self._visuals = {}
+  
+  -- --- Main Window ---
+  self._visuals.mainWindow = Geyser.UserWindow:new({
+    name = "MuMeM.Practice.GUI.PracMatrix"..math.random(99999),
+    titleText = "MuMeM - Practice List",
+    x = 20, y = 20,
+    width = self._windowWidth, height = self._windowHeight,
+    color = "lightGray",
+    restoreLayout = false,
+    docked = false, autoDock = false, dockPosition = "f",
+  })
+ 
+  -- --- classes / practices ---
+  self._visuals.class = {}
+  self:createClass("none", 10, 10)
+  self:createClass("warrior", 10, 10 + self._visuals.class["none"].box._height + 10)
+  self:createClass("thief", 10, 10 + self._visuals.class["none"].box._height + 10 + self._visuals.class["warrior"].box._height + 10)
+  self:createClass("cleric", 380, 10)
+  self:createClass("magic user", 750, 10)
+
+  -- --- info---
+  self:createInfo(380, 10 + self._visuals.class["cleric"].box._height + 10)
+  
+  -- --- player select ---
+  self._visuals.cbPlayers = MuMeM.Widget.ComboBox:new({
+    _x = 10, _y = -35,
+    _width = 150, _height = 20,
+    _anchor = "bottom",
+    _valueChangedCallback = function(value) self:changeSelectedPlayer(value) end,
+  }, self._visuals.mainWindow)
+  --self._visuals.pracBox:editStyleSheet(self._pracBoxSST)
+
+  -- --- stats ---
+  self:createStats(380, -40)
+  
+  -- --- Close button ---  
+  self._visuals.buttonClose = MuMeM.Widget.TextButton:new({
+    _text = "Close",
+    _x = "100%-110", _y = -50,
+    _width = 100, _height = 40,
+    _clickCallback = function (event) MuMeM.Practice.GUI.PracMatrix.close() end,
+  }, self._visuals.mainWindow)
+  
+  -- --- floatingNumberInput --
+  self._visuals.floatingNumberInput = MuMeM.Widget.NumberInput:new({
+    _x = 5, _y = 5,
+    _width = 78, _height = 20,
+    _number = 0, _minNumber = 0, _maxNumber = 99,
+    _onLeaveCallback = function(event) self:editTargetDone() end,
+  }, self._visuals.mainWindow)
+end
+
+function MuMeM.Practice.GUI.PracMatrix:createTargetIndicator(class, rowNum, rowName, x, width)
+  local y = self._pracBoxBorderWidth + rowNum * self._pracRowHeight + rowNum
+  x = x + self._pracBoxBorderWidth
+  
+  self._visuals.class[class][rowName].targetIndicator = MuMeM.Widget.BackgroundImage:new({
+    _x = x, _y = y,
+    _width = width, _height = self._pracRowHeight,
+    _text = text,
+    _image = MuMeM.Core.IO.concatPath(MuMeM.Practice.getResourceDir(), "pracInc.png")
+  }, self._visuals.class[class].box)
+  
+  --self._visuals.class[class][rowName][colName]:editStyleSheet(sst)
+  --SET CLICK THROUGH
+end
+
+function MuMeM.Practice.GUI.PracMatrix:createPracCell(class, rowNum, rowName, colName, x, width, text, sst)
+  local y = self._pracBoxBorderWidth + rowNum * self._pracRowHeight + rowNum
+  x = x + self._pracBoxBorderWidth
+  
+  self._visuals.class[class][rowName][colName] = MuMeM.Widget.Label:new({
+    _x = x, _y = y,
+    _width = width, _height = self._pracRowHeight,
+    _text = text,
+  }, self._visuals.class[class].box)
+  
+  self._visuals.class[class][rowName][colName]:editStyleSheet(sst)
+  
+  if colName == "tgtPrac" then
+    self._visuals.class[class][rowName][colName]:setClickCallback(
+                    function(event) self:editTargetStart(rowName, self._visuals.class[class][rowName]) end)
+  end
+end
+
+function MuMeM.Practice.GUI.PracMatrix:createClassRow(class, rowNum, skill)
+  local skillUid = skill:uid()
+  local sst = MuMeM.Class.STYLE[class].DARK_STYLE
+  local sst2 = MuMeM.Class.STYLE[class].BRIGHT_STYLE
+
+  self._visuals.class[class][skillUid] = {}
+
+  self:createPracCell(class, rowNum, skillUid, "name",       0,  150, " "..skill:name(), sst)
+  self:createPracCell(class, rowNum, skillUid, "maxPrac",  150,   40, skill:maxPrac(),   table.update(sst,self._numberCellSST))
+  self:createPracCell(class, rowNum, skillUid, "maxPerc",  190,   40, 0,                 table.update(sst,self._numberCellSST))
+  self:createPracCell(class, rowNum, skillUid, "charPrac", 230,   40, 99,                table.update(sst2,self._numberCellSST))
+  self:createPracCell(class, rowNum, skillUid, "charPerc", 270,   40, 999,               table.update(sst2,self._numberCellSST))
+  self:createPracCell(class, rowNum, skillUid, "tgtPrac",  310,   40, 999,               table.update(sst,self._numberHeaderSST))
+  
+  self:createTargetIndicator(class, rowNum, skillUid, 310, 15)
+end
+
+function MuMeM.Practice.GUI.PracMatrix:createClassHeader(class, rowNum, skill)
+  local sst = table.update(self._classHeaderSST, MuMeM.Class.STYLE[class].HEADER_STYLE)
+  local classTitle = MuMeM.Class.TITLE[class]
+  
+  self._visuals.class[class]["HEADER"] = {}
+
+  self:createPracCell(class, 0, "HEADER", "name",       0,  150, " "..classTitle, sst)
+  self:createPracCell(class, 0, "HEADER", "maxPrac",  150,   40, "b#",  table.update(sst,self._numberHeaderSST))
+  self:createPracCell(class, 0, "HEADER", "maxPerc",  190,   40, "b%",  table.update(sst,self._numberHeaderSST))
+  self:createPracCell(class, 0, "HEADER", "charPrac", 230,   40, "#",   table.update(sst,self._numberHeaderSST))
+  self:createPracCell(class, 0, "HEADER", "charPerc", 270,   40, "%",   table.update(sst,self._numberHeaderSST))
+  self:createPracCell(class, 0, "HEADER", "tgtPrac",  310,   40, "tgt", table.update(sst,self._numberHeaderSST))
+end
+
+function MuMeM.Practice.GUI.PracMatrix:createClass(class, x, y)
+  local classSkillList = MuMeM.Skill.Repository.getClassSkills(class)
+
+  self._visuals.class[class] = {}
+
+  -- --- class box ---
+  self._visuals.class[class].box = MuMeM.Widget.Label:new({
+    _x = x, _y = y,
+    _width = 350 + self._pracBoxBorderWidth*2, 
+    _height = 20*(table.getn(classSkillList)+1) + table.getn(classSkillList) + self._pracBoxBorderWidth*2,
+    _text = "",
+  }, self._visuals.mainWindow)
+  self._visuals.class[class].box:editStyleSheet(self._classBoxSST)
+  
+  -- --- the rows ---
+  self:createClassHeader(class)
+  for rowNum,skill in pairs(classSkillList) do
+    self:createClassRow(class, rowNum, skill)
+  end
+end
+
+function MuMeM.Practice.GUI.PracMatrix:createInfoCell(key, x, y, title, value)  
+  self._visuals.info[key.."Label"] = MuMeM.Widget.Label:new({
+    _x = x, _y = y,
+    _width = 110, _height = 20,
+    _text = title..":",
+  }, self._visuals.info.box)
+  self._visuals.info[key.."Label"]:editStyleSheet(self._infoLabelSST)
+
+  self._visuals.info[key] = MuMeM.Widget.Label:new({
+    _x = x + 110, _y = y,
+    _width = 30, _height = 20,
+    _text = value,
+  }, self._visuals.info.box)
+  self._visuals.info[key]:editStyleSheet(self._infoValueSST)
+end
+
+function MuMeM.Practice.GUI.PracMatrix:createInfo(x, y)
+  self._visuals.info = {}
+
+  -- --- class box ---
+  self._visuals.info.box = MuMeM.Widget.Label:new({
+    _x = x, _y = y,
+    _width = 350 + self._pracBoxBorderWidth*2, 
+    _height = 100,
+    _text = "",
+  }, self._visuals.mainWindow)
+  self._visuals.info.box:editStyleSheet(self._infoBoxSST)
+  
+  -- --- header ---
+  self._visuals.info.header = MuMeM.Widget.Label:new({
+    _x = self._pracBoxBorderWidth, _y = self._pracBoxBorderWidth,
+    _width = 350, 
+    _height = 20,
+    _text = "Information",
+  }, self._visuals.info.box)
+  self._visuals.info.header:editStyleSheet(self._infoHeaderSST)
+  
+  self:createInfoCell("sessionsUsed",      10, 25, "Used Sessions", 5) 
+  self:createInfoCell("sessionsAvailable", 10, 45, "Avail Sessions", 5) 
+  self:createInfoCell("sessionsTarget",    10, 65, "Target Sessions", 5) 
+end
+
+function MuMeM.Practice.GUI.PracMatrix:createStats(x, y)
+  self._visuals.stats = {}
+
+  -- --- class box ---
+  self._visuals.stats.box = MuMeM.Widget.Label:new({
+    _x = x, _y = y,
+    _width = 350, 
+    _height = 30,
+    _text = "",
+  }, self._visuals.mainWindow)
+  self._visuals.stats.box:editStyleSheet(self._statsBoxSST)
+   
+  -- --- gather button ---  
+  self._visuals.buttonClose = MuMeM.Widget.TextButton:new({
+    _text = "gather",
+    _x = x + 360, _y = y,
+    _width = 60, _height = 30,
+    _clickCallback = function (event) MuMeM.Practice.gatherPlayerBaseStats() end,
+  }, self._visuals.mainWindow)
+end
+
+function MuMeM.Practice.GUI.PracMatrix:mainWindow()
+  return self._visuals.mainWindow
+end
+
+function MuMeM.Practice.GUI.PracMatrix:showNumberInput(relativeWidget)
+  local x = relativeWidget:get_x()
+  local y = relativeWidget:get_y()
+
+  x = x + math.floor((relativeWidget:width() - self._visuals.floatingNumberInput:width()) / 2)
+
+  self._visuals.floatingNumberInput:move(x, y)
+  self._visuals.floatingNumberInput:show()
+end
+
+function MuMeM.Practice.GUI.PracMatrix:hideNumberInput()
+  self._visuals.floatingNumberInput:hide()
+end
+
+function MuMeM.Practice.GUI.PracMatrix:editTargetStart(pracSkillUid, widgetTree)
+  self._selectedCell = {pracSkillUid=pracSkillUid, widgetTree=widgetTree}
+  
+  local prac = MuMeM.Practice.playerPracList(self._selectedPlayer):getPrac(pracSkillUid)
+  local targetSessions = 0
+  if prac then
+    targetSessions = prac:targetSessions() or 0
+  end
+
+  self._visuals.floatingNumberInput:setMaxNumber(MuMeM.Skill.Repository.getSkill(pracSkillUid):maxPrac())
+  self._visuals.floatingNumberInput:setNumber(targetSessions)
+
+  self:showNumberInput(widgetTree.tgtPrac)
+end
+
+function MuMeM.Practice.GUI.PracMatrix:editTargetDone()
+  self:hideNumberInput()
+  
+  local playerPracList = MuMeM.Practice.playerPracList(self._selectedPlayer)
+  local targetSessions = self._visuals.floatingNumberInput:value()
+  playerPracList:updatePrac(self._selectedCell.pracSkillUid, {skillUid=self._selectedCell.pracSkillUid,
+                                                              targetSessions=targetSessions})
+  MuMeM.Practice.save()
+  
+  self:redrawTarget(playerPracList:getPrac(self._selectedCell.pracSkillUid), self._selectedCell.widgetTree)
+  self._visuals.info.sessionsTarget:setText(playerPracList:sessionsTarget())
+
+  self._selectedCell = nil
+end
+
+function MuMeM.Practice.GUI.PracMatrix:redrawTarget(prac, widgetTree)
+  if prac and prac:targetSessions() and prac:targetSessions() &gt; 0 then
+    widgetTree.tgtPrac:setText(prac:targetSessions())
+    if not prac:isLearned() or not prac:sessions() or prac:sessions() &lt; prac:targetSessions() then
+      widgetTree.targetIndicator:setImage(MuMeM.Core.IO.concatPath(MuMeM.Practice.getResourceDir(), "pracInc.png"))
+      widgetTree.targetIndicator:editStyleSheet(self._targetIndicatorUpSST)
+    elseif prac:sessions() &gt; prac:targetSessions() then
+      widgetTree.targetIndicator:setImage(MuMeM.Core.IO.concatPath(MuMeM.Practice.getResourceDir(), "pracDec.png"))
+      widgetTree.targetIndicator:editStyleSheet(self._targetIndicatorDownSST)
+    else
+      widgetTree.targetIndicator:setImage(MuMeM.Core.IO.concatPath(MuMeM.Practice.getResourceDir(), "pracHit.png"))
+      widgetTree.targetIndicator:editStyleSheet(self._targetIndicatorMatchSST)
+    end
+    widgetTree.targetIndicator:show()
+  else
+    widgetTree.tgtPrac:setText("")
+    widgetTree.targetIndicator:hide()
+  end
+end
+
+function MuMeM.Practice.GUI.PracMatrix:resetClass(class)
+  local playerPracList = MuMeM.Practice.playerPracList(self._selectedPlayer)
+  
+  for skillPracUid,widgetTree in pairs(self._visuals.class[class]) do
+    if skillPracUid ~= "HEADER" and skillPracUid ~= "box" then
+      local prac = playerPracList:getPrac(skillPracUid)
+      
+      if prac and prac:isLearned() then
+        widgetTree.charPrac:setText(prac:sessions() or "?")
+        widgetTree.charPerc:setText(prac:knowledgePercentage() or "?")
+      else
+        widgetTree.charPrac:setText("")
+        widgetTree.charPerc:setText("")
+      end
+      
+      local maxPerc = MuMeM.Skill.Repository.getSkill(skillPracUid):maxPerc(playerPracList:baseStats())
+      if maxPerc then maxPerc = math.floor(maxPerc) end
+      widgetTree.maxPerc:setText(maxPerc or "-")
+      
+      self:redrawTarget(prac, widgetTree)
+    end
+  end
+end
+
+function MuMeM.Practice.GUI.PracMatrix:fill()
+  self._selectedPlayer = self._selectedPlayer or MuMeM.Player.name() or MuMeM.Practice.getPlayersSorted()[1]
+  local playerPracList = MuMeM.Practice.playerPracList(self._selectedPlayer)
+
+  for _,class in pairs({"none","warrior","thief","cleric","magic user"}) do
+    self:resetClass(class)
+  end
+  
+  self._visuals.info.sessionsUsed:setText(playerPracList:sessionsUsed())
+  self._visuals.info.sessionsAvailable:setText(playerPracList:sessionsLeft())
+  self._visuals.info.sessionsTarget:setText(playerPracList:sessionsTarget())
+
+  self._visuals.stats.box:setText(playerPracList:baseStatsString())
+  
+  self._visuals.cbPlayers:setDataList(MuMeM.Practice.getPlayersSorted())
+  self._visuals.cbPlayers:setValue(self._selectedPlayer)
+end
+
+function MuMeM.Practice.GUI.PracMatrix:changeSelectedPlayer(selectedPlayer)
+  self._selectedPlayer = selectedPlayer
+  self:fill()
+end
+
+function MuMeM.Practice.GUI.PracMatrix:show()
+  self:hideNumberInput()
+  self._selectedPlayer = MuMeM.Player.name()    -- make current player the selected one (maybe NOT do that...)
+  self:fill()
+  MuMeM.Widget.showUserWindow(self:mainWindow())
+end
+
+function MuMeM.Practice.GUI.PracMatrix:hide()
+  self:hideNumberInput()
+  self:mainWindow():hide()
+end
+
+function MuMeM.Practice.GUI.PracMatrix.open()
+  if not MuMeM.Practice.GUI.PracMatrix.instance then
+    MuMeM.Practice.GUI.PracMatrix.instance = MuMeM.Practice.GUI.PracMatrix:new()
+    MuMeM.Practice.GUI.PracMatrix.instance:create()
+  end
+  
+  MuMeM.Practice.GUI.PracMatrix.instance:show()
+end
+
+function MuMeM.Practice.GUI.PracMatrix.close()
+  MuMeM.Practice.GUI.PracMatrix.instance:hide()
+end</script>
+					<eventHandlerList />
+				</Script>
+			</ScriptGroup>
+		</ScriptGroup>
+	</ScriptPackage>
+	<TriggerPackage>
+		<TriggerGroup isActive="yes" isFolder="yes" isTempTrigger="no" isMultiline="no" isPerlSlashGOption="no" isColorizerTrigger="no" isFilterTrigger="no" isSoundTrigger="no" isColorTrigger="no" isColorTriggerFg="no" isColorTriggerBg="no">
+			<name>MuMeM:Practice</name>
+			<script></script>
+			<triggerType>0</triggerType>
+			<conditonLineDelta>0</conditonLineDelta>
+			<mStayOpen>0</mStayOpen>
+			<mCommand></mCommand>
+			<packageName></packageName>
+			<mFgColor>#ff0000</mFgColor>
+			<mBgColor>#ffff00</mBgColor>
+			<mSoundFile></mSoundFile>
+			<colorTriggerFgColor>#000000</colorTriggerFgColor>
+			<colorTriggerBgColor>#000000</colorTriggerBgColor>
+			<regexCodeList />
+			<regexCodePropertyList />
+			<TriggerGroup isActive="yes" isFolder="yes" isTempTrigger="no" isMultiline="no" isPerlSlashGOption="no" isColorizerTrigger="no" isFilterTrigger="no" isSoundTrigger="no" isColorTrigger="no" isColorTriggerFg="no" isColorTriggerBg="no">
+				<name>MuMeM:Practice:practice</name>
+				<script>MuMeM_Practice_practice_stopCounter = 2</script>
+				<triggerType>0</triggerType>
+				<conditonLineDelta>0</conditonLineDelta>
+				<mStayOpen>50</mStayOpen>
+				<mCommand></mCommand>
+				<packageName></packageName>
+				<mFgColor>#ff0000</mFgColor>
+				<mBgColor>#ffff00</mBgColor>
+				<mSoundFile></mSoundFile>
+				<colorTriggerFgColor>#000000</colorTriggerFgColor>
+				<colorTriggerBgColor>#000000</colorTriggerBgColor>
+				<regexCodeList>
+					<string>^You have .+ practice sessions left\.$</string>
+				</regexCodeList>
+				<regexCodePropertyList>
+					<integer>1</integer>
+				</regexCodePropertyList>
+				<Trigger isActive="yes" isFolder="no" isTempTrigger="no" isMultiline="no" isPerlSlashGOption="no" isColorizerTrigger="no" isFilterTrigger="no" isSoundTrigger="no" isColorTrigger="no" isColorTriggerFg="no" isColorTriggerBg="no">
+					<name>MuMeM:Practice:practiceSession</name>
+					<script>MuMeM.Practice.updatePlayerSessionsLeft(matches[2])
+</script>
+					<triggerType>0</triggerType>
+					<conditonLineDelta>0</conditonLineDelta>
+					<mStayOpen>0</mStayOpen>
+					<mCommand></mCommand>
+					<packageName></packageName>
+					<mFgColor>#ff0000</mFgColor>
+					<mBgColor>#ffff00</mBgColor>
+					<mSoundFile></mSoundFile>
+					<colorTriggerFgColor>#000000</colorTriggerFgColor>
+					<colorTriggerBgColor>#000000</colorTriggerBgColor>
+					<regexCodeList>
+						<string>^You have (.+) practice sessions left\.$</string>
+					</regexCodeList>
+					<regexCodePropertyList>
+						<integer>1</integer>
+					</regexCodePropertyList>
+				</Trigger>
+				<Trigger isActive="yes" isFolder="no" isTempTrigger="no" isMultiline="no" isPerlSlashGOption="no" isColorizerTrigger="no" isFilterTrigger="no" isSoundTrigger="no" isColorTrigger="no" isColorTriggerFg="no" isColorTriggerBg="no">
+					<name>MuMeM:Practice:practiceSelfHeader</name>
+					<script>MuMeM.Practice.unlearnAll()
+</script>
+					<triggerType>0</triggerType>
+					<conditonLineDelta>0</conditonLineDelta>
+					<mStayOpen>0</mStayOpen>
+					<mCommand></mCommand>
+					<packageName></packageName>
+					<mFgColor>#ff0000</mFgColor>
+					<mBgColor>#ffff00</mBgColor>
+					<mSoundFile></mSoundFile>
+					<colorTriggerFgColor>#000000</colorTriggerFgColor>
+					<colorTriggerBgColor>#000000</colorTriggerBgColor>
+					<regexCodeList>
+						<string>^Skill(?: / Spell)?\s+Knowledge\s+Difficulty\s+Class(?:\s+Mana\s+Casting time)?$</string>
+					</regexCodeList>
+					<regexCodePropertyList>
+						<integer>1</integer>
+					</regexCodePropertyList>
+				</Trigger>
+				<Trigger isActive="yes" isFolder="no" isTempTrigger="no" isMultiline="no" isPerlSlashGOption="no" isColorizerTrigger="no" isFilterTrigger="no" isSoundTrigger="no" isColorTrigger="no" isColorTriggerFg="no" isColorTriggerBg="no">
+					<name>MuMeM:Practice:practiceSelf</name>
+					<script>--print("INFO")
+--^Skill / Spell\s+Knowledge\s+Difficult\s+Class\s+Mana\s+Casting time$
+
+-- this can happen in bear form. Easier to handle here than in the regexp!
+if matches[2] == "Skill" or matches[2] == "Skill / Spell" then
+  return
+end
+
+-- update the prac
+MuMeM.Practice.updatePlayerPrac({
+  name = matches[2], 
+  knowledgeString = matches[3], 
+  difficulty = matches[4],
+  class = matches[5], 
+  mana = matches[6], 
+  castingTime = matches[7]
+})</script>
+					<triggerType>0</triggerType>
+					<conditonLineDelta>0</conditonLineDelta>
+					<mStayOpen>0</mStayOpen>
+					<mCommand></mCommand>
+					<packageName></packageName>
+					<mFgColor>#ff0000</mFgColor>
+					<mBgColor>#ffff00</mBgColor>
+					<mSoundFile></mSoundFile>
+					<colorTriggerFgColor>#000000</colorTriggerFgColor>
+					<colorTriggerBgColor>#000000</colorTriggerBgColor>
+					<regexCodeList>
+						<string>^((?:[\w]+\s)*[\w]+)\s+((?:[\w]+\s)*[\w]+)\s+((?:[\w]+\s)*[\w]+)\s+((?:[\w]+\s)*[\w]+)(?:\s+([\d\w]+)\s+((?:[\w]+\s)*[\w]+))?$</string>
+					</regexCodeList>
+					<regexCodePropertyList>
+						<integer>1</integer>
+					</regexCodePropertyList>
+				</Trigger>
+				<Trigger isActive="yes" isFolder="no" isTempTrigger="no" isMultiline="no" isPerlSlashGOption="no" isColorizerTrigger="no" isFilterTrigger="no" isSoundTrigger="no" isColorTrigger="no" isColorTriggerFg="no" isColorTriggerBg="no">
+					<name>MuMeM:Practice:practiceTeacher</name>
+					<script>--[[
+Spell                Sessions  Knowl.  Diffic.    Advice
+------------------------------------------------------------------------------
+Armour                   0/ 6      0%  Hard       Learn it or not, your choice
+--]]
+
+MuMeM.Practice.updatePlayerPrac({
+  name = matches[2], 
+  sessions = matches[3], 
+  knowledgePercentage = matches[5],
+  difficulty = matches[6], 
+  advice = matches[7]
+})</script>
+					<triggerType>0</triggerType>
+					<conditonLineDelta>0</conditonLineDelta>
+					<mStayOpen>0</mStayOpen>
+					<mCommand></mCommand>
+					<packageName></packageName>
+					<mFgColor>#ff0000</mFgColor>
+					<mBgColor>#ffff00</mBgColor>
+					<mSoundFile></mSoundFile>
+					<colorTriggerFgColor>#000000</colorTriggerFgColor>
+					<colorTriggerBgColor>#000000</colorTriggerBgColor>
+					<regexCodeList>
+						<string>^((?:[\w]+\s)*[\w]+)\s+([\d]+)\/\s*([\d]+)\s+([\d]+)%\s+((?:[\w]+\s)*[\w]+)\s+(.+)$</string>
+					</regexCodeList>
+					<regexCodePropertyList>
+						<integer>1</integer>
+					</regexCodePropertyList>
+				</Trigger>
+				<Trigger isActive="yes" isFolder="no" isTempTrigger="no" isMultiline="no" isPerlSlashGOption="no" isColorizerTrigger="no" isFilterTrigger="no" isSoundTrigger="no" isColorTrigger="no" isColorTriggerFg="no" isColorTriggerBg="no">
+					<name>MuMeM:Practice:practiceStop</name>
+					<script>MuMeM_Practice_practice_stopCounter = MuMeM_Practice_practice_stopCounter - 1
+
+if MuMeM_Practice_practice_stopCounter &lt;= 0 then
+  setTriggerStayOpen("MuMeM:Practice:practice", 0)
+  MuMeM.Practice.save()
+end</script>
+					<triggerType>0</triggerType>
+					<conditonLineDelta>0</conditonLineDelta>
+					<mStayOpen>0</mStayOpen>
+					<mCommand></mCommand>
+					<packageName></packageName>
+					<mFgColor>#ff0000</mFgColor>
+					<mBgColor>#ffff00</mBgColor>
+					<mSoundFile></mSoundFile>
+					<colorTriggerFgColor>#000000</colorTriggerFgColor>
+					<colorTriggerBgColor>#000000</colorTriggerBgColor>
+					<regexCodeList>
+						<string>^$</string>
+					</regexCodeList>
+					<regexCodePropertyList>
+						<integer>1</integer>
+					</regexCodePropertyList>
+				</Trigger>
+			</TriggerGroup>
+		</TriggerGroup>
+	</TriggerPackage>
+</MudletPackage>
