@@ -267,13 +267,13 @@ end
 function MuMeM.Practice.PracList:setBaseStat(stat, value)
   local s = string.lower(stat)
   if self._baseStats[s] then
-    self._baseStats[s] = value
+    self._baseStats[s] = tonumber(value)
   end
 end
 
 function MuMeM.Practice.PracList:setBaseStats(baseStats)
   for k,v in pairs(stats) do
-    self:setStat(k, v)
+    self:setBaseStat(k, v)
   end
 end
 
@@ -1024,9 +1024,7 @@ function MuMeM.Practice.GUI.PracMatrix:createTargetIndicator(class, rowNum, rowN
     _text = text,
     _image = MuMeM.Core.IO.concatPath(MuMeM.Practice.getResourceDir(), "pracInc.png")
   }, self._visuals.class[class].box)
-  
-  --self._visuals.class[class][rowName][colName]:editStyleSheet(sst)
-  --SET CLICK THROUGH
+  self._visuals.class[class][rowName].targetIndicator:enableClickthrough()
 end
 
 function MuMeM.Practice.GUI.PracMatrix:createPracCell(class, rowNum, rowName, colName, x, width, text, sst)
@@ -1268,6 +1266,12 @@ function MuMeM.Practice.GUI.PracMatrix:fill()
 
   self._visuals.stats.box:setText(playerPracList:baseStatsString())
   
+  --self._visuals.cbPlayers:setDataList({
+  --  {title="MyWarrior",_value="A"},
+  --  {title="MyThief",_value="B"},
+  --  {title="MyBear",_value="C"},
+  --  {title="MyMage",_value="D"},
+  --})
   self._visuals.cbPlayers:setDataList(MuMeM.Practice.getPlayersSorted())
   self._visuals.cbPlayers:setValue(self._selectedPlayer)
 end
