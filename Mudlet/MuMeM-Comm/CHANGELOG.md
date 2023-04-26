@@ -1,3 +1,7 @@
+### 20230426
+
+  * Added more named NPCs
+
 ### 20230418
 
   * Updated OO initialization (tables)
