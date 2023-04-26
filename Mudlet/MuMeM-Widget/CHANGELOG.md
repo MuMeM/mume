@@ -1,3 +1,9 @@
+### 20230426
+
+  * Better clickCallback handling
+  * Implemented BackgroundImage
+  * OnEnter/Leave, esp for NumberInput
+
 ### 20230418
 
   * Added ComboBox
