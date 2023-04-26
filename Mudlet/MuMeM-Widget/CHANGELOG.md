@@ -3,6 +3,7 @@
   * Better clickCallback handling
   * Implemented BackgroundImage
   * OnEnter/Leave, esp for NumberInput
+  * Added clickThrough on widget level
 
 ### 20230418
 

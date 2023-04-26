@@ -213,6 +213,12 @@ function MuMeM.Widget.Widget:setOnLeaveCallback(onLeaveCallback)
   -- NOTE: the "wiget" subclass must attach the callback to a Geyser/UI element (see Widget.Label)
 end
 
+function MuMeM.Widget.Widget:enableClickthrough()
+  if self:window() then
+    self:window():enableClickthrough()
+  end
+end
+
 function MuMeM.Widget.Widget:value()
   return self:getValue()
 end
