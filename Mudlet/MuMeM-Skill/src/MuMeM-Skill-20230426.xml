@@ -1,0 +1,1843 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE MudletPackage>
+<MudletPackage version="1.001">
+	<ScriptPackage>
+		<ScriptGroup isActive="yes" isFolder="yes">
+			<name>MuMeM.Skill</name>
+			<packageName></packageName>
+			<script>require "MuMeM-Core"
+
+-- --- Module setup ----------------------------------------------
+
+MuMeM = MuMeM or {}
+MuMeM.Skill = MuMeM.Skill or {}
+
+
+-- --- Module registration -----------------------------------------
+
+MuMeM.Skill.module_name = "MuMeM.Skill"
+MuMeM.Skill.module_dependencies = {"MuMeM.Core","MuMeM.Log"}
+MuMeM.modules = MuMeM.modules or {}
+MuMeM.modules[MuMeM.Skill.module_name] = MuMeM.modules[MuMeM.Skill.module_name] or {module=MuMeM.Skill}</script>
+			<eventHandlerList />
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Skill.Library</name>
+				<packageName></packageName>
+				<script>function MuMeM.Skill.initialize()
+  MuMeM.Skill.Repository.initialize()
+end
+
+function MuMeM.Skill.configure()
+  MuMeM.Skill.Repository.configure()
+end
+
+function MuMeM.Skill.skillNameToUid(skillName)
+  return string.lower(string.gsub(skillName, " ", "_"))
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Skill.Repository</name>
+				<packageName></packageName>
+				<script>MuMeM.Skill.Repository = MuMeM.Skill.Repository or
+{
+  _skills = {}
+}
+
+function MuMeM.Skill.Repository.initialize()
+
+end
+
+function MuMeM.Skill.Repository.configure()
+  for _,v in pairs(MuMeM.Skill.DataStore.skills) do
+    MuMeM.Skill.Repository._skills[v.uid] = MuMeM.Skill.Skill:new()
+    MuMeM.Skill.Repository._skills[v.uid]:update(v)
+  end
+end
+
+-- ###########################################################################
+
+function MuMeM.Skill.Repository.getSkill(uid)
+  return MuMeM.Skill.Repository._skills[uid]
+end
+
+function MuMeM.Skill.Repository.getClassSkills(class)
+  local list = {}
+  
+  for k,v in pairs(MuMeM.Skill.DataStore.skills) do
+    if v.class == class then
+      local skill = MuMeM.Skill.Skill:new()
+      skill:update(v)
+      table.insert(list, skill)
+    end
+  end
+  
+  return list
+end
+
+function MuMeM.Skill.Repository.getSortedClassSkills(class)
+  local list = {}
+  
+  for k,v in pairs(MuMeM.Skill.DataStore.skills) do
+    if v.class == class then
+      local skill = MuMeM.Skill.Skill:new()
+      skill:update(v)
+      table.insert(list, skill)
+    end
+  end
+  
+  table.sort(list, function(a,b) return a:name() &gt; b:name() end)
+  
+  return list
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Skill.Skill</name>
+				<packageName></packageName>
+				<script>MuMeM.Skill.Skill = MuMeM.Skill.Skill or
+{
+  _uid = nil,
+  _name = nil,
+  _maxPrac = nil,
+  _maxPercFormula = nil,
+}
+
+mumem_inherit("MuMeM.Skill.Skill", "MuMeM.Skill.Skill")
+
+function MuMeM.Skill.Skill:new(props)
+  local me = props or {}
+  
+  setmetatable(me, self)
+  self.__index = self
+
+  return me
+end
+
+function MuMeM.Skill.Skill:uid()
+  return self._uid
+end
+
+function MuMeM.Skill.Skill:name()
+  return self._name
+end
+
+function MuMeM.Skill.Skill:maxPrac()
+  return self._maxPrac
+end
+
+function MuMeM.Skill.Skill:maxPerc(baseStats)       -- {str=N, con=N, ...}
+  if not self._maxPercFormula then
+    return nil
+  end
+  
+  local formula = "return "..self._maxPercFormula
+  local tr = {}
+  for k,v in pairs(baseStats) do
+    formula = string.gsub(formula, "{"..string.upper(k).."}", v)
+  end
+    
+  local maxPerc = loadstring(formula)()
+    
+  return maxPerc
+end
+
+function MuMeM.Skill.Skill:update(props)
+  if props.uid then self._uid = props.uid end
+  if props.name then self._name = props.name end
+  if props.maxPrac then self._maxPrac = props.maxPrac end
+  if props.maxPercFormula then self._maxPercFormula = props.maxPercFormula end
+end</script>
+				<eventHandlerList />
+			</Script>
+			<Script isActive="yes" isFolder="no">
+				<name>MuMeM.Skill.DataStore</name>
+				<packageName></packageName>
+				<script>MuMeM.Skill.DataStore = MuMeM.Skill.DataStore or
+{
+
+  skills = {
+    -- === none / ranger / general ======================================================
+  
+    {
+       uid = "awareness",
+       name = "Awareness",
+       class = "none",
+       maxPrac = 27,
+       maxPercFormula = "20 + 3.75*{PER} + 2.5*{INT}",
+       teachers = {
+         freePeople = {
+           rdell = 27,
+           fnost = 22,
+           hlond = 27,
+           bree = 3,
+           blumts = 8,
+           shire = 17,
+           ingrv = 9,
+           lorien = 27,
+        },
+      },
+    },
+    {
+       uid = "bandage",
+       name = "Bandage",
+       class = "none",
+       maxPrac = 18,
+       maxPercFormula = "18 + 3.75*{INT} + 2.5*{DEX}",
+       teachers = {
+         freePeople = {
+           rdell = 18,
+           fnost = 10,
+           hlond = 10,
+           bree = 3,
+           blumts = 6,
+           shire = 3,
+           ingrv = 8,
+           lorien = 18,
+           thills = 4,
+        },
+      },
+    },
+    {
+       uid = "climb",
+       name = "Climb",
+       class = "none",
+       maxPrac = 13,
+       maxPercFormula = "16 + 3*{DEX} + 2*{WIL} + 1.25*{STR}",
+       teachers = {
+         freePeople = {
+           rdell = 13,
+           fnost = 3,
+           hlond = 2,
+           bree = 2,
+           blumts = 3,
+           shire = 1,
+           ingrv = 3,
+           lorien = 13,
+           thills = 4,
+        },
+      },
+    },
+    {
+       uid = "command",
+       name = "Command",
+       class = "none",
+       maxPrac = 27,
+       maxPercFormula = nil,
+       teachers = {
+         freePeople = {
+           rdell = 27,
+           fnost = 8,
+           hlond = 5,
+           bree = 2,
+           blumts = 3,
+           shire = 2,
+           ingrv = 2,
+           lorien = 12,
+        },
+      },
+    },
+    {
+       uid = "leadership",
+       name = "Leadership",
+       class = "none",
+       maxPrac = 27,
+       maxPercFormula = "20 + 3.75*{WIL} + 2.5*{WIS}",
+       teachers = {
+         freePeople = {
+           rdell = 21,
+           fnost = 27,
+           hlond = 5,
+           bree = 4,
+           blumts = 8,
+           shire = 3,
+           ingrv = 6,
+           lorien = 12,
+        },
+      },
+    },
+    {
+       uid = "ride",
+       name = "Ride",
+       class = "none",
+       maxPrac = 13,
+       maxPercFormula = "18 + 3.75*{DEX} + 2.5*{WIL}",
+       teachers = {
+         freePeople = {
+           rdell = 8,
+           fnost = 13,
+           hlond = 8,
+           bree = 3,
+           blumts = 3,
+           shire = 2,
+           ingrv = 13,
+           lorien = 6,
+           thills = 10,
+        },
+      },
+    },
+    {
+       uid = "swim",
+       name = "Swim",
+       class = "none",
+       maxPrac = 14,
+       maxPercFormula = "18 + 3*{CON} + 2*{WIL} + 1.33*{DEX}",
+       teachers = {
+         freePeople = {
+           rdell = 9,
+           fnost = 3,
+           hlond = 14,
+           bree = 3,
+           shire = 2,
+           ingrv = 4,
+           lorien = 9,
+           thills = 4,
+        },
+      },
+    },
+    {
+       uid = "track",
+       name = "Track",
+       class = "none",
+       maxPrac = 27,
+       maxPercFormula = "38 + 3*{PER} + 1.5*{INT}",
+       teachers = {
+         freePeople = {
+           rdell = 11,
+           fnost = 27,
+           hlond = 6,
+           bree = 3,
+           blumts = 2,
+           ingrv = 7,
+           lorien = 14,
+           thills = 15,
+        },
+      },
+    },
+    {
+       uid = "wilderness",
+       name = "Wilderness",
+       class = "none",
+       maxPrac = 27,
+       maxPercFormula = "20 + 3.75*{STR} + 2.5*{WIL}",
+       teachers = {
+         freePeople = {
+           rdell = 21,
+           fnost = 27,
+           hlond = 8,
+           bree = 7,
+           blumts = 16,
+           shire = 7,
+           ingrv = 12,
+           lorien = 18,
+           thills = 12,
+        },
+      },
+    },
+    
+    -- === warrior ======================================================================
+    
+    {
+       uid = "bash",
+       name = "Bash",
+       class = "warrior",
+       maxPrac = 43,
+       maxPercFormula = "50 + 1.67*{STR} + {DEX} + 0.67*{WIL}",
+       teachers = {
+         freePeople = {
+           rdell = 20,
+           fnost = 43,
+           hlond = 20,
+           bree = 10,
+           blumts = 28,
+           ingrv = 33,
+           lorien = 31,
+           thills = 15,
+        },
+      },
+    },
+    {
+       uid = "charge",
+       name = "Charge",
+       class = "warrior",
+       maxPrac = 29,
+       maxPercFormula = nil,
+       teachers = {
+         freePeople = {
+           rdell = 18,
+           fnost = 29,
+           hlond = 11,
+           lorien = 6,
+        },
+      },
+    },
+    {
+       uid = "cleaving_weapons",
+       name = "Cleaving Weapons",
+       class = "warrior",
+       maxPrac = 29,
+       maxPercFormula = "50 + 1.56*{STR} + {DEX} + 0.67*{WIL}",
+       teachers = {
+         freePeople = {
+           rdell = 12,
+           fnost = 29,
+           hlond = 12,
+           bree = 9,
+           blumts = 29,
+           shire = 8,
+           ingrv = 21,
+           lorien = 8,
+           thills = 12,
+        },
+      },
+    },
+    {
+       uid = "concussion_weapons",
+       name = "Concussion Weapons",
+       class = "warrior",
+       maxPrac = 29,
+       maxPercFormula = "50 + 1.56*{STR} + {CON} + 0.67*{WIL}",
+       teachers = {
+         freePeople = {
+           rdell = 14,
+           fnost = 29,
+           hlond = 14,
+           bree = 7,
+           blumts = 29,
+           ingrv = 10,
+           lorien = 17,
+           thills = 12,
+        },
+      },
+    },
+    {
+       uid = "endurance",
+       name = "Endurance",
+       class = "warrior",
+       maxPrac = 58,
+       maxPercFormula = "48 + 2.2*{CON} + 1.3*{WIL}",
+       teachers = {
+         freePeople = {
+           rdell = 41,
+           fnost = 58,
+           hlond = 28,
+           bree = 7,
+           blumts = 58,
+           shire = 4,
+           ingrv = 41,
+           lorien = 45,
+           thills = 10,
+        },
+      },
+    },
+    {
+       uid = "kick",
+       name = "Kick",
+       class = "warrior",
+       maxPrac = 29,
+       maxPercFormula = nil,
+       teachers = {
+         freePeople = {
+           rdell = 14,
+           fnost = 29,
+           hlond = 14,
+           bree = 7,
+           blumts = 9,
+           shire = 8,
+           lorien = 17,
+        },
+      },
+    },
+    {
+       uid = "parry",
+       name = "Parry",
+       class = "warrior",
+       maxPrac = 29,
+       maxPercFormula = "50 + 1.56*{DEX} + {PER} + 0.67*{STR}",
+       teachers = {
+         freePeople = {
+           rdell = 14,
+           fnost = 29,
+           hlond = 14,
+           bree = 11,
+           blumts = 29,
+           shire = 8,
+           ingrv = 10,
+           lorien = 29,
+           thills = 10,
+        },
+      },
+    },
+    {
+       uid = "rescue",
+       name = "Rescue",
+       class = "warrior",
+       maxPrac = 21,
+       maxPercFormula = "52 + 1.4*{DEX} + {WIL} + 0.67*{STR}",
+       teachers = {
+         freePeople = {
+           rdell = 13,
+           fnost = 21,
+           hlond = 13,
+           bree = 8,
+           blumts = 10,
+           shire = 5,
+           ingrv = 5,
+           lorien = 12,
+           thills = 5,
+        },
+      },
+    },
+    {
+       uid = "slashing_weapons",
+       name = "Slashing Weapons",
+       class = "warrior",
+       maxPrac = 29,
+       maxPercFormula = "50 + 1.56*{STR} + {DEX} + 0.67*{PER}",
+       teachers = {
+         freePeople = {
+           rdell = 14,
+           fnost = 29,
+           hlond = 14,
+           bree = 7,
+           blumts = 24,
+           shire = 8,
+           ingrv = 25,
+           lorien = 29,
+           thills = 12,
+        },
+      },
+    },
+    {
+       uid = "stabbing_weapons",
+       name = "Stabbing Weapons",
+       class = "warrior",
+       maxPrac = 29,
+       maxPercFormula = "50 + 1.56*{STR} + {DEX} + 0.67*{PER}",
+       teachers = {
+         freePeople = {
+           rdell = 18,
+           fnost = 29,
+           bree = 11,
+           blumts = 15,
+           ingrv = 21,
+           lorien = 29,
+           thills = 12,
+        },
+      },
+    },
+    {
+       uid = "two_handed_weapons",
+       name = "Two Handed Weapons",
+       class = "warrior",
+       maxPrac = 29,
+       maxPercFormula = "50 + 1.56*{STR} + {CON} + 0.67*{WIL}",
+       teachers = {
+         freePeople = {
+           rdell = 14,
+           fnost = 29,
+           hlond = 14,
+           bree = 7,
+           blumts = 24,
+           ingrv = 15,
+           lorien = 9,
+           thills = 12,
+        },
+      },
+    },
+--    {
+--       uid = "unarmed_combat",
+--       name = "Unarmed Combat",
+--       class = "warrior",
+--       maxPrac = 34,
+--       maxPercFormula = "{STR} + {WIL} + {DEX}",
+--       teachers = {
+--         freePeople = {
+--        },
+--      },
+--    },
+  
+    -- === thief ========================================================================
+  
+    {
+       uid = "attack",
+       name = "Attack",
+       class = "thief",
+       maxPrac = 16,
+       maxPercFormula = "45 + 2*{DEX} + 1.25*{WIL}",
+       teachers = {
+         freePeople = {
+           rdell = 3,
+           bdggr = 11,
+           hlond = 2,
+           bree = 2,
+           tbad = 16,
+           blumts = 3,
+           ingrv = 4,
+           lorien = 8,
+           thills = 8,
+        },
+      },
+    },
+    {
+       uid = "backstab",
+       name = "Backstab",
+       class = "thief",
+       maxPrac = 23,
+       maxPercFormula = "45 + 2*{DEX} + 1.25*{PER}",
+       teachers = {
+         freePeople = {
+           sewers = 23,
+           roofs = 6,
+        },
+      },
+    },
+    {
+       uid = "dodge",
+       name = "Dodge",
+       class = "thief",
+       maxPrac = 23,
+       maxPercFormula = "45 + 2*{DEX} + 1.25*{PER}",
+       teachers = {
+         freePeople = {
+           rdell = 6,
+           fnost = 14,
+           bdggr = 5,
+           hlond = 6,
+           bree = 3,
+           tbad = 23,
+           blumts = 6,
+           shire = 6,
+           ingrv = 6,
+           lorien = 15,
+           thills = 8,
+        },
+      },
+    },
+    {
+       uid = "envenom",
+       name = "Envenom",
+       class = "thief",
+       maxPrac = 16,
+       maxPercFormula = "32 + 2*{DEX} + 1.25*{INT}",
+       teachers = {
+         freePeople = {
+           sewers = 4,
+           eoghha = 16,
+        },
+      },
+    },
+    {
+       uid = "escape",
+       name = "Escape",
+       class = "thief",
+       maxPrac = 16,
+       maxPercFormula = "45 + 2*{DEX} + 1.25*{PER}",
+       teachers = {
+         freePeople = {
+           roofs = 16,
+           shire = 8,
+           lorien = 8,
+           thills = 3,
+        },
+      },
+    },
+    {
+       uid = "hide",
+       name = "Hide",
+       class = "thief",
+       maxPrac = 16,
+       maxPercFormula = "45 + 2*{DEX} + 1.25*{PER}",
+       teachers = {
+         freePeople = {
+           rdell = 9,
+           fnost = 6,
+           bdggr = 11,
+           hlond = 6,
+           bree = 3,
+           sewers = 16,
+           roofs = 6,
+           blumts = 3,
+           shire = 12,
+           lorien = 14,
+        },
+      },
+    },
+    {
+       uid = "missile",
+       name = "Missile",
+       class = "thief",
+       maxPrac = 16,
+       maxPercFormula = "45 + 2*{PER} + 1.25*{DEX}",
+       teachers = {
+         freePeople = {
+           rdell = 14,
+           fnost = 9,
+           bdggr = 11,
+           hlond = 9,
+           bree = 3,
+           tbad = 6,
+           blumts = 3,
+           shire = 6,
+           ingrv = 13,
+           lorien = 16,
+           thills = 8,
+        },
+      },
+    },
+    {
+       uid = "pick",
+       name = "Pick",
+       class = "thief",
+       maxPrac = 16,
+       maxPercFormula = "45 + 2*{INT} + 1.25*{DEX}",
+       teachers = {
+         freePeople = {
+           rdell = 9,
+           fnost = 1,
+           bdggr = 1,
+           hlond = 1,
+           bree = 1,
+           sewers = 8,
+           roofs = 16,
+           blumts = 16,
+           ingrv = 9,
+           lorien = 2,
+           thills = 4,
+        },
+      },
+    },
+    {
+       uid = "piercing_weapons",
+       name = "Piercing Weapons",
+       class = "thief",
+       maxPrac = 16,
+       maxPercFormula = "46 + 1.4*{DEX} + {PER} + 0.67*{STR}",
+       teachers = {
+         freePeople = {
+           rdell = 8,
+           bdggr = 12,
+           hlond = 6,
+           bree = 6,
+           tbad = 12,
+           sewers = 16,
+           blumts = 4,
+           shire = 4,
+           ingrv = 10,
+           lorien = 8,
+           thills = 8,
+        },
+      },
+    },
+    {
+       uid = "search",
+       name = "Search",
+       class = "thief",
+       maxPrac = 16,
+       maxPercFormula = "45 + 2*{INT} + 1.25*{PER}",
+       teachers = {
+         freePeople = {
+           rdell = 2,
+           bdggr = 16,
+           hlond = 3,
+           bree = 1,
+           roofs = 6,
+           blumts = 4,
+           shire = 3,
+           ingrv = 3,
+           lorien = 8,
+           thills = 3,
+        },
+      },
+    },
+    {
+       uid = "sneak",
+       name = "Sneak",
+       class = "thief",
+       maxPrac = 23,
+       maxPercFormula = "45 + 2*{DEX} + 1.25*{PER}",
+       teachers = {
+         freePeople = {
+           rdell = 8,
+           fnost = 14,
+           hlond = 6,
+           bree = 3,
+           sewers = 23,
+           roofs = 13,
+           blumts = 3,
+           shire = 18,
+           lorien = 20,
+           thills = 10,
+        },
+      },
+    },
+    {
+       uid = "steal",
+       name = "Steal",
+       class = "thief",
+       maxPrac = 16,
+       maxPercFormula = "45 + 2*{DEX} + 1.25*{PER}",
+       teachers = {
+         freePeople = {
+           bdggr = 3,
+           bree = 3,
+           roofs = 16,
+        },
+      },
+    },
+  
+    -- === magic user ====================================================================
+  
+    {
+       uid = "magic_missile",
+       name = "Magic Missile",
+       class = "magic user",
+       level = 1,
+       maxPrac = 8,
+       maxPercFormula = nil,
+       teachers = {
+         freePeople = {
+           rdell = 8,
+           hlond = 3,
+           flond = 4,
+           minbreth = 3,
+           ingrv = 4,
+           lorien = 5,
+           thills = 6,
+           bree = 4,
+        },
+      },
+    },
+    {
+       uid = "ventriloquate",
+       name = "Ventriloquate",
+       class = "magic user",
+       level = 1,
+       maxPrac = 5,
+       maxPercFormula = nil,
+       teachers = {
+         freePeople = {
+           tbad = 5,
+           bree = 2,
+        },
+      },
+    },
+    {
+       uid = "detect_magic",
+       name = "Detect Magic",
+       class = "magic user",
+       level = 2,
+       maxPrac = 8,
+       maxPercFormula = "50 + 1.5*{INT} + {WIS} + 0.67*{PER}",
+       teachers = {
+         freePeople = {
+           rdell = 8,
+           ingrv = 2,
+           lorien = 6,
+        },
+      },
+    },
+    {
+       uid = "detect_invisibility",
+       name = "Detect Invisibility",
+       class = "magic user",
+       level = 2,
+       maxPrac = 11,
+       maxPercFormula = "50 + 1.5*{INT} + {WIS} + 0.67*{PER}",
+       teachers = {
+         freePeople = {
+           rdell = 11,
+           hlond = 3,
+           flond = 3,
+           minbreth = 1,
+           tbad = 3,
+           ingrv = 4,
+           lorien = 3,
+           bree = 3,
+        },
+      },
+    },
+    {
+       uid = "chill_touch",
+       name = "Chill Touch",
+       class = "magic user",
+       level = 3,
+       maxPrac = 8,
+       maxPercFormula = nil,
+       teachers = {
+         freePeople = {
+           hlond = 4,
+           minbreth = 3,
+           tbad = 7,
+           lorien = 5,
+           thills = 8,
+        },
+      },
+    },
+    {
+       uid = "armour",
+       name = "Armour",
+       class = "magic user",
+       level = 3,
+       maxPrac = 16,
+       maxPercFormula = "50 + 2*{INT} + 1.25*{WIS}",
+       teachers = {
+         freePeople = {
+           rdell = 12,
+           hlond = 3,
+           flond = 8,
+           minbreth = 1,
+           tbad = 12,
+           lorien = 16,
+           thills = 10,
+           bree = 6,
+        },
+      },
+    },
+    {
+       uid = "create_light",
+       name = "Create Light",
+       class = "magic user",
+       level = 4,
+       maxPrac = 8,
+       maxPercFormula = "50 + 2*{INT} + 1.25*{WIS}",
+       teachers = {
+         freePeople = {
+           rdell = 8,
+           hlond = 2,
+           flond = 2,
+           minbreth = 1,
+           ingrv = 2,
+           lorien = 4,
+           thills = 4,
+           bree = 2,
+        },
+      },
+    },
+    {
+       uid = "locate_magic",
+       name = "Locate Magic",
+       class = "magic user",
+       level = 4,
+       maxPrac = 12,
+       maxPercFormula = nil,
+       teachers = {
+         freePeople = {
+           rdell = 12,
+           lorien = 8,
+        },
+      },
+    },
+    {
+       uid = "burning_hands",
+       name = "Burning Hands",
+       class = "magic user",
+       level = 5,
+       maxPrac = 11,
+       maxPercFormula = "50 + 1.5*{INT} + {WIS} + 0.67*{PER}",
+       teachers = {
+         freePeople = {
+           rdell = 11,
+           hlond = 3,
+           flond = 6,
+           minbreth = 4,
+           tbad = 6,
+           thills = 8,
+        },
+      },
+    },
+    {
+       uid = "shroud",
+       name = "Shroud",
+       class = "magic user",
+       level = 5,
+       maxPrac = 16,
+       maxPercFormula = "50 + 2*{INT} + 1.25*{WIS}",
+       teachers = {
+         freePeople = {
+           rdell = 3,
+           hlond = 4,
+           flond = 7,
+           minbreth = 2,
+           tbad = 16,
+           ingrv = 4,
+           lorien = 16,
+           thills = 4,
+           bree = 4,
+        },
+      },
+    },
+    {
+       uid = "locate",
+       name = "Locate",
+       class = "magic user",
+       level = 6,
+       maxPrac = 16,
+       maxPercFormula = "50 + 1.5*{INT} + {WIS} + 0.67*{WIL}",
+       teachers = {
+         freePeople = {
+           rdell = 3,
+           flond = 16,
+           tbad = 3,
+           lorien = 12,
+        },
+      },
+    },
+    {
+       uid = "find_the_path",
+       name = "Find the Path",
+       class = "magic user",
+       level = 6,
+       maxPrac = 11,
+       maxPercFormula = nil,
+       teachers = {
+         freePeople = {
+           rdell = 3,
+           flond = 11,
+           lorien = 6,
+        },
+      },
+    },
+    {
+       uid = "earthquake",
+       name = "Earthquake",
+       class = "magic user",
+       level = 7,
+       maxPrac = 16,
+       maxPercFormula = "50 + 2*{INT} + 1.25*{WIS}",
+       teachers = {
+         freePeople = {
+           rdell = 16,
+        },
+      },
+    },
+    {
+       uid = "shocking_grasp",
+       name = "Shocking Grasp",
+       class = "magic user",
+       level = 7,
+       maxPrac = 11,
+       maxPercFormula = "50 + 1.5*{INT} + {WIS} + 0.67*{PER}",
+       teachers = {
+         freePeople = {
+           rdell = 11,
+           flond = 6,
+           minbreth = 5,
+           tbad = 7,
+           lorien = 6,
+        },
+      },
+    },
+    {
+       uid = "teleport",
+       name = "Teleport",
+       class = "magic user",
+       level = 8,
+       maxPrac = 16,
+       maxPercFormula = "50 + 2*{INT} + 1.25*{WIL}",
+       teachers = {
+         freePeople = {
+           rdell = 16,
+           flond = 8,
+           tbad = 3,
+           lorien = 10,
+        },
+      },
+    },
+    {
+       uid = "night_vision",
+       name = "Night Vision",
+       class = "magic user",
+       level = 8,
+       maxPrac = 11,
+       maxPercFormula = nil,
+       teachers = {
+         freePeople = {
+           rdell = 11,
+           hlond = 1,
+           flond = 3,
+           minbreth = 1,
+           tbad = 2,
+           lorien = 8,
+        },
+      },
+    },
+    {
+       uid = "lightning_bolt",
+       name = "Lightning Bolt",
+       class = "magic user",
+       level = 9,
+       maxPrac = 16,
+       maxPercFormula = "50 + 1.5*{INT} + {WIS} + 0.67*{PER}",
+       teachers = {
+         freePeople = {
+           rdell = 16,
+           hlond = 9,
+           flond = 12,
+           minbreth = 5,
+           lorien = 10,
+        },
+      },
+    },
+    {
+       uid = "block_door",
+       name = "Block Door",
+       class = "magic user",
+       level = 9,
+       maxPrac = 11,
+       maxPercFormula = "50 + 2*{INT} + 1.25*{WIL}",
+       teachers = {
+         freePeople = {
+           rdell = 11,
+           lorien = 5,
+        },
+      },
+    },
+    {
+       uid = "control_weather",
+       name = "Control Weather",
+       class = "magic user",
+       level = 10,
+       maxPrac = 16,
+       maxPercFormula = "50 + 1.5*{INT} + {WIS} + 0.67*{WIL}",
+       teachers = {
+         freePeople = {
+           rdell = 3,
+           flond = 12,
+           lorien = 16,
+        },
+      },
+    },
+    {
+       uid = "store",
+       name = "Store",
+       class = "magic user",
+       level = 10,
+       maxPrac = 16,
+       maxPercFormula = "50 + 2*{INT} + 1.25*{WIS}",
+       teachers = {
+         freePeople = {
+           rdell = 16,
+           lorien = 10,
+        },
+      },
+    },
+    {
+       uid = "colour_spray",
+       name = "Colour Spray",
+       class = "magic user",
+       level = 11,
+       maxPrac = 16,
+       maxPercFormula = "50 + 1.5*{INT} + {WIS} + 0.67*{PER}",
+       teachers = {
+         freePeople = {
+           rdell = 16,
+           flond = 10,
+           lorien = 10,
+        },
+      },
+    },
+    {
+       uid = "locate_life",
+       name = "Locate Life",
+       class = "magic user",
+       level = 11,
+       maxPrac = 16,
+       maxPercFormula = "50 + 1.5*{INT} + {WIS} + 0.67*{WIL}",
+       teachers = {
+         freePeople = {
+           rdell = 3,
+           flond = 16,
+           tbad = 3,
+           lorien = 12,
+        },
+      },
+    },
+    {
+       uid = "call_lightning",
+       name = "Call Lightning",
+       class = "magic user",
+       level = 12,
+       maxPrac = 16,
+       maxPercFormula = "50 + 1.5*{INT} + {WIS} + 0.67*{PER}",
+       teachers = {
+         freePeople = {
+           rdell = 8,
+           flond = 16,
+        },
+      },
+    },
+    {
+       uid = "enchant",
+       name = "Enchant",
+       class = "magic user",
+       level = 12,
+       maxPrac = 22,
+       maxPercFormula = "50 + 2*{INT} + 1.25*{WIS}",
+       teachers = {
+         freePeople = {
+           rdell = 22,
+           lorien = 14,
+        },
+      },
+    },
+    {
+       uid = "shield",
+       name = "Shield",
+       class = "magic user",
+       level = 13,
+       maxPrac = 16,
+       maxPercFormula = "50 + 2*{INT} + 1.25*{WIS}",
+       teachers = {
+         freePeople = {
+           rdell = 12,
+           hlond = 3,
+           flond = 6,
+           tbad = 10,
+           lorien = 16,
+        },
+      },
+    },
+    {
+       uid = "scry",
+       name = "Scry",
+       class = "magic user",
+       level = 13,
+       maxPrac = 16,
+       maxPercFormula = nil,
+       teachers = {
+         freePeople = {
+           rdell = 5,
+           flond = 16,
+           tbad = 5,
+           lorien = 8,
+        },
+      },
+    },
+    {
+       uid = "charm",
+       name = "Charm",
+       class = "magic user",
+       level = 14,
+       maxPrac = 16,
+       maxPercFormula = "50 + 2*{INT} + 1.25*{WIL}",
+       teachers = {
+         freePeople = {
+           flond = 3,
+           tbad = 16,
+           lorien = 12,
+        },
+      },
+    },
+    {
+       uid = "sleep",
+       name = "Sleep",
+       class = "magic user",
+       level = 14,
+       maxPrac = 16,
+       maxPercFormula = "50 + 2*{INT} + 1.25*{WIL}",
+       teachers = {
+         freePeople = {
+           rdell = 3,
+           tbad = 16,
+           lorien = 12,
+        },
+      },
+    },
+    {
+       uid = "call_familiar",
+       name = "Call Familiar",
+       class = "magic user",
+       level = 15,
+       maxPrac = 7,
+       maxPercFormula = nil,
+       teachers = {
+         freePeople = {
+           flond = 3,
+           lorien = 7,
+        },
+      },
+    },
+    {
+       uid = "fireball",
+       name = "Fireball",
+       class = "magic user",
+       level = 15,
+       maxPrac = 16,
+       maxPercFormula = "50 + 1.5*{INT} + {WIS} + 0.67*{PER}",
+       teachers = {
+         freePeople = {
+           rdell = 16,
+           flond = 8,
+           tbad = 10,
+        },
+      },
+    },
+    {
+       uid = "identify",
+       name = "Identify",
+       class = "magic user",
+       level = 15,
+       maxPrac = 16,
+       maxPercFormula = " 50 + 1.5*{INT} + {WIS} + 0.67*{PER}",
+       teachers = {
+         freePeople = {
+           rdell = 16,
+           lorien = 8,
+        },
+      },
+    },
+    {
+       uid = "dispel_magic",
+       name = "Dispel Magic",
+       class = "magic user",
+       level = 16,
+       maxPrac = 22,
+       maxPercFormula = "50 + 2*{INT} + 1.25*{WIL}",
+       teachers = {
+         freePeople = {
+           rdell = 22,
+           lorien = 5,
+        },
+      },
+    },
+    {
+       uid = "watch_room",
+       name = "Watch Room",
+       class = "magic user",
+       level = 16,
+       maxPrac = 10,
+       maxPercFormula = nil,
+       teachers = {
+         freePeople = {
+           flond = 10,
+           lorien = 8,
+        },
+      },
+    },
+    {
+       uid = "silence",
+       name = "Silence",
+       class = "magic user",
+       level = 17,
+       maxPrac = 11,
+       maxPercFormula = nil,
+       teachers = {
+         freePeople = {
+           rdell = 11,
+           lorien = 4,
+        },
+      },
+    },
+    {
+       uid = "portal",
+       name = "Portal",
+       class = "magic user",
+       level = 18,
+       maxPrac = 22,
+       maxPercFormula = "50 + 2*{INT} + 1.25*{WIL}",
+       teachers = {
+         freePeople = {
+           rdell = 22,
+           lorien = 14,
+        },
+      },
+    },
+
+    -- === cleric ========================================================================
+   
+    {
+       uid = "detect_evil",
+       name = "Detect Evil",
+       class = "cleric",
+       level = 1,
+       maxPrac = 8,
+       maxPercFormula = nil,
+       teachers = {
+         freePeople = {
+           rdell = 8,
+           hlond = 5,
+           flond = 8,
+           minbreth = 8,
+           lorien = 8,
+        },
+      },
+    },
+    {
+       uid = "cure_light",
+       name = "Cure Light",
+       class = "cleric",
+       level = 1,
+       maxPrac = 12,
+       maxPercFormula = "50 + 1.875*{WIS} + 1.25*{INT}",
+       teachers = {
+         freePeople = {
+           rdell = 12,
+           hlond = 5,
+           flond = 3,
+           druid = 6,
+           minbreth = 3,
+           lorien = 12,
+           thills = 6,
+        },
+      },
+    },
+    {
+       uid = "create_water",
+       name = "Create Water",
+       class = "cleric",
+       level = 2,
+       maxPrac = 12,
+       maxPercFormula = "50 + 1.875*{WIS} + 1.25*{INT}",
+       teachers = {
+         freePeople = {
+           hlond = 2,
+           druid = 12,
+           lorien = 5,
+           thills = 4,
+        },
+      },
+    },
+    {
+       uid = "detect_poison",
+       name = "Detect Poison",
+       class = "cleric",
+       level = 2,
+       maxPrac = 8,
+       maxPercFormula = nil,
+       teachers = {
+         freePeople = {
+           rdell = 6,
+           hlond = 3,
+           flond = 3,
+           druid = 8,
+           minbreth = 3,
+           lorien = 8,
+        },
+      },
+    },
+    {
+       uid = "create_food",
+       name = "Create Food",
+       class = "cleric",
+       level = 3,
+       maxPrac = 12,
+       maxPercFormula = "50 + 1.875*{WIS} + 1.25*{INT}",
+       teachers = {
+         freePeople = {
+           hlond = 2,
+           druid = 12,
+           lorien = 3,
+           thills = 4,
+        },
+      },
+    },
+    {
+       uid = "smother",
+       name = "Smother",
+       class = "cleric",
+       level = 3,
+       maxPrac = 9,
+       maxPercFormula = nil,
+       teachers = {
+         freePeople = {
+           druid = 9,
+           minbreth = 3,
+           tbad = 6,
+           thills = 9,
+        },
+      },
+    },
+    {
+       uid = "cure_blindness",
+       name = "Cure Blindness",
+       class = "cleric",
+       level = 4,
+       maxPrac = 12,
+       maxPercFormula = "50 + 1.875*{WIS} + 1.25*{INT}",
+       teachers = {
+         freePeople = {
+           rdell = 12,
+           hlond = 2,
+           flond = 3,
+           minbreth = 1,
+           tbad = 2,
+           lorien = 12,
+        },
+      },
+    },
+    {
+       uid = "bless",
+       name = "Bless",
+       class = "cleric",
+       level = 5,
+       maxPrac = 12,
+       maxPercFormula = "45 + 1.5*{WIS} + {INT} + 0.67*{WIL}",
+       teachers = {
+         freePeople = {
+           rdell = 3,
+           hlond = 6,
+           flond = 12,
+           minbreth = 1,
+           lorien = 3,
+           thills = 5,
+        },
+      },
+    },
+    {
+       uid = "cure_serious",
+       name = "Cure Serious",
+       class = "cleric",
+       level = 5,
+       maxPrac = 12,
+       maxPercFormula = "50 + 1.875*{WIS} + 1.25*{INT}",
+       teachers = {
+         freePeople = {
+           rdell = 12,
+           hlond = 5,
+           flond = 8,
+           druid = 8,
+           tbad = 5,
+           lorien = 12,
+           thills = 8,
+        },
+      },
+    },
+    {
+       uid = "blindness",
+       name = "Blindness",
+       class = "cleric",
+       level = 6,
+       maxPrac = 18,
+       maxPercFormula = "50 + 1.875*{WIS} + 1.25*{WIL}",
+       teachers = {
+         freePeople = {
+           rdell = 3,
+           flond = 3,
+           druid = 18,
+           minbreth = 1,
+           tbad = 18,
+           lorien = 4,
+        },
+      },
+    },
+    {
+       uid = "protection_from_evil",
+       name = "Protection from Evil",
+       class = "cleric",
+       level = 6,
+       maxPrac = 18,
+       maxPercFormula = nil,
+       teachers = {
+         freePeople = {
+           rdell = 3,
+           flond = 18,
+           minbreth = 2,
+           lorien = 18,
+        },
+      },
+    },
+    {
+       uid = "strength",
+       name = "Strength",
+       class = "cleric",
+       level = 7,
+       maxPrac = 18,
+       maxPercFormula = "50 + 1.875*{WIS} + 1.25*{INT}",
+       teachers = {
+         freePeople = {
+           rdell = 18,
+           hlond = 3,
+           flond = 18,
+           druid = 3,
+           minbreth = 2,
+           tbad = 3,
+           lorien = 10,
+        },
+      },
+    },
+    {
+       uid = "sense_life",
+       name = "Sense Life",
+       class = "cleric",
+       level = 7,
+       maxPrac = 9,
+       maxPercFormula = nil,
+       teachers = {
+         freePeople = {
+           rdell = 3,
+           hlond = 2,
+           flond = 3,
+           minbreth = 1,
+           tbad = 9,
+           lorien = 3,
+        },
+      },
+    },
+    {
+       uid = "summon",
+       name = "Summon",
+       class = "cleric",
+       level = 8,
+       maxPrac = 18,
+       maxPercFormula = "50 + 1.875*{WIS} + 1.25*{WIL}",
+       teachers = {
+         freePeople = {
+           flond = 18,
+           lorien = 10,
+        },
+      },
+    },
+    {
+       uid = "poison",
+       name = "Poison",
+       class = "cleric",
+       level = 8,
+       maxPrac = 12,
+       maxPercFormula = nil,
+       teachers = {
+         freePeople = {
+           rdell = 2,
+           flond = 1,
+           tbad = 12,
+        },
+      },
+    },
+    {
+       uid = "cure_critic",
+       name = "Cure Critic",
+       class = "cleric",
+       level = 9,
+       maxPrac = 12,
+       maxPercFormula = "50 + 1.875*{WIS} + 1.25*{INT}",
+       teachers = {
+         freePeople = {
+           rdell = 12,
+           flond = 3,
+           druid = 8,
+           lorien = 12,
+        },
+      },
+    },
+    {
+       uid = "remove_poison",
+       name = "Remove Poison",
+       class = "cleric",
+       level = 9,
+       maxPrac = 12,
+       maxPercFormula = "50 + 1.875*{WIS} + 1.25*{INT}",
+       teachers = {
+         freePeople = {
+           rdell = 12,
+           flond = 3,
+           druid = 3,
+           minbreth = 1,
+           tbad = 1,
+           lorien = 12,
+        },
+      },
+    },
+    {
+       uid = "breath_of_briskness",
+       name = "Breath of Briskness",
+       class = "cleric",
+       level = 10,
+       maxPrac = 18,
+       maxPercFormula = "50 + 1.875*{WIS} + 1.25*{INT}",
+       teachers = {
+         freePeople = {
+           rdell = 4,
+           flond = 4,
+           druid = 18,
+           minbreth = 2,
+           tbad = 2,
+           lorien = 10,
+        },
+      },
+    },
+    {
+       uid = "curse",
+       name = "Curse",
+       class = "cleric",
+       level = 10,
+       maxPrac = 12,
+       maxPercFormula = nil,
+       teachers = {
+         freePeople = {
+           rdell = 2,
+           flond = 2,
+           tbad = 12,
+        },
+      },
+    },
+    {
+       uid = "divination",
+       name = "Divination",
+       class = "cleric",
+       level = 11,
+       maxPrac = 18,
+       maxPercFormula = nil,
+       teachers = {
+         freePeople = {
+           rdell = 2,
+           flond = 18,
+           lorien = 8,
+        },
+      },
+    },
+    {
+       uid = "word_of_recall",
+       name = "Word of Recall",
+       class = "cleric",
+       level = 11,
+       maxPrac = 23,
+       maxPercFormula = "50 + 1.875*{WIS} + 1.25*{WIL}",
+       teachers = {
+         freePeople = {
+           rdell = 12,
+           flond = 23,
+           tbad = 6,
+           lorien = 10,
+        },
+      },
+    },
+    {
+       uid = "dispel_evil",
+       name = "Dispel Evil",
+       class = "cleric",
+       level = 12,
+       maxPrac = 18,
+       maxPercFormula = "50 + 1.875*{WIS} + 1.25*{WIL}",
+       teachers = {
+         freePeople = {
+           rdell = 8,
+           flond = 18,
+           lorien = 8,
+        },
+      },
+    },
+    {
+       uid = "remove_curse",
+       name = "Remove Curse",
+       class = "cleric",
+       level = 12,
+       maxPrac = 12,
+       maxPercFormula = "50 + 1.875*{WIS} + 1.25*{INT}",
+       teachers = {
+         freePeople = {
+           rdell = 6,
+           flond = 12,
+           minbreth = 1,
+           lorien = 10,
+        },
+      },
+    },
+    {
+       uid = "heal",
+       name = "Heal",
+       class = "cleric",
+       level = 13,
+       maxPrac = 18,
+       maxPercFormula = "50 + 1.875*{WIS} + 1.25*{INT}",
+       teachers = {
+         freePeople = {
+           rdell = 18,
+           flond = 8,
+           druid = 7,
+           lorien = 18,
+        },
+      },
+    },
+    {
+       uid = "transfer",
+       name = "Transfer",
+       class = "cleric",
+       level = 14,
+       maxPrac = 23,
+       maxPercFormula = "50 + 1.875*{WIS} + 1.25*{WIL}",
+       teachers = {
+         freePeople = {
+           flond = 23,
+           lorien = 14,
+        },
+      },
+    },
+    {
+       uid = "fear",
+       name = "Fear",
+       class = "cleric",
+       level = 15,
+       maxPrac = 18,
+       maxPercFormula = "50 + 1.875*{WIS} + 1.25*{WIL}",
+       teachers = {
+         freePeople = {
+           rdell = 18,
+           flond = 10,
+           tbad = 8,
+        },
+      },
+    },
+    {
+       uid = "harm",
+       name = "Harm",
+       class = "cleric",
+       level = 15,
+       maxPrac = 18,
+       maxPercFormula = "50 + 1.875*{WIS} + 1.25*{INT}",
+       teachers = {
+         freePeople = {
+           druid = 18,
+           tbad = 18,
+        },
+      },
+    },
+    {
+       uid = "break_door",
+       name = "Break Door",
+       class = "cleric",
+       level = 17,
+       maxPrac = 12,
+       maxPercFormula = "50 + 1.875*{WIS} + 1.25*{WIL}",
+       teachers = {
+         freePeople = {
+           flond = 12,
+           lorien = 6,
+        },
+      },
+    },
+    {
+       uid = "hold",
+       name = "Hold",
+       class = "cleric",
+       level = 17,
+       maxPrac = 0,
+       maxPercFormula = nil,
+       teachers = {
+         freePeople = {
+        },
+      },
+    },
+    {
+       uid = "sanctuary",
+       name = "Sanctuary",
+       class = "cleric",
+       level = 18,
+       maxPrac = 25,
+       maxPercFormula = "50 + 1.875*{WIS} + 1.25*{INT}",
+       teachers = {
+         freePeople = {
+           rdell = 15,
+           flond = 6,
+           lorien = 25,
+        },
+      },
+    },
+  },
+  -- /skills
+
+}</script>
+				<eventHandlerList />
+			</Script>
+		</ScriptGroup>
+	</ScriptPackage>
+</MudletPackage>
